@@ -45,7 +45,7 @@ router.post('/sync', verifyTelegramWebAppData, async (req, res) => {
       success: true,
       user: {
         id: user._id,
-        name: `${user.firstName} ${user.lastName || ''}`.trim()
+        name: `${user.firstName} ${user.lastName || ''}`.trim(),
         phone: user.phone,
         telegram: user.telegramHandle,
         balance: user.balance,
