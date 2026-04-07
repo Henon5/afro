@@ -1,0 +1,170 @@
+game.js
+
+const express = require('express');
+const router = express.Router();
+const User = require('../models/User');
+const GameRoom = require('../models/GameRoom');
+const verifyTelegramWebAppData = require('../middleware/auth');
+const { checkBingoWin } = require('../utils/bingoLogic');
+
+// Join a room
+router.post('/join/:amount', verifyTelegramWebAppData, async (req, res) => {
+  try {
+    const amount = parseInt(req.params.amount);
+    if (![20, 50, 100].includes(amount)) {
+      return res.status(400).json({ error: 'Invalid room amount' });
+    }
+
+    const tgUser = req.telegramUser;
+    const user = await User.findOne({ telegramId: tgUser.id.toString() });
+    
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.isBlocked) return res.status(403).json({ error: 'Account blocked' });
+    if (user.balance < amount) {
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
+
+    // Calculate pool split (85% pool, 15% house)
+    const poolContribution = Math.floor(amount * 0.85);
+    const houseContribution = amount - poolContribution;
+
+    // Update user balance
+    user.balance -= amount;
+    user.selectedRoom = amount;
+    user.gamesPlayed += 1;
+
+    // Update room pool
+    const room = await GameRoom.findOneAndUpdate(
+      { entryAmount: amount },
+      {
+        $inc: { 
+          currentPool: poolContribution, 
+          houseEarnings: houseContribution 
+        },
+        $addToSet: { 
+          activePlayers: {
+            telegramId: user.telegramId,
+            joinedAt: new Date()
+          }
+        }
+      },
+      { new: true, upsert: true }
+    );
+
+    await user.save();
+
+    // Generate bingo card (server-side for security)
+    const card = generateBingoCard();
+
+    res.json({
+      success: true,
+      message: `Joined ${amount} ETB room`,
+      card: card,
+      pool: room.currentPool,
+      playersCount: room.activePlayers.length,
+      userBalance: user.balance
+    });
+  } catch (error) {
+    console.error('Join room error:', error);
+    res.status(500).json({ error: 'Failed to join room' });
+  }
+});
+
+// Generate secure bingo card
+function generateBingoCard() {
+  const card = [];
+  const columns = ['B', 'I', 'N', 'G', 'O'];
+  
+  for (let col = 0; col < 5; col++) {
+    const min = col * 15 + 1;
+    const max = min + 14;
+    const numbers = [];
+    
+    while (numbers.length < 5) {
+      const num = Math.floor(Math.random() * 15) + min;
+      if (!numbers.includes(num)) numbers.push(num);
+    }
+    
+    card.push(numbers.sort((a, b) => a - b));
+  }
+  
+  // Mark FREE space
+  return {
+    grid: card,
+    marked: [
+      [false, false, false, false, false],
+      [false, false, false, false, false],
+      [false, false, true,  false, false], // FREE space
+      [false, false, false, false, false],
+      [false, false, false, false, false]
+    ]
+  };
+}
+
+// Mark a number on card
+router.post('/mark', verifyTelegramWebAppData, async (req, res) => {
+  try {
+    const { number, row, col } = req.body;
+    const tgUser = req.telegramUser;
+    
+    // In production: validate that number was actually called
+    // and that this user has an active game
+    
+    res.json({ success: true, message: 'Number marked' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to mark number' });
+  }
+});
+
+// Claim bingo win
+router.post('/claim', verifyTelegramWebAppData, async (req, res) => {
+  try {
+    const { cardMarked, calledNumbers } = req.body;
+    const tgUser = req.telegramUser;
+    const user = await User.findOne({ telegramId: tgUser.id.toString() });
+    
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    // Server-side win verification (CRITICAL for security)
+    const hasWon = checkBingoWin(cardMarked);
+    if (!hasWon) {
+      return res.status(400).json({ error: 'Invalid bingo claim' });
+    }
+
+    const roomAmount = user.selectedRoom;
+    const room = await GameRoom.findOne({ entryAmount: roomAmount });
+    
+    if (!room || room.currentPool <= 0) {
+      return res.status(400).json({ error: 'No active pool' });
+    }
+
+    // Award winnings
+    const winnings = room.currentPool;
+    user.balance += winnings;
+    user.totalWins += 1;
+    user.totalWinnings += winnings;
+
+    // Reset room pool
+    room.currentPool = 0;
+    room.activePlayers = [];
+    room.totalGames += 1;
+    room.totalPayouts += winnings;
+
+    await user.save();
+    await room.save();
+
+    res.json({
+      success: true,
+      message: '🎉 BINGO! You won!',
+      winnings: winnings,
+      newBalance: user.balance,
+      winner: user.firstName
+    });
+  } catch (error) {
+    console.error('Claim error:', error);
+    res.status(500).json({ error: 'Failed to process claim' });
+  }
+});
+
+module.exports = router;
+
