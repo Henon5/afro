@@ -1,32 +1,20 @@
 const mongoose = require('mongoose');
 
-const gameRoomSchema = new mongoose.Schema({
-  entryAmount: { type: Number, required: true, unique: true, enum: [20, 50, 100] },
-  
-  // Pool Management
+const roomPoolSchema = new mongoose.Schema({
+  roomAmount: { type: Number, required: true, enum: [20, 50, 100], unique: true },
   currentPool: { type: Number, default: 0, min: 0 },
-  houseEarnings: { type: Number, default: 0, min: 0 },
-  
-  // Active Players (store telegramId for security)
-  activePlayers: [{
-    telegramId: { type: String, required: true },
-    joinedAt: { type: Date, default: Date.now },
-    cardData: Object, // Store encrypted card if needed
-    markedNumbers: [Number],
-    hasClaimed: { type: Boolean, default: false }
-  }],
-  
-  // Game State
-  currentGame: {
-    isActive: { type: Boolean, default: false },
-    calledNumbers: [Number],
-    startTime: Date,
-    winner: { type: String, ref: 'User' }
-  },
-  
-  // Statistics
+  houseTotal: { type: Number, default: 0, min: 0 },
+  players: [{ telegramId: String, joinedAt: { type: Date, default: Date.now } }],
+  activeGame: { calledNumbers: [Number], startTime: Date, winner: String },
   totalGames: { type: Number, default: 0 },
-  totalPayouts: { type: Number, default: 0 }
+  totalPaidOut: { type: Number, default: 0 }
 }, { timestamps: true });
 
-module.exports = mongoose.model('GameRoom', gameRoomSchema);
+roomPoolSchema.statics.initializeRooms = async function() {
+  const rooms = [20, 50, 100];
+  for (const amount of rooms) {
+    await this.findOneAndUpdate({ roomAmount: amount }, { roomAmount: amount }, { upsert: true, new: true, setDefaultsOnInsert: true });
+  }
+};
+
+module.exports = mongoose.model('RoomPool', roomPoolSchema);
