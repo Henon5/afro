@@ -1,116 +1,34 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
+const { auth } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
 const Transaction = require('../models/Transaction');
-const verifyTelegramWebAppData = require('../middleware/auth');
+const User = require('../models/User');
 
-// Request deposit
-router.post('/deposit', verifyTelegramWebAppData, async (req, res) => {
-  try {
-    const { amount, paymentMethod } = req.body;
-    const tgUser = req.telegramUser;
-    
-    if (!amount || amount < 20) {
-      return res.status(400).json({ error: 'Minimum deposit is 20 ETB' });
-    }
-    
-    const user = await User.findOne({ telegramId: tgUser.id.toString() });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    const transaction = await Transaction.create({
-      userId: user._id,
-      telegramId: user.telegramId,
-      type: 'deposit',
-      amount: amount,
-      paymentMethod: paymentMethod || 'telebirr',
-      senderPhone: user.phone,
-      status: 'pending',
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
-    });
-
-    // Optional: Send notification to admin Telegram bot
-    // await notifyAdmin(`💰 New deposit request: ${user.firstName} - ${amount} ETB`);
-
-    res.json({
-      success: true,
-      message: 'Deposit request submitted',
-      transactionId: transaction._id,
-      instructions: {
-        telebirr: '0921302111',
-        cbe: '1000318833625',
-        note: 'Include your Telegram username in payment reference'
-      }
-    });
-  } catch (error) {
-    console.error('Deposit error:', error);
-    res.status(500).json({ error: 'Failed to create deposit request' });
-  }
+router.post('/deposit', auth, validate('deposit'), async (req, res) => {
+  const tx = await Transaction.create({ userId: req.user._id, type: 'deposit', amount: req.body.amount, paymentMethod: req.body.paymentMethod || 'telebirr', status: 'pending' });
+  res.json({ success: true, transaction: { id: tx._id, amount: tx.amount, status: tx.status } });
 });
 
-// Request withdrawal
-router.post('/withdraw', verifyTelegramWebAppData, async (req, res) => {
-  try {
-    const { amount, phone } = req.body;
-    const tgUser = req.telegramUser;
-    
-    if (!amount || amount < 10) {
-      return res.status(400).json({ error: 'Minimum withdrawal is 10 ETB' });
-    }
-    
-    const user = await User.findOne({ telegramId: tgUser.id.toString() });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.isBlocked) return res.status(403).json({ error: 'Account blocked' });
-    if (user.balance < amount) {
-      return res.status(400).json({ error: 'Insufficient balance' });
-    }
-    if (!phone) {
-      return res.status(400).json({ error: 'Phone number required' });
-    }
-
-    // Deduct balance immediately (hold funds)
-    user.balance -= amount;
-    await user.save();
-
-    const transaction = await Transaction.create({
-      userId: user._id,
-      telegramId: user.telegramId,
-      type: 'withdrawal',
-      amount: amount,
-      paymentMethod: 'telebirr',
-      senderPhone: phone,
-      status: 'pending',
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
-    });
-
-    res.json({
-      success: true,
-      message: 'Withdrawal request submitted',
-      transactionId: transaction._id,
-      newBalance: user.balance
-    });
-  } catch (error) {
-    console.error('Withdrawal error:', error);
-    res.status(500).json({ error: 'Failed to process withdrawal' });
-  }
+router.post('/withdraw', auth, validate('withdrawal'), async (req, res) => {
+  const user = await User.findById(req.user._id);
+  if (user.balance < req.body.amount) return res.status(400).json({ error: 'Insufficient balance' });
+  user.balance -= req.body.amount; await user.save();
+  const tx = await Transaction.create({ userId: user._id, type: 'withdrawal', amount: req.body.amount, paymentMethod: 'telebirr', status: 'pending', metadata: { phone: req.body.phone } });
+  res.json({ success: true, transaction: { id: tx._id, amount: tx.amount, newBalance: user.balance } });
 });
 
-// Check transaction status
-router.get('/transactions', verifyTelegramWebAppData, async (req, res) => {
-  try {
-    const tgUser = req.telegramUser;
-    const transactions = await Transaction.find({ 
-      telegramId: tgUser.id.toString() 
-    })
-    .sort({ createdAt: -1 })
-    .limit(20)
-    .select('type amount status createdAt paymentMethod');
+router.get('/:id', auth, async (req, res) => {
+  const tx = await Transaction.findById(req.params.id).lean();
+  if (!tx) return res.status(404).json({ error: 'Transaction not found' });
+  res.json({ success: true, transaction: tx });
+});
 
-    res.json({ success: true, transactions });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch transactions' });
-  }
+router.get('/history', auth, async (req, res) => {
+  const { limit = 20, page = 1 } = req.query;
+  const skip = (page - 1) * limit;
+  const [transactions, total] = await Promise.all([Transaction.find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(parseInt(limit)).skip(skip).lean(), Transaction.countDocuments({ userId: req.user._id })]);
+  res.json({ success: true, transactions, pagination: { page: parseInt(page), total } });
 });
 
 module.exports = router;
