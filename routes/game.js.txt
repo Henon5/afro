@@ -1,170 +1,123 @@
-game.js
-
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
-const GameRoom = require('../models/GameRoom');
-const verifyTelegramWebAppData = require('../middleware/auth');
-const { checkBingoWin } = require('../utils/bingoLogic');
+const { auth } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
+const RoomPool = require('../models/RoomPool');
+const GameSession = require('../models/GameSession');
+const Transaction = require('../models/Transaction');
 
-// Join a room
-router.post('/join/:amount', verifyTelegramWebAppData, async (req, res) => {
+router.get('/rooms', auth, async (req, res) => {
   try {
-    const amount = parseInt(req.params.amount);
-    if (![20, 50, 100].includes(amount)) {
-      return res.status(400).json({ error: 'Invalid room amount' });
-    }
+    const rooms = await RoomPool.find();
+    const map = {};
+    rooms.forEach(r => map[r.roomAmount] = { pool: r.currentPool, players: r.players.length });
+    res.json({ success: true, rooms: map });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch rooms' });
+  }
+});
 
-    const tgUser = req.telegramUser;
-    const user = await User.findOne({ telegramId: tgUser.id.toString() });
-    
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.isBlocked) return res.status(403).json({ error: 'Account blocked' });
-    if (user.balance < amount) {
-      return res.status(400).json({ error: 'Insufficient balance' });
-    }
+router.post('/join', auth, validate('joinRoom'), async (req, res) => {
+  try {
+    const { roomAmount } = req.body;
+    const user = await User.findById(req.user._id);
+    if (user.balance < roomAmount) return res.status(400).json({ error: 'Insufficient balance' });
 
-    // Calculate pool split (85% pool, 15% house)
-    const poolContribution = Math.floor(amount * 0.85);
-    const houseContribution = amount - poolContribution;
+    let roomPool = await RoomPool.findOne({ roomAmount });
+    if (!roomPool) roomPool = await RoomPool.create({ roomAmount });
 
-    // Update user balance
-    user.balance -= amount;
-    user.selectedRoom = amount;
-    user.gamesPlayed += 1;
+    const poolContribution = Math.floor(roomAmount * (1 - parseFloat(process.env.HOUSE_COMMISSION)));
+    const houseContribution = roomAmount - poolContribution;
+    const { cardGrid, markedState } = GameSession.generateCard();
 
-    // Update room pool
-    const room = await GameRoom.findOneAndUpdate(
-      { entryAmount: amount },
-      {
-        $inc: { 
-          currentPool: poolContribution, 
-          houseEarnings: houseContribution 
-        },
-        $addToSet: { 
-          activePlayers: {
-            telegramId: user.telegramId,
-            joinedAt: new Date()
-          }
-        }
-      },
-      { new: true, upsert: true }
-    );
-
+    user.balance -= roomAmount;
     await user.save();
+    await Transaction.create({ userId: user._id, type: 'game_entry', amount: -roomAmount, status: 'completed', metadata: { roomAmount } });
 
-    // Generate bingo card (server-side for security)
-    const card = generateBingoCard();
+    roomPool.currentPool += poolContribution;
+    roomPool.houseTotal += houseContribution;
+    if (!roomPool.players.some(p => p.telegramId === user.telegramId)) roomPool.players.push({ telegramId: user.telegramId });
+    await roomPool.save();
 
-    res.json({
-      success: true,
-      message: `Joined ${amount} ETB room`,
-      card: card,
-      pool: room.currentPool,
-      playersCount: room.activePlayers.length,
-      userBalance: user.balance
-    });
-  } catch (error) {
-    console.error('Join room error:', error);
+    let gameSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
+    if (!gameSession) gameSession = await GameSession.create({ roomAmount, gameStatus: 'waiting' });
+    
+    gameSession.players.push({ user: user._id, cardGrid, markedState });
+    if (gameSession.gameStatus === 'waiting') { gameSession.gameStatus = 'active'; gameSession.startedAt = new Date(); }
+    await gameSession.save();
+
+    res.json({ success: true, game: { sessionId: gameSession._id, roomAmount, currentPool: roomPool.currentPool, playersCount: roomPool.players.length, cardGrid, markedState, calledNumbers: gameSession.calledNumbers } });
+  } catch (err) {
     res.status(500).json({ error: 'Failed to join room' });
   }
 });
 
-// Generate secure bingo card
-function generateBingoCard() {
-  const card = [];
-  const columns = ['B', 'I', 'N', 'G', 'O'];
-  
-  for (let col = 0; col < 5; col++) {
-    const min = col * 15 + 1;
-    const max = min + 14;
-    const numbers = [];
-    
-    while (numbers.length < 5) {
-      const num = Math.floor(Math.random() * 15) + min;
-      if (!numbers.includes(num)) numbers.push(num);
-    }
-    
-    card.push(numbers.sort((a, b) => a - b));
-  }
-  
-  // Mark FREE space
-  return {
-    grid: card,
-    marked: [
-      [false, false, false, false, false],
-      [false, false, false, false, false],
-      [false, false, true,  false, false], // FREE space
-      [false, false, false, false, false],
-      [false, false, false, false, false]
-    ]
-  };
-}
-
-// Mark a number on card
-router.post('/mark', verifyTelegramWebAppData, async (req, res) => {
+router.post('/mark', auth, async (req, res) => {
   try {
-    const { number, row, col } = req.body;
-    const tgUser = req.telegramUser;
-    
-    // In production: validate that number was actually called
-    // and that this user has an active game
-    
-    res.json({ success: true, message: 'Number marked' });
-  } catch (error) {
+    const { sessionId, row, col } = req.body;
+    const gameSession = await GameSession.findOne({ _id: sessionId, gameStatus: 'active' });
+    if (!gameSession) return res.status(404).json({ error: 'Game not found or not active' });
+
+    const player = gameSession.players.find(p => p.user === req.user._id);
+    if (!player) return res.status(403).json({ error: 'Not in this game' });
+    const num = player.cardGrid[row][col];
+    if (!(row === 2 && col === 2) && !gameSession.calledNumbers.includes(num)) return res.status(400).json({ error: 'Number not called yet' });
+
+    player.markedState[row][col] = !player.markedState[row][col];
+    await gameSession.save();
+
+    const playerIndex = gameSession.players.indexOf(player);
+    const winResult = gameSession.checkWin(playerIndex);
+    res.json({ success: true, marked: player.markedState[row][col], matches: player.markedState.flat().filter(Boolean).length - 1, win: winResult.win, pattern: winResult.pattern });
+  } catch (err) {
     res.status(500).json({ error: 'Failed to mark number' });
   }
 });
 
-// Claim bingo win
-router.post('/claim', verifyTelegramWebAppData, async (req, res) => {
+router.post('/claim', auth, async (req, res) => {
   try {
-    const { cardMarked, calledNumbers } = req.body;
-    const tgUser = req.telegramUser;
-    const user = await User.findOne({ telegramId: tgUser.id.toString() });
-    
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    
-    // Server-side win verification (CRITICAL for security)
-    const hasWon = checkBingoWin(cardMarked);
-    if (!hasWon) {
-      return res.status(400).json({ error: 'Invalid bingo claim' });
-    }
+    const { sessionId } = req.body;
+    const gameSession = await GameSession.findOne({ _id: sessionId, gameStatus: 'active' });
+    if (!gameSession) return res.status(404).json({ error: 'Game not found' });
 
-    const roomAmount = user.selectedRoom;
-    const room = await GameRoom.findOne({ entryAmount: roomAmount });
-    
-    if (!room || room.currentPool <= 0) {
-      return res.status(400).json({ error: 'No active pool' });
-    }
+    const playerIndex = gameSession.players.findIndex(p => p.user === req.user._id);
+    const winResult = gameSession.checkWin(playerIndex);
+    if (!winResult.win) return res.status(400).json({ error: 'No bingo pattern detected' });
 
-    // Award winnings
-    const winnings = room.currentPool;
-    user.balance += winnings;
-    user.totalWins += 1;
-    user.totalWinnings += winnings;
+    const roomPool = await RoomPool.findOne({ roomAmount: gameSession.roomAmount });
+    const winnings = roomPool.currentPool;
+    roomPool.currentPool = 0; roomPool.houseTotal += roomPool.houseTotal; roomPool.players = [];
+    await roomPool.save();
 
-    // Reset room pool
-    room.currentPool = 0;
-    room.activePlayers = [];
-    room.totalGames += 1;
-    room.totalPayouts += winnings;
-
+    const user = await User.findById(req.user._id);
+    user.balance += winnings; user.totalWins++; user.totalWinnings += winnings; user.gamesPlayed++;
     await user.save();
-    await room.save();
 
-    res.json({
-      success: true,
-      message: '🎉 BINGO! You won!',
-      winnings: winnings,
-      newBalance: user.balance,
-      winner: user.firstName
-    });
-  } catch (error) {
-    console.error('Claim error:', error);
-    res.status(500).json({ error: 'Failed to process claim' });
+    await Transaction.create({ userId: user._id, type: 'winning', amount: winnings, status: 'completed' });
+    gameSession.gameStatus = 'completed'; gameSession.completedAt = new Date(); gameSession.winner = user._id; gameSession.winningPattern = winResult.pattern;
+    await gameSession.save();
+
+    res.json({ success: true, winnings, newBalance: user.balance, pattern: winResult.pattern });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to claim win' });
+  }
+});
+
+router.get('/number/:sessionId', auth, async (req, res) => {
+  try {
+    const gameSession = await GameSession.findOne({ _id: req.params.sessionId, gameStatus: 'active' });
+    if (!gameSession) return res.status(404).json({ error: 'Game not found' });
+    const available = Array.from({ length: 75 }, (_, i) => i + 1).filter(n => !gameSession.calledNumbers.includes(n));
+    if (available.length === 0) return res.json({ success: true, number: null, complete: true });
+    const nextNumber = available[Math.floor(Math.random() * available.length)];
+    gameSession.calledNumbers.push(nextNumber);
+    gameSession.currentNumber = nextNumber;
+    await gameSession.save();
+    const letter = ['B','I','N','G','O'][Math.floor((nextNumber - 1) / 15)];
+    res.json({ success: true, number: nextNumber, display: `${letter}-${nextNumber}`, callCount: gameSession.calledNumbers.length, complete: available.length <= 1 });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get number' });
   }
 });
 
 module.exports = router;
-
