@@ -1084,43 +1084,23 @@ Index.html
       getTransactions: () => this._request('/transactions'),
 
       // 👮 Admin Endpoints
-      adminLogin: (creds) => this._request('/admin/login', {
-        method: 'POST',
-        body: JSON.stringify(creds),
-        loadingText: 'Authenticating...'
-      }),
-      
-      getAdminStats: (token) => this._request('/admin/stats', {
-        headers: { 'x-admin-token': token }
-      }),
-      
-      approveDeposit: (id, token) => this._request(`/admin/approve-deposit/${id}`, {
-        method: 'POST',
-        headers: { 'x-admin-token': token }
-      }),
-      
-      approveWithdrawal: (id, token) => this._request(`/admin/approve-withdrawal/${id}`, {
-        method: 'POST',
-        headers: { 'x-admin-token': token }
-      }),
-      
-      addFunds: (data, token) => this._request('/admin/add-funds', {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: { 'x-admin-token': token }
-      }),
-      
-      toggleBlockUser: (data, token) => this._request('/admin/toggle-block', {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: { 'x-admin-token': token }
-      }),
-      
-      resetPools: (token) => this._request('/admin/reset-pools', {
-        method: 'POST',
-        headers: { 'x-admin-token': token }
-      })
-    };
+ adminLogin: async ({ masterId, secureCode, securityKey }) => {
+  const res = await fetch(`${CONFIG.API_BASE}/admin/stats`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      // 🔥 ADD THIS EXACT LINE:
+      'x-admin-auth': JSON.stringify({ masterId, secureCode, securityKey })
+    }
+  });
+  
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || 'Login failed');
+  }
+  
+  return await res.json();
+},
 
     // ============================================
     // 🔊 SOUND MANAGER
