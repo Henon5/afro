@@ -983,7 +983,13 @@ Index.html
     const CONFIG = {
       // 🔗 CHANGE THIS TO YOUR DEPLOYED BACKEND URL
       API_BASE: 'https://afro-production-dd8e.up.railway.app/api',
-      // For local testing: 'http://localhost:3000/api'
+      // For local testing: 'http://localhost:3000/api'}
+      // --- FIX FOR SOUND ERROR ---
+      const Sound = {
+        play: () => {},
+        stop: () => {}
+      };
+// ---------------------------
       
       // 🎮 Game Settings
       AUTO_PLAY_INTERVAL: 3000, // ms between number calls
