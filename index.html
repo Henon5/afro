@@ -978,23 +978,18 @@ Index.html
 
   <script>
     // ============================================
-    // ⚙️ CONFIGURATION
+    // ⚙️ CONFIGURATION 
+    // --- FIX FOR SOUND ERROR (OUTSIDE CONFIG) ---
+const Sound = {
+  play: () => {},
+  stop: () => {}
+};
 // ============================================
 const CONFIG = {
   // 🔗 CHANGE THIS TO YOUR DEPLOYED BACKEND URL
   API_BASE: 'https://afro-production-dd8e.up.railway.app/api',
   // For local testing: 'http://localhost:3000/api'
-  
-  // 🎮 Game Settings
-  MIN_BET: 1,
-  MAX_BET: 1000,
 
-// --- FIX FOR SOUND ERROR (OUTSIDE CONFIG) ---
-const Sound = {
-  play: () => {},
-  stop: () => {}
-};
-// --------------------------------------------
       // 🎮 Game Settings
       AUTO_PLAY_INTERVAL: 3000, // ms between number calls
       MAX_CALLED_NUMBERS: 75,
