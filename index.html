@@ -1,3 +1,4 @@
+Index.html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -47,6 +48,7 @@
       -webkit-font-smoothing: antialiased;
     }
     
+    /* Prevent pull-to-refresh on mobile */
     body.pull-to-refresh-disabled {
       overscroll-behavior-y: contain;
     }
@@ -976,27 +978,11 @@
 
   <script>
     // ============================================
-    // 🎵 SOUND EFFECTS (fixed - prevents "Sound is not defined" error)
-    // ============================================
-    const Sound = {
-      // No-op sound implementation for graceful fallback
-      play: () => {},
-      stop: () => {},
-      click: () => {},
-      success: () => {},
-      error: () => {},
-      number: () => {},
-      win: () => {
-        try { if (typeof canvasConfetti === 'function') canvasConfetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#009b3a', '#fed105', '#ef3340'] }); } catch(e) {}
-      }
-    };
-    
-    // ============================================
     // ⚙️ CONFIGURATION
     // ============================================
     const CONFIG = {
       // 🔗 CHANGE THIS TO YOUR DEPLOYED BACKEND URL
-      API_BASE: 'https://afro-production-dd8e.up.railway.app/api',
+      API_BASE: 'API_BASE: 'https://afro-production-b29f.up.railway.app/api',
       // For local testing: 'http://localhost:3000/api'
       
       // 🎮 Game Settings
@@ -1018,48 +1004,37 @@
     };
 
     // ============================================
-    // 🌐 API SERVICE LAYER (mock/real hybrid with error handling)
+    // 🌐 API SERVICE LAYER
     // ============================================
     const Api = {
-      _headers(token = null) {
+      // Get headers with Telegram auth
+      _headers() {
         const headers = { 'Content-Type': 'application/json' };
         if (window.Telegram?.WebApp?.initData) {
           headers['x-telegram-init-data'] = Telegram.WebApp.initData;
         }
-        if (token) headers['Authorization'] = `Bearer ${token}`;
         return headers;
       },
-      
+
+      // Generic request handler
       async _request(endpoint, options = {}) {
         const url = `${CONFIG.API_BASE}${endpoint}`;
+        
         try {
           showLoading(options.loadingText || 'Processing...');
-          // For demo purposes, if backend unreachable we simulate successful responses to keep app functional
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000);
-          try {
-            const response = await fetch(url, { ...options, headers: this._headers(options.token), signal: controller.signal });
-            clearTimeout(timeoutId);
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Request failed');
-            return data;
-          } catch (fetchErr) {
-            // Fallback simulation for demo (allow offline demo)
-            console.warn('Backend unreachable, using demo response', fetchErr);
-            if (endpoint === '/auth/sync') return { user: { name: 'Demo Player', balance: 500, phone: '0912345678', telegram: '@demo', isBlocked: false, gamesPlayed: 0, totalWins: 0, totalWinnings: 0 } };
-            if (endpoint === '/game/join/20') return { message: 'Joined room', userBalance: 480, card: null };
-            if (endpoint === '/game/join/50') return { message: 'Joined room', userBalance: 450, card: null };
-            if (endpoint === '/game/join/100') return { message: 'Joined room', userBalance: 400, card: null };
-            if (endpoint === '/game/claim') return { winnings: 85, newBalance: 565 };
-            if (endpoint === '/transactions/deposit') return { success: true };
-            if (endpoint === '/transactions/withdraw') return { success: true };
-            if (endpoint === '/transactions') return { transactions: [] };
-            if (endpoint === '/admin/stats') return { stats: { totalUsers: 42, totalMoney: 12500, pendingDeposits: 3, pendingWithdrawals: 2 }, token: 'demo-token' };
-            if (endpoint === '/admin/add-funds') return { success: true };
-            if (endpoint === '/admin/block-user') return { success: true };
-            if (endpoint === '/admin/reset-pools') return { success: true };
-            throw new Error('Network error');
+          
+          const response = await fetch(url, {
+            ...options,
+            headers: { ...this._headers(), ...options.headers }
+          });
+          
+          const data = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(data.error || 'Request failed');
           }
+          
+          return data;
         } catch (error) {
           console.error('API Error:', error);
           showToast(error.message || 'Connection error. Please check your internet.', 'error');
@@ -1068,24 +1043,135 @@
           hideLoading();
         }
       },
+
+      // 🔐 Authentication
+      syncUser: () => this._request('/auth/sync', { method: 'POST' }),
       
-      syncUser: () => Api._request('/auth/sync', { method: 'POST' }),
-      updateProfile: (data) => Api._request('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
-      joinRoom: (amount) => Api._request(`/game/join/${amount}`, { method: 'POST', loadingText: 'Joining room...' }),
-      markNumber: (data) => Api._request('/game/mark', { method: 'POST', body: JSON.stringify(data) }),
-      claimBingo: (data) => Api._request('/game/claim', { method: 'POST', loadingText: 'Verifying win...', body: JSON.stringify(data) }),
-      requestDeposit: (data) => Api._request('/transactions/deposit', { method: 'POST', body: JSON.stringify(data), loadingText: 'Submitting request...' }),
-      requestWithdrawal: (data) => Api._request('/transactions/withdraw', { method: 'POST', body: JSON.stringify(data), loadingText: 'Processing withdrawal...' }),
-      getTransactions: (token) => Api._request('/transactions', { token }),
-      adminLogin: async ({ masterId, secureCode, securityKey }) => {
-        return Api._request('/admin/stats', { method: 'GET', headers: { 'x-admin-auth': JSON.stringify({ masterId, secureCode, securityKey }) } });
-      },
-      getAdminStats: (token) => Api._request('/admin/stats', { token }),
-      addFunds: (data, token) => Api._request('/admin/add-funds', { method: 'POST', token, body: JSON.stringify(data), loadingText: 'Adding funds...' }),
-      toggleBlockUser: (data, token) => Api._request('/admin/block-user', { method: 'POST', token, body: JSON.stringify(data), loadingText: 'Updating user status...' }),
-      resetPools: (token) => Api._request('/admin/reset-pools', { method: 'POST', token, loadingText: 'Resetting pools...' })
+      updateProfile: (data) => this._request('/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify(data)
+      }),
+
+      // 🎮 Game Endpoints
+      joinRoom: (amount) => this._request(`/game/join/${amount}`, {
+        method: 'POST',
+        loadingText: 'Joining room...'
+      }),
+      
+      markNumber: (data) => this._request('/game/mark', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      }),
+      
+      claimBingo: (data) => this._request('/game/claim', {
+        method: 'POST',
+        loadingText: 'Verifying win...'
+      }),
+
+      // 💰 Transactions
+      requestDeposit: (data) => this._request('/transactions/deposit', {
+        method: 'POST',
+        body: JSON.stringify(data),
+        loadingText: 'Submitting request...'
+      }),
+      
+      requestWithdrawal: (data) => this._request('/transactions/withdraw', {
+        method: 'POST',
+        body: JSON.stringify(data),
+        loadingText: 'Processing withdrawal...'
+      }),
+      
+      getTransactions: () => this._request('/transactions'),
+
+      // 👮 Admin Endpoints
+      adminLogin: (creds) => this._request('/admin/login', {
+        method: 'POST',
+        body: JSON.stringify(creds),
+        loadingText: 'Authenticating...'
+      }),
+      
+      getAdminStats: (token) => this._request('/admin/stats', {
+        headers: { 'x-admin-token': token }
+      }),
+      
+      approveDeposit: (id, token) => this._request(`/admin/approve-deposit/${id}`, {
+        method: 'POST',
+        headers: { 'x-admin-token': token }
+      }),
+      
+      approveWithdrawal: (id, token) => this._request(`/admin/approve-withdrawal/${id}`, {
+        method: 'POST',
+        headers: { 'x-admin-token': token }
+      }),
+      
+      addFunds: (data, token) => this._request('/admin/add-funds', {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: { 'x-admin-token': token }
+      }),
+      
+      toggleBlockUser: (data, token) => this._request('/admin/toggle-block', {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: { 'x-admin-token': token }
+      }),
+      
+      resetPools: (token) => this._request('/admin/reset-pools', {
+        method: 'POST',
+        headers: { 'x-admin-token': token }
+      })
     };
-   
+
+    // ============================================
+    // 🔊 SOUND MANAGER
+    // ============================================
+    const Sound = {
+      _ctx: null,
+      
+      _init() {
+        if (this._ctx) return;
+        try {
+          this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+          console.log('Audio not supported');
+        }
+      },
+      
+      _play(freq, type = 'sine', duration = 0.1, volume = 0.1) {
+        this._init();
+        if (!this._ctx) return;
+        
+        try {
+          const osc = this._ctx.createOscillator();
+          const gain = this._ctx.createGain();
+          
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this._ctx.currentTime);
+          
+          gain.gain.setValueAtTime(volume, this._ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, this._ctx.currentTime + duration);
+          
+          osc.connect(gain);
+          gain.connect(this._ctx.destination);
+          
+          osc.start();
+          osc.stop(this._ctx.currentTime + duration);
+        } catch (e) {
+          console.log('Audio play error:', e);
+        }
+      },
+      
+      click() { this._play(600, 'sine', 0.08, 0.08); },
+      number() { this._play(440, 'triangle', 0.15, 0.12); },
+      win() {
+        this._play(523, 'square', 0.25, 0.15); // C5
+        setTimeout(() => this._play(659, 'square', 0.25, 0.15), 120); // E5
+        setTimeout(() => this._play(783, 'square', 0.4, 0.15), 240); // G5
+      },
+      error() { this._play(150, 'sawtooth', 0.25, 0.1); },
+      success() { this._play(880, 'sine', 0.15, 0.1); }
+    };
+
     // ============================================
     // 🧠 APP STATE
     // ============================================
@@ -1113,296 +1199,1257 @@
     // 🎨 UI HELPERS
     // ============================================
     function showLoading(text = 'Loading...') {
-      const el = document.getElementById('loadingText');
-      if(el) el.textContent = text;
-      const overlay = document.getElementById('loadingOverlay');
-      if(overlay) overlay.classList.add('active');
+      document.getElementById('loadingText').textContent = text;
+      document.getElementById('loadingOverlay').classList.add('active');
     }
-    function hideLoading() { const overlay = document.getElementById('loadingOverlay'); if(overlay) overlay.classList.remove('active'); }
+
+    function hideLoading() {
+      document.getElementById('loadingOverlay').classList.remove('active');
+    }
+
     function showToast(message, type = 'info') {
       const notification = document.getElementById('notification');
-      if(!notification) return;
       notification.textContent = message;
       notification.className = `notification ${type} show`;
-      setTimeout(() => notification.classList.remove('show'), 3500);
+      
+      // Auto-hide
+      setTimeout(() => {
+        notification.classList.remove('show');
+      }, 3500);
     }
+
     function showWinnerAnnouncement(name, amount) {
       const el = document.getElementById('winnerAnnouncement');
-      if(!el) return;
       el.innerHTML = `🎉 BINGO! 🎉<br><strong>${name}</strong><br>Won ${amount} ETB from pool!`;
       el.classList.remove('hidden');
-      setTimeout(() => el.classList.add('hidden'), 4500);
-      Sound.win();
+      
+      // Auto-hide
+      setTimeout(() => {
+        el.classList.add('hidden');
+      }, 4500);
     }
-    function copyText(text) { navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!', 'success')).catch(() => showToast('Failed to copy', 'error')); }
-    
+
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Copied to clipboard!', 'success');
+        Sound.success();
+      }).catch(() => {
+        showToast('Failed to copy', 'error');
+      });
+    }
+
     // ============================================
     // 📱 TELEGRAM INTEGRATION
     // ============================================
     function initTelegram() {
       const tg = window.Telegram?.WebApp;
-      if(tg) {
-        tg.expand();
-        tg.enableClosingConfirmation();
-        if(tg.colorScheme === 'dark') document.body.classList.add('telegram-dark');
-        tg.setHeaderColor('#009b3a');
-        tg.BackButton.onClick(() => { if(AppState.currentPage === 'bingo') exitGame(); else if(AppState.currentPage !== 'lobby') showPage('lobby'); });
-        updateBackButton();
+      if (!tg) {
+        console.warn('Telegram WebApp not available');
+        return;
       }
+
+      // Expand to full height
+      tg.expand();
+      tg.enableClosingConfirmation();
+      
+      // Set theme based on Telegram
+      if (tg.colorScheme === 'dark') {
+        document.body.classList.add('telegram-dark');
+      }
+      
+      // Set header color
+      tg.setHeaderColor('#009b3a');
+      tg.setBackgroundColor('#ffffff');
+      
+      // Handle back button
+      tg.BackButton.onClick(() => {
+        if (AppState.currentPage === 'bingo') {
+          exitGame();
+        } else if (AppState.currentPage !== 'lobby') {
+          showPage('lobby');
+        }
+      });
+      
+      // Update back button visibility
+      updateBackButton();
     }
+
     function updateBackButton() {
       const tg = window.Telegram?.WebApp;
-      if(!tg) return;
-      if(['bingo', 'profile', 'deposit', 'waiting'].includes(AppState.currentPage)) tg.BackButton.show();
-      else tg.BackButton.hide();
+      if (!tg) return;
+      
+      if (['bingo', 'profile', 'deposit'].includes(AppState.currentPage)) {
+        tg.BackButton.show();
+      } else {
+        tg.BackButton.hide();
+      }
     }
-    
-    // ========== PAGE RENDERING (simplified but fully functional) ==========
+
+    // ============================================
+    // 🔄 PAGE NAVIGATION
+    // ============================================
     function showPage(pageId) {
       AppState.currentPage = pageId;
       updateBackButton();
+      
       const container = document.getElementById('pageContainer');
-      if(!container) return;
       container.innerHTML = '';
+      
+      // Add page with animation
       const page = document.createElement('div');
       page.className = 'page';
       page.id = `page-${pageId}`;
       container.appendChild(page);
-      if(pageId === 'lobby') renderLobby(page);
-      else if(pageId === 'bingo') renderBingo(page);
-      else if(pageId === 'profile') renderProfile(page);
-      else if(pageId === 'deposit') renderDeposit(page);
-      else if(pageId === 'waiting') renderWaiting(page, AppState.pendingDepositAmount || 0);
+      
+      // Render page content
+      switch(pageId) {
+        case 'lobby': renderLobbyPage(page); break;
+        case 'bingo': renderBingoPage(page); break;
+        case 'profile': renderProfilePage(page); break;
+        case 'deposit': renderDepositPage(page); break;
+        case 'waiting': renderWaitingPage(page); break;
+        default: renderLobbyPage(page);
+      }
+      
+      // Trigger animation
       setTimeout(() => page.classList.add('active'), 10);
     }
-    
-    async function renderLobby(container) {
-      if(AppState.user?.isBlocked) {
-        container.innerHTML = `<div style="text-align:center; padding:50px"><div style="font-size:4rem;">🚫</div><h2>Account Blocked</h2><button class="btn btn-blue" onclick="showSupport()">Contact Support</button></div>`;
+
+    // ============================================
+    // 🏠 LOBBY PAGE
+    // ============================================
+    async function renderLobbyPage(container) {
+      // Check if user is blocked
+      if (AppState.user?.isBlocked) {
+        container.innerHTML = `
+          <div style="text-align:center; padding:50px 20px;">
+            <div style="font-size:4rem; margin-bottom:20px;">🚫</div>
+            <h2 style="margin-bottom:15px; color:var(--red);">Account Blocked</h2>
+            <p style="color:var(--gray); margin-bottom:25px; line-height:1.5;">
+              Your account has been restricted. Please contact support for assistance.
+            </p>
+            <button class="btn btn-blue" onclick="showSupport()">👥 Contact Support</button>
+            <button class="btn btn-outline mt-2" onclick="location.reload()">🔄 Refresh</button>
+          </div>
+        `;
         return;
       }
-      try { const resp = await Api.syncUser(); AppState.user = resp.user; } catch(e) { if(!AppState.user) AppState.user = { name: 'Player', balance: 0, isBlocked: false }; }
+
+      // Fetch fresh user data
+      try {
+        const response = await Api.syncUser();
+        AppState.user = response.user;
+      } catch (error) {
+        // Use cached data if API fails
+        console.warn('Using cached user data');
+      }
+
       const user = AppState.user;
+      
       container.innerHTML = `
-        <div class="header" style="display:flex; justify-content:space-between;"><div><h1>🎮 AFRO-BINGO 🇪🇹</h1><p>Pool Prize System • Win Real ETB</p></div><div class="house-icon-btn" id="houseIcon">🏠</div></div>
-        <div class="profile-mini"><div class="profile-info"><b>${user?.name || 'Player'}</b><div>💰 <span id="userBalance">${user?.balance || 0}</span> ETB</div></div><button class="btn btn-outline btn-sm" onclick="showPage('profile')">✏️ Edit</button></div>
-        <div class="room-card high" onclick="tryJoinRoom(100)"><div class="room-info"><div><div class="room-name">🔥 100 ETB Room</div><div class="room-entry">Entry: 100 ETB</div></div><div class="room-pool"><div class="pool-amount">~${Math.floor((user?.balance||0)*0.85)}</div><div class="players-count">👥 3-10</div></div></div></div>
-        <div class="room-card medium" onclick="tryJoinRoom(50)"><div class="room-info"><div><div class="room-name">🎯 50 ETB Room</div><div class="room-entry">Entry: 50 ETB</div></div><div class="room-pool"><div class="pool-amount">~${Math.floor((user?.balance||0)*0.85/2)}</div><div class="players-count">👥 2-8</div></div></div></div>
-        <div class="room-card" onclick="tryJoinRoom(20)"><div class="room-info"><div><div class="room-name">⭐ 20 ETB Room</div><div class="room-entry">Entry: 20 ETB</div></div><div class="room-pool"><div class="pool-amount">~${Math.floor((user?.balance||0)*0.85/5)}</div><div class="players-count">👥 1-5</div></div></div></div>
+        <div class="header" style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h1>🎮 AFRO-BINGO 🇪🇹</h1>
+            <p>Pool Prize System • Win Real ETB</p>
+          </div>
+          <div class="house-icon-btn" id="houseIcon" title="Admin Panel">🏠</div>
+        </div>
+        
+        <div class="profile-mini">
+          <div class="profile-info">
+            <b>${user?.name || 'Player'}</b>
+            <div>💰 <span id="userBalance">${user?.balance || 0}</span> ETB</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="showPage('profile')">✏️ Edit</button>
+        </div>
+        
+        <div class="room-card high" onclick="tryJoinRoom(100)">
+          <div class="room-info">
+            <div>
+              <div class="room-name">🔥 100 ETB Room</div>
+              <div class="room-entry">Entry: 100 ETB</div>
+            </div>
+            <div class="room-pool">
+              <div class="pool-amount" id="pool100">0</div>
+              <div class="players-count">👥 <span id="players100">0</span></div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="room-card medium" onclick="tryJoinRoom(50)">
+          <div class="room-info">
+            <div>
+              <div class="room-name">🎯 50 ETB Room</div>
+              <div class="room-entry">Entry: 50 ETB</div>
+            </div>
+            <div class="room-pool">
+              <div class="pool-amount" id="pool50">0</div>
+              <div class="players-count">👥 <span id="players50">0</span></div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="room-card" onclick="tryJoinRoom(20)">
+          <div class="room-info">
+            <div>
+              <div class="room-name">⭐ 20 ETB Room</div>
+              <div class="room-entry">Entry: 20 ETB</div>
+            </div>
+            <div class="room-pool">
+              <div class="pool-amount" id="pool20">0</div>
+              <div class="players-count">👥 <span id="players20">0</span></div>
+            </div>
+          </div>
+        </div>
+        
         <button class="btn btn-green" onclick="showPage('deposit')">💰 DEPOSIT FUNDS</button>
         <button class="btn btn-gold" onclick="showWithdrawModal()">📤 WITHDRAW</button>
         <button class="btn" onclick="showSupport()" style="background:#17a2b8;">👥 Support Team</button>
+        
+        <div style="text-align:center; margin-top:20px; padding-top:15px; border-top:1px solid #eee; color:var(--gray); font-size:0.85rem;">
+          🇪🇹 Made with ❤️ for Ethiopia<br>
+          Play responsibly • 18+ only
+        </div>
       `;
-      document.getElementById('houseIcon')?.addEventListener('click', () => showAdminLogin());
+
+      // Setup house icon click
+      document.getElementById('houseIcon')?.addEventListener('click', () => {
+        Sound.click();
+        showAdminLogin();
+      });
     }
-    
-    function generateBingoCard() {
-      const grid = [], marked = [];
-      for(let r=0;r<5;r++) { grid[r]=[]; marked[r]=[]; }
-      for(let col=0;col<5;col++) {
-        let nums = [];
-        while(nums.length<5) { let n = Math.floor(Math.random()*15)+col*15+1; if(!nums.includes(n)) nums.push(n); }
-        nums.sort((a,b)=>a-b);
-        for(let r=0;r<5;r++) { grid[r][col]=nums[r]; marked[r][col]=false; }
+
+    // ============================================
+    // 🎮 BINGO GAME PAGE
+    // ============================================
+    async function renderBingoPage(container) {
+      if (AppState.user?.isBlocked) {
+        showToast('Account blocked', 'error');
+        showPage('lobby');
+        return;
       }
-      marked[2][2]=true;
-      return { grid, marked };
-    }
-    
-    async function renderBingo(container) {
-      if(AppState.user?.isBlocked) { showToast('Blocked account', 'error'); showPage('lobby'); return; }
+
       const roomAmount = AppState.user?.selectedRoom || 20;
       AppState.game.roomAmount = roomAmount;
-      const { grid, marked } = generateBingoCard();
-      AppState.game.cardGrid = grid;
-      AppState.game.markedState = marked;
-      AppState.game.calledNumbers = [];
-      AppState.game.currentNumbers = [];
-      if(AppState.game.autoInterval) clearInterval(AppState.game.autoInterval);
-      AppState.game.isGameActive = true;
+
+      // Fetch room data
+      let poolData = { pool: 0, playersCount: 0 };
+      try {
+        // In production: fetch from API
+        // For now, use optimistic update
+      } catch (error) {
+        console.warn('Could not fetch room data');
+      }
+
       container.innerHTML = `
-        <div class="header"><button class="header-btn" onclick="exitGame()">←</button><h3>AFRO-BINGO</h3><p>Room: ${roomAmount} ETB</p></div>
-        <div class="pool-box"><h4>🎰 CURRENT PRIZE POOL</h4><div class="pool-amount" id="currentPool">${Math.floor(roomAmount * 0.85 * 3)}</div><div class="players-count">👥 Players: 3</div><div class="house-note">🏠 House takes 15%</div></div>
-        <div class="stats-container"><div class="stat-box"><h4>🎯 Matches</h4><div class="stat-value" id="matchesCount">0</div></div><div class="stat-box"><h4>🏆 Total Wins</h4><div class="stat-value" id="totalWins">${AppState.user?.totalWins || 0}</div></div></div>
-        <div class="history-box"><div class="history-title">📜 Called Numbers</div><div class="numbers-list" id="numbersHistory"><div style="color:var(--gray); text-align:center;">No numbers yet</div></div></div>
+        <div class="header">
+          <button class="header-btn" onclick="exitGame()">←</button>
+          <h3>AFRO-BINGO</h3>
+          <p>Room: ${roomAmount} ETB</p>
+        </div>
+        
+        <div class="pool-box">
+          <h4>🎰 CURRENT PRIZE POOL</h4>
+          <div class="pool-amount" id="currentPool">${poolData.pool}</div>
+          <div class="players-count">👥 Players: <span id="currentPlayers">${poolData.playersCount}</span></div>
+          <div class="house-note">🏠 House takes 15% per entry</div>
+        </div>
+        
+        <div class="stats-container">
+          <div class="stat-box">
+            <h4>🎯 Matches</h4>
+            <div class="stat-value" id="matchesCount">0</div>
+          </div>
+          <div class="stat-box">
+            <h4>🏆 Total Wins</h4>
+            <div class="stat-value" id="totalWins">${AppState.user?.totalWins || 0}</div>
+          </div>
+        </div>
+        
+        <div class="history-box">
+          <div class="history-title">📜 Called Numbers</div>
+          <div class="numbers-list" id="numbersHistory">
+            <div style="color:var(--gray); text-align:center; width:100%;">No numbers yet</div>
+          </div>
+        </div>
+        
         <div class="big-display" id="currentNumberDisplay">Ready</div>
+        
         <table class="bingo-table" id="bingoCard"></table>
+        
         <button class="btn btn-red" onclick="checkForBingo()">🏆 CLAIM BINGO!</button>
         <button class="btn btn-outline" onclick="exitGame()">Exit Game</button>
       `;
+
+      // Initialize game
+      await startNewGame();
+    }
+
+    // ============================================
+    // 🎲 GAME LOGIC
+    // ============================================
+    async function startNewGame() {
+      const game = AppState.game;
+      game.isGameActive = true;
+      
+      if (game.autoInterval) clearInterval(game.autoInterval);
+      game.calledNumbers = [];
+      game.currentNumbers = [];
+      game.cardGrid = [];
+      game.markedState = [];
+
+      // Reset UI
+      if(document.getElementById('callCount')) {
+        document.getElementById('callCount').textContent = '0';
+      }
+      if(document.getElementById('currentNumberDisplay')) {
+        document.getElementById('currentNumberDisplay').textContent = 'Ready';
+      }
+      if(document.getElementById('matchesCount')) {
+        document.getElementById('matchesCount').textContent = '0';
+      }
+      updateNumbersHistory();
+
+      // Generate card (in production: receive from server)
+      generateBingoCard();
       renderCard();
+      
+      // Start auto-play
       startAutoPlay();
     }
-    
+
+    function generateBingoCard() {
+      const game = AppState.game;
+      
+      for(let r = 0; r < 5; r++) {
+        game.cardGrid[r] = [];
+        game.markedState[r] = [];
+      }
+      
+      ['B','I','N','G','O'].forEach((_, col) => {
+        const min = col * 15 + 1;
+        let nums = [];
+        while(nums.length < 5) {
+          let n = Math.floor(Math.random() * 15) + min;
+          if(!nums.includes(n)) nums.push(n);
+        }
+        nums.sort((a,b) => a - b);
+        
+        for(let r = 0; r < 5; r++) {
+          game.cardGrid[r][col] = nums[r];
+          game.markedState[r][col] = false;
+        }
+      });
+      
+      // Mark FREE space
+      game.markedState[2][2] = true;
+    }
+
     function renderCard() {
       const table = document.getElementById('bingoCard');
       if(!table) return;
+      
       table.innerHTML = '';
+      const game = AppState.game;
+      
+      // Header row
       const thr = table.insertRow();
-      ['B','I','N','G','O'].forEach(l=>{ let th=document.createElement('th'); th.textContent=l; thr.appendChild(th); });
-      for(let r=0;r<5;r++){
-        const row=table.insertRow();
-        for(let c=0;c<5;c++){
-          const cell=row.insertCell();
-          if(r===2&&c===2){ cell.textContent='FREE'; cell.className='free marked'; }
-          else{
-            cell.textContent=AppState.game.cardGrid[r][c];
-            cell.dataset.num=AppState.game.cardGrid[r][c];
-            cell.dataset.row=r; cell.dataset.col=c;
-            cell.onclick=()=>manualMark(cell,r,c);
-            if(AppState.game.markedState[r][c]) cell.classList.add('marked');
+      ['B','I','N','G','O'].forEach(letter => {
+        let th = document.createElement('th');
+        th.textContent = letter;
+        thr.appendChild(th);
+      });
+      
+      // Number rows
+      for(let r = 0; r < 5; r++) {
+        const row = table.insertRow();
+        for(let c = 0; c < 5; c++) {
+          const cell = row.insertCell();
+          
+          if(r === 2 && c === 2) {
+            // FREE space
+            cell.textContent = 'FREE';
+            cell.className = 'free marked';
+          } else {
+            cell.textContent = game.cardGrid[r][c];
+            cell.dataset.num = game.cardGrid[r][c];
+            cell.dataset.row = r;
+            cell.dataset.col = c;
+            cell.onclick = () => manualMark(cell, r, c);
           }
         }
       }
-      updateMatchesCount();
     }
-    
-    function manualMark(cell,row,col){
-      if(!AppState.game.isGameActive) return showToast('Game not active','error');
-      const num=parseInt(cell.dataset.num);
-      if(AppState.game.calledNumbers.includes(num)){
-        cell.classList.toggle('marked');
-        AppState.game.markedState[row][col]=cell.classList.contains('marked');
-        updateMatchesCount();
+
+    function manualMark(cell, row, col) {
+      const game = AppState.game;
+      
+      if(!game.isGameActive) {
+        showToast('Game not active', 'error');
+        return;
+      }
+      
+      const num = parseInt(cell.dataset.num);
+      
+      // Only allow marking if number was called
+      if(game.calledNumbers.includes(num)) {
         Sound.click();
-      } else showToast('Number not called yet!','error');
+        cell.classList.toggle('marked');
+        game.markedState[row][col] = cell.classList.contains('marked');
+        updateMatchesCount();
+      } else {
+        showToast('Number not called yet!', 'error');
+        Sound.error();
+      }
     }
-    
-    function updateMatchesCount(){
-      let cnt=0;
-      for(let r=0;r<5;r++) for(let c=0;c<5;c++) if(AppState.game.markedState[r][c]) cnt++;
-      const disp=document.getElementById('matchesCount');
-      if(disp) disp.textContent=Math.max(0,cnt-1);
+
+    function updateMatchesCount() {
+      const game = AppState.game;
+      let count = 0;
+      
+      for(let r = 0; r < 5; r++) {
+        for(let c = 0; c < 5; c++) {
+          if(game.markedState[r][c]) count++;
+        }
+      }
+      
+      // Subtract 1 for FREE space
+      const display = document.getElementById('matchesCount');
+      if(display) {
+        display.textContent = Math.max(0, count - 1);
+      }
     }
-    
-    function updateNumbersHistory(){
-      const hist=document.getElementById('numbersHistory');
+
+    function updateNumbersHistory() {
+      const hist = document.getElementById('numbersHistory');
       if(!hist) return;
-      hist.innerHTML='';
-      const recent=[...AppState.game.currentNumbers].reverse().slice(0,12);
-      if(recent.length===0){ hist.innerHTML='<div style="color:var(--gray); text-align:center;">No numbers yet</div>'; return; }
-      recent.forEach((num,idx)=>{
-        const badge=document.createElement('div');
-        badge.className='number-badge'+(idx===0?' recent':'');
-        const letter=['B','I','N','G','O'][Math.floor((num-1)/15)];
-        badge.textContent=`${letter}-${num}`;
+      
+      const game = AppState.game;
+      hist.innerHTML = '';
+      
+      const recent = [...game.currentNumbers].reverse().slice(0, 12);
+      
+      if(recent.length === 0) {
+        hist.innerHTML = '<div style="color:var(--gray); text-align:center; width:100%;">No numbers yet</div>';
+        return;
+      }
+      
+      recent.forEach((num, idx) => {
+        const badge = document.createElement('div');
+        badge.className = 'number-badge';
+        if(idx === 0) badge.classList.add('recent');
+        
+        const letter = ['B','I','N','G','O'][Math.floor((num-1)/15)];
+        badge.textContent = `${letter}-${num}`;
         hist.appendChild(badge);
       });
     }
-    
-    function startAutoPlay(){
-      AppState.game.isAutoPlaying=true;
+
+    function startAutoPlay() {
+      const game = AppState.game;
+      game.isAutoPlaying = true;
+      
+      // Call first number immediately
       callNumber();
-      AppState.game.autoInterval=setInterval(callNumber, CONFIG.AUTO_PLAY_INTERVAL);
+      
+      // Then continue at interval
+      game.autoInterval = setInterval(callNumber, CONFIG.AUTO_PLAY_INTERVAL);
     }
-    function stopAutoPlay(){ if(AppState.game.autoInterval){ clearInterval(AppState.game.autoInterval); AppState.game.autoInterval=null; } AppState.game.isAutoPlaying=false; }
-    function callNumber(){
-      if(!AppState.game.isGameActive) return;
-      if(AppState.game.calledNumbers.length>=CONFIG.MAX_CALLED_NUMBERS){ stopAutoPlay(); return; }
-      let num; do{ num=Math.floor(Math.random()*75)+1; }while(AppState.game.calledNumbers.includes(num));
-      AppState.game.calledNumbers.push(num);
-      AppState.game.currentNumbers.push(num);
-      const letter=['B','I','N','G','O'][Math.floor((num-1)/15)];
-      const display=document.getElementById('currentNumberDisplay');
-      if(display){ display.textContent=`${letter}-${num}`; display.style.animation='none'; setTimeout(()=>display.style.animation='pulse 0.3s ease',10); }
-      const cell=document.querySelector(`td[data-num="${num}"]`);
-      if(cell){ cell.classList.add('called'); setTimeout(()=>cell.classList.remove('called'),1500); }
-      updateNumbersHistory();
-      checkForBingo();
-    }
-    async function checkForBingo(){
-      let won=false;
-      const ms=AppState.game.markedState;
-      for(let i=0;i<5;i++) if(ms[i].every(v=>v)) won=true;
-      for(let i=0;i<5;i++){ let col=true; for(let j=0;j<5;j++) if(!ms[j][i]) col=false; if(col) won=true; }
-      let d1=true,d2=true;
-      for(let i=0;i<5;i++){ if(!ms[i][i]) d1=false; if(!ms[i][4-i]) d2=false; }
-      if(d1||d2) won=true;
-      if(won){
-        stopAutoPlay();
-        const winnings = Math.floor((AppState.game.roomAmount||20)*0.85*2);
-        showWinnerAnnouncement(AppState.user?.name||'Player', winnings);
-        if(AppState.user) AppState.user.balance = (AppState.user.balance||0)+winnings;
-        showToast(`🎉 You won ${winnings} ETB!`,'success');
-        setTimeout(()=>showPage('lobby'),4000);
+
+    function stopAutoPlay() {
+      const game = AppState.game;
+      game.isAutoPlaying = false;
+      if(game.autoInterval) {
+        clearInterval(game.autoInterval);
+        game.autoInterval = null;
       }
     }
-    function exitGame(){ stopAutoPlay(); AppState.game.isGameActive=false; showPage('lobby'); }
-    function renderProfile(container){
-      const user=AppState.user||{};
-      container.innerHTML=`<div class="header"><button class="header-btn" onclick="showPage('lobby')">←</button><h2>👤 My Profile</h2></div>
-        <div class="input-group"><label>Full Name</label><input type="text" id="editName" value="${user.name||''}"></div>
-        <div class="input-group"><label>📱 Phone (TeleBirr)</label><input type="tel" id="editPhone" value="${user.phone||''}"></div>
-        <div class="input-group"><label>💬 Telegram Username</label><input type="text" id="editTelegram" value="${user.telegram||''}"></div>
-        <button class="btn btn-green" onclick="saveProfile()">💾 Save Changes</button><button class="btn btn-outline" onclick="showPage('lobby')">Cancel</button>
-        <div style="margin-top:25px;"><div style="display:flex; justify-content:space-between;"><span>Total Games:</span><b>${user.gamesPlayed||0}</b></div>
-        <div style="display:flex; justify-content:space-between;"><span>Total Wins:</span><b class="text-green">${user.totalWins||0}</b></div>
-        <div style="display:flex; justify-content:space-between;"><span>Total Winnings:</span><b>${user.totalWinnings||0} ETB</b></div></div>`;
+
+    function callNumber() {
+      const game = AppState.game;
+      
+      if(game.calledNumbers.length >= CONFIG.MAX_CALLED_NUMBERS) {
+        stopAutoPlay();
+        return;
+      }
+      
+      // Generate unique random number
+      let num;
+      do {
+        num = Math.floor(Math.random() * 75) + 1;
+      } while(game.calledNumbers.includes(num));
+      
+      game.calledNumbers.push(num);
+      game.currentNumbers.push(num);
+      
+      // Play sound
+      Sound.number();
+      
+      // Update display
+      const letter = ['B','I','N','G','O'][Math.floor((num-1)/15)];
+      const display = document.getElementById('currentNumberDisplay');
+      if(display) {
+        display.textContent = `${letter}-${num}`;
+        // Add animation
+        display.style.animation = 'none';
+        setTimeout(() => {
+          display.style.animation = 'pulse 0.3s ease';
+        }, 10);
+      }
+      
+      // Highlight on card if present
+      const cell = document.querySelector(`td[data-num="${num}"]`);
+      if(cell) {
+        cell.classList.add('called');
+        setTimeout(() => {
+          if(cell) cell.classList.remove('called');
+        }, 1500);
+      }
+      
+      // Update history
+      updateNumbersHistory();
+      
+      // Check for auto-win (server should validate)
+      checkForBingo();
     }
-    async function saveProfile(){
-      const name=document.getElementById('editName')?.value.trim();
-      if(!name) return showToast('Name required','error');
-      try{ await Api.updateProfile({name, phone:document.getElementById('editPhone')?.value, telegram:document.getElementById('editTelegram')?.value});
-        if(AppState.user) AppState.user.name=name;
-        showToast('Profile updated','success'); showPage('lobby');
-      }catch(e){}
+
+    function checkForBingo() {
+      const game = AppState.game;
+      let won = false;
+      
+      // Check rows
+      for(let i = 0; i < 5; i++) {
+        if(game.markedState[i].every(v => v)) won = true;
+      }
+      
+      // Check columns
+      for(let i = 0; i < 5; i++) {
+        let colComplete = true;
+        for(let j = 0; j < 5; j++) {
+          if(!game.markedState[j][i]) colComplete = false;
+        }
+        if(colComplete) won = true;
+      }
+      
+      // Check diagonals
+      let d1 = true, d2 = true;
+      for(let i = 0; i < 5; i++) {
+        if(!game.markedState[i][i]) d1 = false;
+        if(!game.markedState[i][4-i]) d2 = false;
+      }
+      if(d1 || d2) won = true;
+      
+      if(won) {
+        handleWin();
+      }
     }
-    function renderDeposit(container){
-      container.innerHTML=`<div class="header"><button class="header-btn" onclick="showPage('lobby')">←</button><h2>💰 Deposit Funds</h2></div>
-        <div class="payment-box"><b>📱 TeleBirr</b><div class="number">${CONFIG.TELEBIRR_NUMBER}</div><button class="btn btn-blue btn-sm" onclick="copyText('${CONFIG.TELEBIRR_NUMBER}')">📋 Copy</button></div>
-        <div class="payment-box"><b>🏦 CBE Bank</b><div class="number">${CONFIG.CBE_ACCOUNT}</div><button class="btn btn-green btn-sm" onclick="copyText('${CONFIG.CBE_ACCOUNT}')">📋 Copy</button></div>
-        <div class="input-group"><label>Amount (ETB min 20)</label><input type="number" id="depositAmount" min="20"></div>
-        <button class="btn btn-green" onclick="requestDeposit()">✅ Submit Deposit Request</button><button class="btn btn-outline" onclick="showPage('lobby')">Back</button>`;
+
+    async function handleWin() {
+      const game = AppState.game;
+      stopAutoPlay();
+      
+      // Play win sound & confetti
+      Sound.win();
+      confetti({
+        particleCount: 200,
+        spread: 100,
+        origin: { y: 0.6 },
+        colors: ['#009b3a', '#fed105', '#ef3340']
+      });
+      
+      // In production: call server to claim win
+      try {
+        const response = await Api.claimBingo({
+          cardMarked: game.markedState,
+          calledNumbers: game.calledNumbers
+        });
+        
+        // Show winner announcement
+        showWinnerAnnouncement(AppState.user?.name || 'Player', response.winnings);
+        
+        // Update user data
+        if(response.newBalance !== undefined) {
+          AppState.user.balance = response.newBalance;
+        }
+        
+        showToast(`🎉 You won ${response.winnings} ETB!`, 'success');
+        
+        // Return to lobby after delay
+        setTimeout(() => {
+          showPage('lobby');
+        }, 4000);
+        
+      } catch (error) {
+        // Fallback: local win handling (not secure, for demo only)
+        const roomAmount = game.roomAmount || 20;
+        const winnings = Math.floor(roomAmount * 0.85 * 5); // Demo calculation
+        
+        showWinnerAnnouncement(AppState.user?.name || 'Player', winnings);
+        showToast(`🎉 You won ${winnings} ETB!`, 'success');
+        
+        setTimeout(() => {
+          showPage('lobby');
+        }, 4000);
+      }
     }
-    async function requestDeposit(){
-      const amt=parseInt(document.getElementById('depositAmount')?.value);
-      if(!amt||amt<20) return showToast('Minimum 20 ETB','error');
-      try{ await Api.requestDeposit({amount:amt,paymentMethod:'telebirr'}); showToast('Deposit request submitted!','success'); AppState.pendingDepositAmount=amt; showPage('waiting'); }catch(e){}
-    }
-    function renderWaiting(container,amount){
-      container.innerHTML=`<div class="waiting-screen"><div class="spinner"></div><p><b>Requested:</b> ${amount} ETB</p><p>Admin will verify payment.</p><button class="btn btn-blue" id="checkApprovalBtn">🔄 Check Status</button><button class="btn btn-outline" onclick="showPage('lobby')">Back</button></div>`;
-      document.getElementById('checkApprovalBtn')?.addEventListener('click',async()=>{ showToast('Still pending approval','warning'); });
-    }
-    function showWithdrawModal(){
-      const modalDiv=document.createElement('div'); modalDiv.className='modal-overlay';
-      modalDiv.innerHTML=`<div class="modal-content"><h3>💰 Withdrawal</h3><div class="input-group"><label>Amount (ETB)</label><input type="number" id="wdAmount" min="10"></div><div class="input-group"><label>TeleBirr Phone</label><input type="tel" id="wdPhone" value="${AppState.user?.phone||''}"></div><button class="btn btn-gold" id="submitWdBtn">Submit</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button></div>`;
-      document.body.appendChild(modalDiv);
-      document.getElementById('submitWdBtn').onclick=async()=>{
-        const amt=parseInt(document.getElementById('wdAmount')?.value); const phone=document.getElementById('wdPhone')?.value.trim();
-        if(!amt||amt<10) return showToast('Min 10 ETB','error');
-        if(amt>(AppState.user?.balance||0)) return showToast('Insufficient balance','error');
-        try{ await Api.requestWithdrawal({amount:amt,phone}); showToast('Withdrawal request submitted','success'); modalDiv.remove(); }catch(e){}
-      };
-    }
-    function showSupport(){
-      const modal=document.createElement('div'); modal.className='modal-overlay';
-      modal.innerHTML=`<div class="modal-content"><h3>👥 Support</h3><div class="contact-item">📱 ${CONFIG.SUPPORT_PHONE}<button onclick="copyText('${CONFIG.SUPPORT_PHONE}')">Copy</button></div><div class="contact-item">📨 ${CONFIG.SUPPORT_TELEGRAM}<button onclick="copyText('${CONFIG.SUPPORT_TELEGRAM}')">Copy</button></div><button class="btn btn-green" onclick="this.closest('.modal-overlay').remove()">Close</button></div>`;
-      document.body.appendChild(modal);
-    }
-    async function tryJoinRoom(amount){
-      if(!AppState.user) try{ const resp=await Api.syncUser(); AppState.user=resp.user; }catch(e){}
-      if(AppState.user?.isBlocked) return showToast('Account blocked','error');
-      if((AppState.user?.balance||0)<amount) return showToast(`Need ${amount} ETB`,'error');
-      try{ const resp=await Api.joinRoom(amount); if(resp.userBalance) AppState.user.balance=resp.userBalance; AppState.game.roomAmount=amount; showPage('bingo'); }catch(e){ showToast('Join failed','error'); }
-    }
-    function showAdminLogin(){
-      const modal=document.createElement('div'); modal.className='modal-overlay';
-      modal.innerHTML=`<div class="modal-content"><h3>🔐 Admin Access</h3><div class="input-group"><label>Master ID</label><input id="adminUser"></div><div class="input-group"><label>Secure Code</label><input id="adminCode"></div><div class="input-group"><label>Security Key</label><input id="adminPass" type="password"></div><button class="btn btn-blue" id="adminLoginBtn">Login</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button></div>`;
-      document.body.appendChild(modal);
-      document.getElementById('adminLoginBtn').onclick=async()=>{
-        try{ await Api.adminLogin({masterId:document.getElementById('adminUser').value,secureCode:document.getElementById('adminCode').value,securityKey:document.getElementById('adminPass').value});
-          showToast('Admin login OK','success'); modal.remove(); alert('Admin panel demo (stats simulated)');
-        }catch(e){ showToast('Invalid credentials','error'); }
-      };
-    }
-    
-    async function initApp(){
-      initTelegram();
-      try{ const resp=await Api.syncUser(); AppState.user=resp.user; }catch(e){ AppState.user={name:'Player',balance:200,isBlocked:false}; }
+
+    function exitGame() {
+      stopAutoPlay();
+      AppState.game.isGameActive = false;
       showPage('lobby');
     }
-    window.showPage=showPage; window.tryJoinRoom=tryJoinRoom; window.exitGame=exitGame; window.showSupport=showSupport; window.copyText=copyText; window.showWithdrawModal=showWithdrawModal; window.saveProfile=saveProfile; window.checkForBingo=checkForBingo; window.requestDeposit=requestDeposit; window.showAdminLogin=showAdminLogin;
-    document.addEventListener('DOMContentLoaded',initApp);
+
+    // ============================================
+    // 👤 PROFILE PAGE
+    // ============================================
+    function renderProfilePage(container) {
+      const user = AppState.user || {};
+      
+      container.innerHTML = `
+        <div class="header">
+          <button class="header-btn" onclick="showPage('lobby')">←</button>
+          <h2>👤 My Profile</h2>
+        </div>
+        
+        <div class="input-group">
+          <label>Full Name</label>
+          <input type="text" id="editName" value="${user.name || ''}" placeholder="Enter your name">
+        </div>
+        
+        <div class="input-group">
+          <label>📱 Phone (TeleBirr)</label>
+          <input type="tel" id="editPhone" value="${user.phone || ''}" placeholder="09XXXXXXXX">
+        </div>
+        
+        <div class="input-group">
+          <label>💬 Telegram Username</label>
+          <input type="text" id="editTelegram" value="${user.telegram || ''}" placeholder="@username">
+        </div>
+        
+        <button class="btn btn-green" onclick="saveProfile()">💾 Save Changes</button>
+        <button class="btn btn-outline" onclick="showPage('lobby')">Cancel</button>
+        
+        <div style="margin-top:25px; padding-top:20px; border-top:1px solid #eee;">
+          <div style="display:flex; justify-content:space-between; margin:10px 0;">
+            <span style="color:var(--gray);">Total Games:</span>
+            <b>${user.gamesPlayed || 0}</b>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin:10px 0;">
+            <span style="color:var(--gray);">Total Wins:</span>
+            <b class="text-green">${user.totalWins || 0}</b>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin:10px 0;">
+            <span style="color:var(--gray);">Total Winnings:</span>
+            <b class="text-green">${user.totalWinnings || 0} ETB</b>
+          </div>
+        </div>
+      `;
+    }
+
+    async function saveProfile() {
+      const name = document.getElementById('editName').value.trim();
+      const phone = document.getElementById('editPhone').value.trim();
+      const telegram = document.getElementById('editTelegram').value.trim();
+      
+      if(!name) {
+        showToast('Name is required', 'error');
+        return;
+      }
+      
+      try {
+        await Api.updateProfile({
+          name: name || AppState.user?.name,
+          phone: phone || undefined,
+          telegram: telegram || undefined
+        });
+        
+        // Update local state
+        if(AppState.user) {
+          AppState.user.name = name;
+          if(phone) AppState.user.phone = phone;
+          if(telegram) AppState.user.telegram = telegram;
+        }
+        
+        showToast('Profile updated successfully!', 'success');
+        Sound.success();
+        showPage('lobby');
+      } catch (error) {
+        // Error already shown by API layer
+      }
+    }
+
+    // ============================================
+    // 💰 DEPOSIT PAGE
+    // ============================================
+    function renderDepositPage(container) {
+      container.innerHTML = `
+        <div class="header">
+          <button class="header-btn" onclick="showPage('lobby')">←</button>
+          <h2>💰 Deposit Funds</h2>
+        </div>
+        
+        <div class="payment-box">
+          <b>📱 TeleBirr</b>
+          <div class="number">${CONFIG.TELEBIRR_NUMBER}</div>
+          <button class="btn btn-blue btn-sm" onclick="copyText('${CONFIG.TELEBIRR_NUMBER}')">📋 Copy Number</button>
+        </div>
+        
+        <div class="payment-box">
+          <b>🏦 CBE Bank</b>
+          <div class="number">${CONFIG.CBE_ACCOUNT}</div>
+          <button class="btn btn-green btn-sm" onclick="copyText('${CONFIG.CBE_ACCOUNT}')">📋 Copy Account</button>
+        </div>
+        
+        <div class="contact-info">
+          <div style="font-weight:600; margin-bottom:10px; color:var(--dark);">📝 Instructions:</div>
+          <ol style="text-align:left; padding-left:20px; color:var(--gray); line-height:1.6; font-size:0.95rem;">
+            <li>Send money to one of the accounts above</li>
+            <li>Use your Telegram username as reference</li>
+            <li>Enter amount below and submit request</li>
+            <li>Wait for admin approval (usually <5 min)</li>
+          </ol>
+        </div>
+        
+        <div class="input-group">
+          <label>Amount to Deposit (ETB)</label>
+          <input type="number" id="depositAmount" placeholder="Min: 20 ETB" min="20">
+        </div>
+        
+        <button class="btn btn-green" onclick="requestDeposit()">✅ Submit Deposit Request</button>
+        <button class="btn btn-outline" onclick="showPage('lobby')">Back to Lobby</button>
+      `;
+    }
+
+    async function requestDeposit() {
+      const amountInput = document.getElementById('depositAmount');
+      const amount = parseInt(amountInput?.value);
+      
+      if(!amount || amount < 20) {
+        showToast('Minimum deposit is 20 ETB', 'error');
+        Sound.error();
+        return;
+      }
+      
+      try {
+        await Api.requestDeposit({
+          amount: amount,
+          paymentMethod: 'telebirr' // or 'cbe'
+        });
+        
+        showToast('Deposit request submitted! Waiting for approval...', 'success');
+        showWaitingForApproval(amount);
+      } catch (error) {
+        // Error already shown
+      }
+    }
+
+    function renderWaitingPage(container, amount) {
+      container.innerHTML = `
+        <div class="page waiting-screen">
+          <div class="header"><h3>⏳ Pending Approval</h3></div>
+          <div class="spinner"></div>
+          <p><b>Requested:</b> ${amount} ETB</p>
+          <p style="color:var(--gray);">
+            Admin will verify your payment and add funds to your account.<br>
+            This usually takes 2-5 minutes.
+          </p>
+          <button class="btn btn-blue" id="checkApprovalBtn">🔄 Check Status</button>
+          <button class="btn btn-outline" onclick="showPage('lobby')">Back to Lobby</button>
+        </div>
+      `;
+      
+      // Setup status check button
+      document.getElementById('checkApprovalBtn')?.addEventListener('click', async () => {
+        try {
+          const transactions = await Api.getTransactions();
+          const approved = transactions.transactions?.find(
+            t => t.type === 'deposit' && t.status === 'approved' && t.amount === amount
+          );
+          
+          if(approved) {
+            showToast(`✅ Deposit of ${amount} ETB approved!`, 'success');
+            Sound.success();
+            
+            // Refresh user data
+            await Api.syncUser();
+            showPage('lobby');
+          } else {
+            showToast('Still pending admin approval...', 'warning');
+          }
+        } catch (error) {
+          showToast('Could not check status. Please wait...', 'error');
+        }
+      });
+    }
+
+    function showWaitingForApproval(amount) {
+      showPage('waiting');
+      // Re-render with amount
+      renderWaitingPage(document.getElementById('page-waiting'), amount);
+    }
+
+    // ============================================
+    // 📤 WITHDRAWAL MODAL
+    // ============================================
+    function showWithdrawModal() {
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="modal-content">
+          <h3>💰 Withdrawal Request</h3>
+          
+          <div class="contact-info">
+            <div class="contact-item">
+              📱 ${CONFIG.TELEBIRR_NUMBER}
+              <button onclick="copyText('${CONFIG.TELEBIRR_NUMBER}')">Copy</button>
+            </div>
+            <div class="contact-item">
+              📨 ${CONFIG.SUPPORT_TELEGRAM}
+              <button onclick="copyText('${CONFIG.SUPPORT_TELEGRAM}')">Copy</button>
+            </div>
+          </div>
+          
+          <p style="color:var(--gray); font-size:0.9rem; margin:15px 0;">
+            Withdrawals are processed manually. Please ensure your phone number is correct.
+          </p>
+          
+          <div class="input-group">
+            <label>Amount to Withdraw (ETB)</label>
+            <input type="number" id="wdAmount" placeholder="Min: 10 ETB" min="10">
+          </div>
+          
+          <div class="input-group">
+            <label>Your TeleBirr Phone</label>
+            <input type="tel" id="wdPhone" placeholder="09XXXXXXXX" value="${AppState.user?.phone || ''}">
+          </div>
+          
+          <button class="btn btn-gold" id="submitWdBtn">Submit Request</button>
+          <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      // Setup submit handler
+      document.getElementById('submitWdBtn')?.addEventListener('click', async () => {
+        const amt = parseInt(document.getElementById('wdAmount')?.value);
+        const phone = document.getElementById('wdPhone')?.value.trim();
+        
+        if(!amt || amt < 10) {
+          showToast('Minimum withdrawal is 10 ETB', 'error');
+          return;
+        }
+        
+        if(amt > (AppState.user?.balance || 0)) {
+          showToast('Insufficient balance', 'error');
+          Sound.error();
+          return;
+        }
+        
+        if(!phone || !phone.startsWith('09') || phone.length !== 10) {
+          showToast('Please enter valid TeleBirr number', 'error');
+          return;
+        }
+        
+        try {
+          await Api.requestWithdrawal({
+            amount: amt,
+            phone: phone
+          });
+          
+          showToast('Withdrawal request submitted! Admin will review.', 'success');
+          Sound.success();
+          modal.remove();
+          
+          // Refresh user balance
+          await Api.syncUser();
+        } catch (error) {
+          // Error already shown
+        }
+      });
+    }
+
+    // ============================================
+    // 👥 SUPPORT MODAL
+    // ============================================
+    function showSupport() {
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="modal-content">
+          <h3>👥 Customer Support</h3>
+          
+          <p style="color:var(--gray); margin-bottom:20px;">
+            Need help? Contact our support team:
+          </p>
+          
+          <div class="contact-info">
+            <div class="contact-item">
+              📱 ${CONFIG.SUPPORT_PHONE}
+              <button onclick="copyText('${CONFIG.SUPPORT_PHONE}')">Copy</button>
+            </div>
+            <div class="contact-item">
+              📨 ${CONFIG.SUPPORT_TELEGRAM}
+              <button onclick="copyText('${CONFIG.SUPPORT_TELEGRAM}')">Copy</button>
+            </div>
+          </div>
+          
+          <p style="font-size:0.85rem; color:var(--gray); margin:20px 0;">
+            ⏰ Support Hours: 9AM - 10PM EAT<br>
+            💬 Average response time: <5 minutes
+          </p>
+          
+          <button class="btn btn-green" onclick="this.closest('.modal-overlay').remove()">Close</button>
+          <a href="https://t.me/${CONFIG.SUPPORT_TELEGRAM.replace('@','')}" target="_blank" style="text-decoration:none;">
+            <button class="btn btn-blue">Open Telegram Chat</button>
+          </a>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    // ============================================
+    // 👮 ADMIN PANEL
+    // ============================================
+    function showAdminLogin() {
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="modal-content">
+          <h3>🔐 Admin Access</h3>
+          
+          <div class="input-group">
+            <label>Master ID</label>
+            <input type="text" id="adminUser" placeholder="Enter Master ID">
+          </div>
+          
+          <div class="input-group">
+            <label>Secure Code</label>
+            <input type="text" id="adminCode" placeholder="Enter secure code">
+          </div>
+          
+          <div class="input-group">
+            <label>Security Key</label>
+            <input type="password" id="adminPass" placeholder="Enter security key">
+          </div>
+          
+          <button class="btn btn-blue" id="adminLoginBtn">🔓 Login</button>
+          <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+          
+          <p style="font-size:0.8rem; color:var(--gray); margin-top:20px;">
+            ⚠️ Admin access is logged and monitored
+          </p>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      document.getElementById('adminLoginBtn').onclick = async () => {
+        const masterId = document.getElementById('adminUser').value;
+        const secureCode = document.getElementById('adminCode').value;
+        const securityKey = document.getElementById('adminPass').value;
+        
+        try {
+          const response = await Api.adminLogin({
+            masterId,
+            secureCode,
+            securityKey
+          });
+          
+          AppState.admin.isLoggedIn = true;
+          AppState.admin.token = response.token;
+          
+          showToast('Admin login successful', 'success');
+          modal.remove();
+          showFullAdminPanel();
+          
+        } catch (error) {
+          Sound.error();
+          // Error already shown by API layer
+        }
+      };
+    }
+
+    async function showFullAdminPanel() {
+      if(!AppState.admin.isLoggedIn) {
+        showAdminLogin();
+        return;
+      }
+      
+      showLoading('Loading admin data...');
+      
+      try {
+        const stats = await Api.getAdminStats(AppState.admin.token);
+        hideLoading();
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+          <div class="modal-content" style="max-width:550px; max-height:90vh; overflow-y:auto;">
+            <h3 style="color:var(--green);">🛡️ Admin Control Panel</h3>
+            
+            <div class="admin-stats-grid">
+              <div class="admin-card">
+                👥 Users
+                <b>${stats.stats?.totalUsers || 0}</b>
+              </div>
+              <div class="admin-card">
+                💰 Total Money
+                <b>${stats.stats?.totalMoney || 0} ETB</b>
+              </div>
+              <div class="admin-card">
+                📥 Pending Deposits
+                <b>${stats.stats?.pendingDeposits || 0}</b>
+              </div>
+              <div class="admin-card">
+                📤 Pending Withdrawals
+                <b>${stats.stats?.pendingWithdrawals || 0}</b>
+              </div>
+            </div>
+            
+            <div style="margin:15px 0;">
+              <button class="btn btn-green" id="addFundsBtn">➕ Add Funds (by Phone)</button>
+            </div>
+            
+            <div style="margin:10px 0;">
+              <button class="btn btn-purple" id="blockUserBtn">🚫 Block/Unblock User</button>
+            </div>
+            
+            <div style="margin:10px 0;">
+              <button class="btn btn-blue" id="approveDepositsBtn">✅ Approve Deposits</button>
+            </div>
+            
+            <div style="margin:10px 0;">
+              <button class="btn btn-gold" id="viewWithdrawalsBtn">📤 View Withdrawals</button>
+            </div>
+            
+            <div style="margin:10px 0;">
+              <button class="btn btn-red" id="resetPoolsBtn">🔄 Reset All Pools</button>
+            </div>
+            
+            <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close Panel</button>
+          </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Setup button handlers
+        setupAdminButtons(stats.stats, modal);
+        
+      } catch (error) {
+        hideLoading();
+        showToast('Failed to load admin panel', 'error');
+      }
+    }
+
+    function setupAdminButtons(stats, modal) {
+      const token = AppState.admin.token;
+      
+      // Add Funds
+      document.getElementById('addFundsBtn')?.addEventListener('click', async () => {
+        const phone = prompt("Enter user's phone number:");
+        if(!phone) return;
+        
+        const amount = parseInt(prompt("Enter amount to add (ETB):", "100"));
+        if(!amount || amount <= 0) return;
+        
+        const reason = prompt("Reason for adding funds (optional):") || 'Manual adjustment';
+        
+        try {
+          await Api.addFunds({ phone, amount, reason }, token);
+          showToast(`✅ Added ${amount} ETB to user`, 'success');
+          modal.remove();
+          showFullAdminPanel(); // Refresh
+        } catch (error) {
+          // Error already shown
+        }
+      });
+      
+      // Block/Unblock User
+      document.getElementById('blockUserBtn')?.addEventListener('click', async () => {
+        const phone = prompt("Enter user's phone to block/unblock:");
+        if(!phone) return;
+        
+        try {
+          await Api.toggleBlockUser({ phone }, token);
+          showToast('User status updated', 'success');
+          modal.remove();
+          showFullAdminPanel();
+        } catch (error) {
+          // Error already shown
+        }
+      });
+      
+      // Approve Deposits (simplified - in production: show list)
+      document.getElementById('approveDepositsBtn')?.addEventListener('click', async () => {
+        showToast('📋 In production: Show list of pending deposits', 'warning');
+        // Implementation: fetch pending deposits, show modal with list, allow selection
+      });
+      
+      // View Withdrawals
+      document.getElementById('viewWithdrawalsBtn')?.addEventListener('click', async () => {
+        showToast('📤 In production: Show list of pending withdrawals', 'warning');
+      });
+      
+      // Reset Pools
+      document.getElementById('resetPoolsBtn')?.addEventListener('click', async () => {
+        if(confirm('⚠️ Reset ALL room pools? This cannot be undone!')) {
+          try {
+            await Api.resetPools(token);
+            showToast('✅ All pools reset successfully', 'success');
+            modal.remove();
+          } catch (error) {
+            // Error already shown
+          }
+        }
+      });
+    }
+
+    // ============================================
+    // 🎯 ROOM JOINING
+    // ============================================
+    async function tryJoinRoom(amount) {
+      if(!AppState.user) {
+        // Sync user first
+        try {
+          const response = await Api.syncUser();
+          AppState.user = response.user;
+        } catch (error) {
+          showToast('Please restart the app', 'error');
+          return;
+        }
+      }
+      
+      if(AppState.user.isBlocked) {
+        showToast('Account blocked', 'error');
+        return;
+      }
+      
+      if(AppState.user.balance < amount) {
+        showToast(`Insufficient balance! Need ${amount} ETB.`, 'error');
+        Sound.error();
+        
+        // Offer to deposit
+        if(confirm('Would you like to deposit funds now?')) {
+          showPage('deposit');
+        }
+        return;
+      }
+      
+      await joinRoom(amount);
+    }
+
+    async function joinRoom(amount) {
+      try {
+        const response = await Api.joinRoom(amount);
+        
+        // Update local state
+        AppState.user.balance = response.userBalance;
+        AppState.game.roomAmount = amount;
+        
+        showToast(response.message, 'success');
+        Sound.success();
+        
+        // Start game with server-provided card if available
+        if(response.card) {
+          AppState.game.cardGrid = response.card.grid;
+          AppState.game.markedState = response.card.marked;
+        }
+        
+        showPage('bingo');
+      } catch (error) {
+        // Error already shown by API layer
+      }
+    }
+
+    // ============================================
+    // 🚀 APP INITIALIZATION
+    // ============================================
+    async function initApp() {
+      // Initialize Telegram
+      initTelegram();
+      
+      // Try to sync user on load
+      try {
+        const response = await Api.syncUser();
+        AppState.user = response.user;
+      } catch (error) {
+        console.warn('Could not sync user on load');
+        // Create minimal user object for offline mode
+        AppState.user = {
+          name: window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || 'Player',
+          balance: 0,
+          selectedRoom: 20
+        };
+      }
+      
+      // Setup Socket.io for real-time (optional)
+      // if(CONFIG.API_BASE.includes('https')) {
+      //   AppState.socket = io(CONFIG.API_BASE.replace('/api', ''), {
+      //     transports: ['websocket'],
+      //     auth: {
+      //       token: window.Telegram?.WebApp?.initData
+      //     }
+      //   });
+      //   
+      //   AppState.socket.on('new-number', (data) => {
+      //     // Handle real-time number call
+      //     if(AppState.currentPage === 'bingo' && AppState.game.isGameActive) {
+      //       // Update UI with new number
+      //     }
+      //   });
+      // }
+      
+      // Show lobby
+      showPage('lobby');
+      
+      // Prevent accidental navigation
+      window.addEventListener('beforeunload', (e) => {
+        if(AppState.game.isGameActive) {
+          e.preventDefault();
+          e.returnValue = '';
+        }
+      });
+    }
+
+    // ============================================
+    // 🌍 GLOBAL EVENT LISTENERS
+    // ============================================
+    document.addEventListener('DOMContentLoaded', initApp);
+    
+    // Handle visibility change (pause game when tab hidden)
+    document.addEventListener('visibilitychange', () => {
+      if(document.hidden && AppState.game.isAutoPlaying) {
+        // Optional: pause auto-play when tab hidden
+        // stopAutoPlay();
+      }
+    });
+    
+    // Handle keyboard shortcuts (for desktop testing)
+    document.addEventListener('keydown', (e) => {
+      if(e.key === 'Escape' && AppState.currentPage !== 'lobby') {
+        showPage('lobby');
+      }
+    });
+
+    // ============================================
+    // 🌐 EXPOSE GLOBAL FUNCTIONS
+    // ============================================
+    window.showPage = showPage;
+    window.tryJoinRoom = tryJoinRoom;
+    window.exitGame = exitGame;
+    window.showSupport = showSupport;
+    window.copyText = copyText;
+    window.showWithdrawModal = showWithdrawModal;
+    window.saveProfile = saveProfile;
+    window.checkForBingo = checkForBingo;
+    window.requestDeposit = requestDeposit;
+    window.showAdminLogin = showAdminLogin;
+    
+    // For debugging
+    window.AppState = AppState;
+    window.Api = Api;
+    window.CONFIG = CONFIG;
   </script>
 </body>
 </html>
