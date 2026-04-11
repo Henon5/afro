@@ -16,12 +16,12 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
   res.json({ success: true, stats: { totalUsers, activeUsers, totalBalance: totalBalance[0]?.total || 0, pendingDeposits, pendingWithdrawals, totalPools: totalPools[0]?.total || 0, houseEarnings: houseEarnings[0]?.total || 0 } });
 });
 
-router.get('/transactions', auth, adminOnly, async (req, res) => {
+router.get('/transactions', adminOnly, async (req, res) => {
   const transactions = await Transaction.find({ status: req.query.status || 'pending' }).sort({ createdAt: -1 }).limit(50).populate('userId', 'username firstName phone').lean();
   res.json({ success: true, transactions });
 });
 
-router.post('/transaction/:id/approve', auth, adminOnly, validate('adminApproveTransaction'), async (req, res) => {
+router.post('/transaction/:id/approve', adminOnly, validate('adminApproveTransaction'), async (req, res) => {
   const { transactionId, action, reason } = req.body;
   const tx = await Transaction.findById(transactionId);
   if (!tx || tx.status !== 'pending') return res.status(400).json({ error: 'Invalid transaction' });
@@ -38,7 +38,7 @@ router.post('/transaction/:id/approve', auth, adminOnly, validate('adminApproveT
   res.json({ success: true, message: `Transaction ${action}d` });
 });
 
-router.post('/user/add-funds', auth, adminOnly, validate('adminAddFunds'), async (req, res) => {
+router.post('/user/add-funds',  adminOnly, validate('adminAddFunds'), async (req, res) => {
   const user = await User.findOne({ phone: req.body.userPhone });
   if (!user) return res.status(404).json({ error: 'User not found' });
   user.balance += req.body.amount; await user.save();
@@ -46,7 +46,7 @@ router.post('/user/add-funds', auth, adminOnly, validate('adminAddFunds'), async
   res.json({ success: true, newBalance: user.balance });
 });
 
-router.post('/pools/reset', auth, adminOnly, async (req, res) => {
+router.post('/pools/reset', adminOnly, async (req, res) => {
   await RoomPool.updateMany({}, { currentPool: 0, houseTotal: 0, players: [] });
   res.json({ success: true, message: 'Pools reset' });
 });
