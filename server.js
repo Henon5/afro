@@ -14,8 +14,16 @@ RoomPool.initializeRooms().catch(console.error);
 app.use(helmet());
 app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
 app.use(express.json());
-app.use(rateLimit({ windowMs: parseInt(process.env.RATE_LIMIT_WINDOW) * 60000, max: parseInt(process.env.RATE_LIMIT_MAX) }));
+// Trust Railway's proxy
+app.set('trust proxy', 1);
 
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  trustProxy: true
+}));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/game', require('./routes/game'));
