@@ -1,3 +1,33 @@
+router.post('/login', (req, res) => {
+  try {
+    
+    const authHeader = req.headers['x-admin-auth'];
+    if (!authHeader) {
+      return res.status(401).json({ error: 'No credentials provided' });
+    }
+    
+    const { masterId, secureCode, securityKey } = JSON.parse(authHeader);
+
+    if (
+      masterId === process.env.ADMIN_MASTER_ID &&
+      secureCode === process.env.ADMIN_SECURE_CODE &&
+      securityKey === process.env.ADMIN_SECURITY_KEY
+    ) {
+      
+      return res.json({ 
+        success: true, 
+        message: 'Login successful',
+        token: 'admin-session-active' // Optional: just a flag to show we are in
+      });
+    } else {
+      
+      return res.status(403).json({ error: 'Invalid credentials' });
+    }
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid request format' });
+  }
+});
+
 const express = require('express');
 const router = express.Router();
 const { adminOnly } = require('../middleware/auth');
