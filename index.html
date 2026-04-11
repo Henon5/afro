@@ -1083,12 +1083,15 @@ Index.html
       
       getTransactions: () => this._request('/transactions'),
 
-      // 👮 Admin Endpoints
-      adminLogin: (creds) => this._request('/admin/login', {
-        method: 'POST',
-        body: JSON.stringify(creds),
-        loadingText: 'Authenticating...'
-      }),
+      adminLogin: async ({ masterId, secureCode, securityKey }) => {
+  return this._request('/admin/stats', {
+    method: 'GET',
+    headers: {
+      'x-admin-auth': JSON.stringify({ masterId, secureCode, securityKey })
+    },
+    loadingText: 'Authenticating...'
+  });
+},
       
       getAdminStats: (token) => this._request('/admin/stats', {
         headers: { 'x-admin-token': token }
