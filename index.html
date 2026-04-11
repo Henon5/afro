@@ -1002,156 +1002,148 @@ Index.html
         securityKey: 'GOLDENKEY'
       }
     };
-
-    // ============================================
-    // 🌐 API SERVICE LAYER
-    // ============================================
-    const Api = {
-      // Get headers with Telegram auth
-      _headers() {
-        const headers = { 'Content-Type': 'application/json' };
-        if (window.Telegram?.WebApp?.initData) {
-          headers['x-telegram-init-data'] = Telegram.WebApp.initData;
-        }
-        return headers;
-      },
-
-      // Generic request handler
-      async _request(endpoint, options = {}) {
-        const url = `${CONFIG.API_BASE}${endpoint}`;
-        
-        try {
-          showLoading(options.loadingText || 'Processing...');
-          
-          const response = await fetch(url, {
-            ...options,
-            headers: { ...this._headers(), ...options.headers }
-          });
-          
-          const data = await response.json();
-          
-          if (!response.ok) {
-            throw new Error(data.error || 'Request failed');
-          }
-          
-          return data;
-        } catch (error) {
-          console.error('API Error:', error);
-          showToast(error.message || 'Connection error. Please check your internet.', 'error');
-          throw error;
-        } finally {
-          hideLoading();
-        }
-      },
-
-      // 🔐 Authentication
-      syncUser: () => this._request('/auth/sync', { method: 'POST' }),
-      
-      updateProfile: (data) => this._request('/auth/profile', {
-        method: 'PUT',
-        body: JSON.stringify(data)
-      }),
-
-      // 🎮 Game Endpoints
-      joinRoom: (amount) => this._request(`/game/join/${amount}`, {
-        method: 'POST',
-        loadingText: 'Joining room...'
-      }),
-      
-      markNumber: (data) => this._request('/game/mark', {
-        method: 'POST',
-        body: JSON.stringify(data)
-      }),
-      
-      claimBingo: (data) => this._request('/game/claim', {
-        method: 'POST',
-        loadingText: 'Verifying win...'
-      }),
-
-      // 💰 Transactions
-      requestDeposit: (data) => this._request('/transactions/deposit', {
-        method: 'POST',
-        body: JSON.stringify(data),
-        loadingText: 'Submitting request...'
-      }),
-      
-      requestWithdrawal: (data) => this._request('/transactions/withdraw', {
-        method: 'POST',
-        body: JSON.stringify(data),
-        loadingText: 'Processing withdrawal...'
-      }),
-      
-      getTransactions: () => this._request('/transactions'),
-
-      // 👮 Admin Endpoints
- adminLogin: async ({ masterId, secureCode, securityKey }) => {
-  const res = await fetch(`${CONFIG.API_BASE}/admin/stats`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      // 🔥 ADD THIS EXACT LINE:
-      'x-admin-auth': JSON.stringify({ masterId, secureCode, securityKey })
+// ============================================
+// 🌐 API SERVICE LAYER
+// ============================================
+const Api = {
+  // Get headers with Telegram auth
+  _headers(token = null) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (window.Telegram?.WebApp?.initData) {
+      headers['x-telegram-init-data'] = Telegram.WebApp.initData;
     }
-  });
-  
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || 'Login failed');
-  }
-  
-  return await res.json();
-},
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  },
 
-    // ============================================
-    // 🔊 SOUND MANAGER
-    // ============================================
-    const Sound = {
-      _ctx: null,
+  // Generic request handler
+  async _request(endpoint, options = {}) {
+    const url = `${CONFIG.API_BASE}${endpoint}`;
+    
+    try {
+      showLoading(options.loadingText || 'Processing...');
       
-      _init() {
-        if (this._ctx) return;
-        try {
-          this._ctx = new (window.AudioContext || window.webkitAudioContext)();
-        } catch (e) {
-          console.log('Audio not supported');
-        }
-      },
+      const response = await fetch(url, {
+        ...options,
+        headers: { ...this._headers(options.token), ...options.headers }
+      });
       
-      _play(freq, type = 'sine', duration = 0.1, volume = 0.1) {
-        this._init();
-        if (!this._ctx) return;
-        
-        try {
-          const osc = this._ctx.createOscillator();
-          const gain = this._ctx.createGain();
-          
-          osc.type = type;
-          osc.frequency.setValueAtTime(freq, this._ctx.currentTime);
-          
-          gain.gain.setValueAtTime(volume, this._ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.0001, this._ctx.currentTime + duration);
-          
-          osc.connect(gain);
-          gain.connect(this._ctx.destination);
-          
-          osc.start();
-          osc.stop(this._ctx.currentTime + duration);
-        } catch (e) {
-          console.log('Audio play error:', e);
-        }
-      },
+      const data = await response.json();
       
-      click() { this._play(600, 'sine', 0.08, 0.08); },
-      number() { this._play(440, 'triangle', 0.15, 0.12); },
-      win() {
-        this._play(523, 'square', 0.25, 0.15); // C5
-        setTimeout(() => this._play(659, 'square', 0.25, 0.15), 120); // E5
-        setTimeout(() => this._play(783, 'square', 0.4, 0.15), 240); // G5
-      },
-      error() { this._play(150, 'sawtooth', 0.25, 0.1); },
-      success() { this._play(880, 'sine', 0.15, 0.1); }
-    };
+      if (!response.ok) {
+        throw new Error(data.error || 'Request failed');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('API Error:', error);
+      showToast(error.message || 'Connection error. Please check your internet.', 'error');
+      throw error;
+    } finally {
+      hideLoading();
+    }
+  },
 
+  // 🔐 Authentication
+  syncUser: () => this._request('/auth/sync', { method: 'POST' }),
+  
+  updateProfile: (data) => this._request('/auth/profile', {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+
+  // 🎮 Game Endpoints
+  joinRoom: (amount) => this._request(`/game/join/${amount}`, {
+    method: 'POST',
+    loadingText: 'Joining room...'
+  }),
+  
+  markNumber: (data) => this._request('/game/mark', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  
+  claimBingo: (data) => this._request('/game/claim', {
+    method: 'POST',
+    loadingText: 'Verifying win...'
+  }),
+
+  // 💰 Transactions
+  requestDeposit: (data) => this._request('/transactions/deposit', {
+    method: 'POST',
+    body: JSON.stringify(data),
+    loadingText: 'Submitting request...'
+  }),
+  
+  requestWithdrawal: (data) => this._request('/transactions/withdraw', {
+    method: 'POST',
+    body: JSON.stringify(data),
+    loadingText: 'Processing withdrawal...'
+  }),
+  
+  getTransactions: (token) => this._request('/transactions', {
+    token: token
+  }),
+
+  // 👮 Admin Endpoints
+  adminLogin: async ({ masterId, secureCode, securityKey }) => {
+    const res = await fetch(`${CONFIG.API_BASE}/admin/stats`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-auth': JSON.stringify({ masterId, secureCode, securityKey })
+      }
+    });
+    
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || 'Login failed');
+    }
+    
+    return await res.json();
+  },
+
+  getAdminStats: (token) => this._request('/admin/stats', {
+    token: token
+  }),
+
+  addFunds: (data, token) => this._request('/admin/add-funds', {
+    method: 'POST',
+    token: token,
+    body: JSON.stringify(data),
+    loadingText: 'Adding funds...'
+  }),
+
+  toggleBlockUser: (data, token) => this._request('/admin/block-user', {
+    method: 'POST',
+    token: token,
+    body: JSON.stringify(data),
+    loadingText: 'Updating user status...'
+  }),
+
+  resetPools: (token) => this._request('/admin/reset-pools', {
+    method: 'POST',
+    token: token,
+    loadingText: 'Resetting pools...'
+  }),
+
+  approveDeposit: (data, token) => this._request('/admin/approve-deposit', {
+    method: 'POST',
+    token: token,
+    body: JSON.stringify(data),
+    loadingText: 'Approving deposit...'
+  }),
+
+  processWithdrawal: (data, token) => this._request('/admin/process-withdrawal', {
+    method: 'POST',
+    token: token,
+    body: JSON.stringify(data),
+    loadingText: 'Processing withdrawal...'
+  })
+};
+   
     // ============================================
     // 🧠 APP STATE
     // ============================================
