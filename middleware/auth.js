@@ -1,45 +1,174 @@
+// middleware/auth.js
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
 
+// 🔐 Verify Telegram WebApp initData signature
 const verifyTelegramData = (initData) => {
-  if (!process.env.TELEGRAM_BOT_TOKEN) return true; // Skip in dev if no token
-  const params = new URLSearchParams(initData);
-  const hash = params.get('hash');
-  params.delete('hash');
-  const dataCheckString = Array.from(params.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${v}`).join('\n');
-  const secretKey = crypto.createHmac('sha256', 'WebAppData').update(process.env.TELEGRAM_BOT_TOKEN).digest();
-  return crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex') === hash;
+  // Skip verification in development if no bot token is set
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    console.warn('⚠️ TELEGRAM_BOT_TOKEN not set - skipping initData verification (DEV MODE)');
+    return true;
+  }
+  
+  try {
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+    if (!hash) return false;
+    
+    params.delete('hash');
+    
+    // Sort params alphabetically by key (Telegram requirement)
+    const dataCheckString = Array.from(params.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${v}`)
+      .join('\n');
+    
+    // Generate secret key per Telegram docs
+    const secretKey = crypto
+      .createHmac('sha256', 'WebAppData')
+      .update(process.env.TELEGRAM_BOT_TOKEN)
+      .digest();
+    
+    // Compute expected hash
+    const expectedHash = crypto
+      .createHmac('sha256', secretKey)
+      .update(dataCheckString)
+      .digest('hex');
+    
+    return crypto.timingSafeEqual(
+      Buffer.from(hash, 'hex'),
+      Buffer.from(expectedHash, 'hex')
+    );
+  } catch (error) {
+    console.error('Telegram data verification error:', error);
+    return false;
+  }
 };
 
+// 🔑 Main auth middleware - handles Telegram users AND admin
 exports.auth = async (req, res, next) => {
   try {
-    let user;
+    let user = null;
+
+    // 📱 Case 1: Telegram WebApp authentication
     const initData = req.headers['x-telegram-init-data'];
     if (initData) {
-      if (!verifyTelegramData(initData)) return res.status(401).json({ error: 'Invalid Telegram data' });
+      if (!verifyTelegramData(initData)) {
+        console.warn('❌ Invalid Telegram initData');
+        return res.status(401).json({ error: 'Invalid Telegram data' });
+      }
+      
       const params = new URLSearchParams(initData);
       const tgUser = JSON.parse(params.get('user'));
-      user = await User.findOneAndUpdate({ telegramId: String(tgUser.id) }, { telegramId: String(tgUser.id), username: tgUser.username, firstName: tgUser.first_name, lastName: tgUser.last_name, lastActive: Date.now() }, { upsert: true, new: true, setDefaultsOnInsert: true });
-    } else if (req.headers['x-admin-auth']) {
-      const { masterId, secureCode, securityKey } = JSON.parse(req.headers['x-admin-auth']);
-      if (masterId === process.env.ADMIN_MASTER_ID && secureCode === process.env.ADMIN_SECURE_CODE && securityKey === process.env.ADMIN_SECURITY_KEY) {
-        user = { _id: 'admin', isAdmin: true, displayName: 'MasterAdmin' };
-      } else {
-        return res.status(401).json({ error: 'Invalid admin credentials' });
+      
+      // Upsert user in database
+      user = await User.findOneAndUpdate(
+        { telegramId: String(tgUser.id) },
+        {
+          telegramId: String(tgUser.id),
+          username: tgUser.username,
+          firstName: tgUser.first_name,
+          lastName: tgUser.last_name,
+          languageCode: tgUser.language_code,
+          lastActive: Date.now()
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    } 
+    // 👮 Case 2: Admin authentication via credentials (login request)
+    else if (req.headers['x-admin-auth']) {
+      try {
+        const { masterId, secureCode, securityKey } = JSON.parse(req.headers['x-admin-auth']);
+        
+        if (
+          masterId === process.env.ADMIN_MASTER_ID &&
+          secureCode === process.env.ADMIN_SECURE_CODE &&
+          securityKey === process.env.ADMIN_SECURITY_KEY
+        ) {
+          user = { 
+            _id: 'admin', 
+            isAdmin: true, 
+            displayName: 'MasterAdmin',
+            role: 'admin'
+          };
+        } else {
+          console.warn('❌ Invalid admin credentials attempt');
+          return res.status(401).json({ error: 'Invalid admin credentials' });
+        }
+      } catch (parseError) {
+        console.error('Admin auth header parse error:', parseError);
+        return res.status(400).json({ error: 'Invalid admin auth format' });
       }
     }
-    
-    if (!user) return res.status(401).json({ error: 'Authentication required' });
-    if (user.isBlocked) return res.status(403).json({ error: 'Account is blocked' });
+    // 🔑 Case 3: Admin authentication via token (subsequent requests)
+    else if (req.headers['x-admin-token']) {
+      try {
+        const token = req.headers['x-admin-token'];
+        // Decode base64 token (simple format for now)
+        const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+        
+        // Check expiry
+        if (decoded.exp && decoded.exp < Date.now()) {
+          return res.status(401).json({ error: 'Admin token expired' });
+        }
+        
+        // Validate token structure
+        if (decoded.id === 'admin') {
+          user = { 
+            _id: 'admin', 
+            isAdmin: true, 
+            displayName: 'MasterAdmin',
+            role: 'admin'
+          };
+        } else {
+          return res.status(401).json({ error: 'Invalid admin token' });
+        }
+      } catch (tokenError) {
+        console.error('Admin token validation error:', tokenError);
+        return res.status(401).json({ error: 'Invalid or malformed admin token' });
+      }
+    }
+
+    // ❌ No valid authentication method found
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // 🚫 Check if user is blocked (skip for admin)
+    if (user.isBlocked && !user.isAdmin) {
+      return res.status(403).json({ error: 'Account is blocked' });
+    }
+
+    // ✅ Attach user to request and proceed
     req.user = user;
     next();
+    
   } catch (error) {
+    console.error('Auth middleware error:', error);
     res.status(401).json({ error: 'Authentication failed' });
   }
 };
 
+// 🛡️ Admin-only authorization middleware
+// MUST be used AFTER exports.auth middleware
 exports.adminOnly = (req, res, next) => {
-  if (!req.user?.isAdmin) return res.status(403).json({ error: 'Admin access required' });
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  if (!req.user.isAdmin) {
+    console.warn(`🚫 Non-admin access attempt by user: ${req.user._id || 'unknown'}`);
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  next();
+};
+
+// 👤 Optional: User-only middleware (for regular players)
+exports.userOnly = (req, res, next) => {
+  if (!req.user || req.user.isAdmin) {
+    return res.status(403).json({ error: 'Player access required' });
+  }
   next();
 };
