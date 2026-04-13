@@ -1,4 +1,3 @@
-Index.html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -979,6 +978,12 @@ Index.html
   <script>
     // ============================================
     // ⚙️ CONFIGURATION 
+    // --- FIX FOR SOUND ERROR (OUTSIDE CONFIG) ---
+const Sound = {
+  play: () => {},
+  stop: () => {}
+};
+// ============================================
 const CONFIG = {
   // 🔗 CHANGE THIS TO YOUR DEPLOYED BACKEND URL
   API_BASE: 'https://afro-production-dd8e.up.railway.app/api',
@@ -2152,34 +2157,25 @@ const CONFIG = {
         const securityKey = document.getElementById('adminPass').value;
         
         try {
-     
-      onst response = await fetch(`${API_BASE}/admin/login`, {
-            method: 'POST', // Important! Matches the route method
-            headers: {
-                'Content-Type': 'application/json',
-                // This header carries the password
-                'x-admin-auth': JSON.stringify({
-                    masterId: masterId,
-                    secureCode: secureCode,
-                    securityKey: securityKey
-                })
-            }
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            alert('Login Successful! Entering Admin Panel...');
-            
-        } else {
-            alert('Login Failed: ' + data.error);
+          const response = await Api.adminLogin({
+            masterId,
+            secureCode,
+            securityKey
+          });
+          
+          AppState.admin.isLoggedIn = true;
+          AppState.admin.token = response.token;
+          
+          showToast('Admin login successful', 'success');
+          modal.remove();
+          showFullAdminPanel();
+          
+        } catch (error) {
+          Sound.error();
+          // Error already shown by API layer
         }
-
-    } catch (error) {
-        console.error('Network Error:', error);
-        alert('Could not connect to server.');
+      };
     }
-});
 
     async function showFullAdminPanel() {
       if(!AppState.admin.isLoggedIn) {
