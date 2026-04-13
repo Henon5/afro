@@ -978,18 +978,13 @@ Index.html
 
   <script>
     // ============================================
-    // ⚙️ CONFIGURATION 
-    // --- FIX FOR SOUND ERROR (OUTSIDE CONFIG) ---
-const Sound = {
-  play: () => {},
-  stop: () => {}
-};
-// ============================================
-const CONFIG = {
-  // 🔗 CHANGE THIS TO YOUR DEPLOYED BACKEND URL
-  API_BASE: 'https://afro-production-dd8e.up.railway.app/api',
-  // For local testing: 'http://localhost:3000/api'
-
+    // ⚙️ CONFIGURATION
+    // ============================================
+    const CONFIG = {
+      // 🔗 CHANGE THIS TO YOUR DEPLOYED BACKEND URL
+      API_BASE: 'https://afro-production-dd8e.up.railway.app/api',
+      // For local testing: 'http://localhost:3000/api'
+      
       // 🎮 Game Settings
       AUTO_PLAY_INTERVAL: 3000, // ms between number calls
       MAX_CALLED_NUMBERS: 75,
@@ -1088,47 +1083,24 @@ const CONFIG = {
       
       getTransactions: () => this._request('/transactions'),
 
-      adminLogin: async ({ masterId, secureCode, securityKey }) => {
-  return this._request('/admin/stats', {
+      // 👮 Admin Endpoints
+ adminLogin: async ({ masterId, secureCode, securityKey }) => {
+  const res = await fetch(`${CONFIG.API_BASE}/admin/stats`, {
     method: 'GET',
     headers: {
+      'Content-Type': 'application/json',
+      // 🔥 ADD THIS EXACT LINE:
       'x-admin-auth': JSON.stringify({ masterId, secureCode, securityKey })
-    },
-    loadingText: 'Authenticating...'
+    }
   });
+  
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || 'Login failed');
+  }
+  
+  return await res.json();
 },
-      
-      getAdminStats: (token) => this._request('/admin/stats', {
-        headers: { 'x-admin-token': token }
-      }),
-      
-      approveDeposit: (id, token) => this._request(`/admin/approve-deposit/${id}`, {
-        method: 'POST',
-        headers: { 'x-admin-token': token }
-      }),
-      
-      approveWithdrawal: (id, token) => this._request(`/admin/approve-withdrawal/${id}`, {
-        method: 'POST',
-        headers: { 'x-admin-token': token }
-      }),
-      
-      addFunds: (data, token) => this._request('/admin/add-funds', {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: { 'x-admin-token': token }
-      }),
-      
-      toggleBlockUser: (data, token) => this._request('/admin/toggle-block', {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: { 'x-admin-token': token }
-      }),
-      
-      resetPools: (token) => this._request('/admin/reset-pools', {
-        method: 'POST',
-        headers: { 'x-admin-token': token }
-      })
-    };
 
     // ============================================
     // 🔊 SOUND MANAGER
