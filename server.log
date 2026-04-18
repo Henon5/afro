@@ -1,7 +1,3 @@
-
-> afro-bingo-backend@1.0.0 start
-> node server.js
-
 🚀 Server running on port 3000
 MongooseError: Operation `roompools.findOneAndUpdate()` buffering timed out after 10000ms
     at Timeout.<anonymous> (/workspace/node_modules/mongoose/lib/drivers/node-mongodb-native/collection.js:185:23)

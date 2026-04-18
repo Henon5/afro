@@ -11,12 +11,25 @@ const RoomPool = require('../models/RoomPool');
 // 🔐 POST /admin/login - Authenticate admin credentials (NO auth middleware needed for login)
 router.post('/login', (req, res) => {
   try {
-    const authHeader = req.headers['x-admin-auth'];
-    if (!authHeader) {
-      return res.status(401).json({ error: 'No credentials provided' });
-    }
+    // Support both header and body authentication
+    let masterId, secureCode, securityKey;
     
-    const { masterId, secureCode, securityKey } = JSON.parse(authHeader);
+    // Try to get from request body first
+    if (req.body && req.body.masterId) {
+      masterId = req.body.masterId;
+      secureCode = req.body.secureCode;
+      securityKey = req.body.securityKey;
+    } else {
+      // Fallback to header
+      const authHeader = req.headers['x-admin-auth'];
+      if (!authHeader) {
+        return res.status(401).json({ error: 'No credentials provided' });
+      }
+      const creds = JSON.parse(authHeader);
+      masterId = creds.masterId;
+      secureCode = creds.secureCode;
+      securityKey = creds.securityKey;
+    }
 
     if (
       masterId === process.env.ADMIN_MASTER_ID &&
