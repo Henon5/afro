@@ -4,6 +4,30 @@ const { auth } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const User = require('../models/User');
 
+// GET /api/user - Get current user profile (requires auth)
+router.get('/', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ 
+      success: true, 
+      user: { 
+        _id: user._id,
+        displayName: user.displayName, 
+        phone: user.phone, 
+        telegramHandle: user.telegramHandle,
+        balance: user.balance,
+        createdAt: user.createdAt
+      } 
+    });
+  } catch (err) {
+    console.error('Error fetching user:', err);
+    res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+});
+
 // POST method (legacy support)
 router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
