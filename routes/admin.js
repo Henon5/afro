@@ -2,13 +2,13 @@
 const express = require('express');
 const router = express.Router(); // 👈 MUST be at the top!
 
-const { adminOnly } = require('../middleware/auth');
+const { auth, adminOnly } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 const RoomPool = require('../models/RoomPool');
 
-// 🔐 POST /admin/login - Authenticate admin credentials
+// 🔐 POST /admin/login - Authenticate admin credentials (NO auth middleware needed for login)
 router.post('/login', (req, res) => {
   try {
     const authHeader = req.headers['x-admin-auth'];
@@ -44,7 +44,7 @@ router.post('/login', (req, res) => {
 });
 
 // 📊 GET /admin/stats - Requires valid token
-router.get('/stats', adminOnly, async (req, res) => {
+router.get('/stats', auth, adminOnly, async (req, res) => {
   try {
     const [totalUsers, activeUsers, totalBalance, pendingDeposits, pendingWithdrawals, totalPools, houseEarnings] = await Promise.all([
       User.countDocuments(),
@@ -75,7 +75,7 @@ router.get('/stats', adminOnly, async (req, res) => {
 });
 
 // 📋 GET /admin/transactions
-router.get('/transactions', adminOnly, async (req, res) => {
+router.get('/transactions', auth, adminOnly, async (req, res) => {
   try {
     const transactions = await Transaction.find({ status: req.query.status || 'pending' })
       .sort({ createdAt: -1 })
@@ -90,7 +90,7 @@ router.get('/transactions', adminOnly, async (req, res) => {
 });
 
 // ✅ POST /admin/transaction/:id/approve
-router.post('/transaction/:id/approve', adminOnly, validate('adminApproveTransaction'), async (req, res) => {
+router.post('/transaction/:id/approve', auth, adminOnly, validate('adminApproveTransaction'), async (req, res) => {
   try {
     const { transactionId, action, reason } = req.body;
     const tx = await Transaction.findById(transactionId);
@@ -118,7 +118,7 @@ router.post('/transaction/:id/approve', adminOnly, validate('adminApproveTransac
 });
 
 // 💰 POST /admin/user/add-funds
-router.post('/user/add-funds', adminOnly, validate('adminAddFunds'), async (req, res) => {
+router.post('/user/add-funds', auth, adminOnly, validate('adminAddFunds'), async (req, res) => {
   try {
     const user = await User.findOne({ phone: req.body.userPhone });
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -139,7 +139,7 @@ router.post('/user/add-funds', adminOnly, validate('adminAddFunds'), async (req,
 });
 
 // 🔄 POST /admin/pools/reset
-router.post('/pools/reset', adminOnly, async (req, res) => {
+router.post('/pools/reset', auth, adminOnly, async (req, res) => {
   try {
     await RoomPool.updateMany({}, { currentPool: 0, houseTotal: 0, players: [] });
     res.json({ success: true, message: 'Pools reset' });
