@@ -61,8 +61,16 @@ router.post('/mark', auth, async (req, res) => {
 
     const player = gameSession.players.find(p => p.user === req.user._id);
     if (!player) return res.status(403).json({ error: 'Not in this game' });
+    
+    // Validate row and col are within bounds
+    if (row < 0 || row > 2 || col < 0 || col > 2) {
+      return res.status(400).json({ error: 'Invalid coordinates' });
+    }
+    
     const num = player.cardGrid[row][col];
-    if (!(row === 2 && col === 2) && !gameSession.calledNumbers.includes(num)) return res.status(400).json({ error: 'Number not called yet' });
+    if (!(row === 2 && col === 2) && !gameSession.calledNumbers.includes(num)) {
+      return res.status(400).json({ error: 'Number not called yet' });
+    }
 
     player.markedState[row][col] = !player.markedState[row][col];
     await gameSession.save();
@@ -87,7 +95,7 @@ router.post('/claim', auth, async (req, res) => {
 
     const roomPool = await RoomPool.findOne({ roomAmount: gameSession.roomAmount });
     const winnings = roomPool.currentPool;
-    roomPool.currentPool = 0; roomPool.houseTotal += roomPool.houseTotal; roomPool.players = [];
+    roomPool.currentPool = 0; roomPool.players = [];
     await roomPool.save();
 
     const user = await User.findById(req.user._id);
