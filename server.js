@@ -16,14 +16,41 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://telegram.org", "https://cdn.jsdelivr.net", "https://cdn.socket.io"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      scriptSrc: [
+        "'self'", 
+        "'unsafe-inline'", 
+        "https://telegram.org", 
+        "https://cdn.jsdelivr.net", 
+        "https://cdn.socket.io",
+        "https://*.jsdelivr.net"
+      ],
+      scriptSrcElem: [
+        "'self'",
+        "'unsafe-inline'",
+        "https://telegram.org",
+        "https://cdn.jsdelivr.net",
+        "https://cdn.socket.io",
+        "https://*.jsdelivr.net"
+      ],
+      styleSrc: [
+        "'self'", 
+        "'unsafe-inline'", 
+        "https://fonts.googleapis.com",
+        "https://cdn.jsdelivr.net"
+      ],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https:", "http://localhost:*"],
+      connectSrc: [
+        "'self'", 
+        "https:", 
+        "http://localhost:*",
+        "wss:",
+        "ws:"
+      ],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
-      formAction: ["'self'"]
+      formAction: ["'self'"],
+      frameAncestors: ["'self'", "https://t.me", "*"]
     }
   }
 }));
