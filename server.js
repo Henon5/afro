@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 const RoomPool = require('./models/RoomPool');
+const path = require('path');
 
 const app = express();
 connectDB();
@@ -29,6 +30,14 @@ app.use('/api/user', require('./routes/user'));
 app.use('/api/game', require('./routes/game'));
 app.use('/api/transaction', require('./routes/transaction'));
 app.use('/api/admin', require('./routes/admin'));
+
+// Serve static files from current directory (for GitHub Pages deployment)
+app.use(express.static(path.join(__dirname)));
+
+// Serve index.html for root route
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 app.use('*', (req, res) => res.status(404).json({ error: 'Endpoint not found' }));

@@ -982,8 +982,8 @@
     // ⚙️ CONFIGURATION
     // ============================================
     const CONFIG = {
-      // 🔗 Backend API URL (Railway)
-      API_BASE: 'http://localhost:3000/api',
+      // 🔗 Backend API URL - Use relative path for GitHub Pages, fallback to localhost
+      API_BASE: window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api',
       
       // 🎮 Game Settings
       AUTO_PLAY_INTERVAL: 3000,
@@ -2090,12 +2090,24 @@
             
             <div class="admin-stats-grid">
               <div class="admin-card">
-                👥 Users
+                👥 Total Users
                 <b>${stats.stats?.totalUsers || 0}</b>
               </div>
               <div class="admin-card">
+                👤 Active Today
+                <b>${stats.stats?.activeUsers || 0}</b>
+              </div>
+              <div class="admin-card">
                 💰 Total Money
-                <b>${stats.stats?.totalMoney || 0} ETB</b>
+                <b>${stats.stats?.totalBalance || 0} ETB</b>
+              </div>
+              <div class="admin-card">
+                🏦 House Earnings
+                <b>${stats.stats?.houseEarnings || 0} ETB</b>
+              </div>
+              <div class="admin-card">
+                📊 Daily Commission (15%)
+                <b>${stats.stats?.dailyHouseCommission || 0} ETB</b>
               </div>
               <div class="admin-card">
                 📥 Pending Deposits
