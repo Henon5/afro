@@ -981,13 +981,21 @@
     // ============================================
     // ⚙️ CONFIGURATION
     // ============================================
+    
+    // 🔗 IMPORTANT: Set your backend URL here for production!
+    // GitHub Pages cannot host the backend - you must deploy it separately.
+    // Options:
+    //   - Local dev: 'http://localhost:3000/api'
+    //   - Railway: 'https://your-app.up.railway.app/api'
+    //   - Render: 'https://your-app.onrender.com/api'
+    //   - Vercel: 'https://your-app.vercel.app/api'
+    const BACKEND_URL = ''; // ← PUT YOUR BACKEND URL HERE (leave empty for auto-detect)
+    
     const CONFIG = {
-      // 🔗 Backend API URL - Use relative path for deployment (GitHub Pages, Vercel, etc.)
-      // For local development with backend on port 3000, use http://localhost:3000/api
-      // For production deployment, the backend should be accessible at /api via proxy
-      API_BASE: window.location.hostname === 'localhost' 
+      // 🔗 Backend API URL
+      API_BASE: BACKEND_URL || (window.location.hostname === 'localhost' 
         ? 'http://localhost:3000/api' 
-        : '/api',
+        : '/api'),
       
       // 🎮 Game Settings
       AUTO_PLAY_INTERVAL: 3000,
