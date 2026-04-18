@@ -982,8 +982,12 @@
     // ⚙️ CONFIGURATION
     // ============================================
     const CONFIG = {
-      // 🔗 Backend API URL - Use relative path for GitHub Pages, fallback to localhost
-      API_BASE: window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api',
+      // 🔗 Backend API URL - Use relative path for deployment (GitHub Pages, Vercel, etc.)
+      // For local development with backend on port 3000, use http://localhost:3000/api
+      // For production deployment, the backend should be accessible at /api via proxy
+      API_BASE: window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000/api' 
+        : '/api',
       
       // 🎮 Game Settings
       AUTO_PLAY_INTERVAL: 3000,
@@ -1031,6 +1035,14 @@
           });
           
           console.log(`📡 API Response: ${response.status}`);
+          
+          // Check if response is JSON before parsing
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('❌ Expected JSON but got:', text.substring(0, 200));
+            throw new Error('Server returned invalid response. Please check your connection.');
+          }
           
           const data = await response.json();
           
@@ -1274,29 +1286,61 @@
       }
 
       tg.expand();
-      tg.enableClosingConfirmation();
+      
+      // Only enable closing confirmation if supported
+      if (typeof tg.enableClosingConfirmation === 'function') {
+        tg.enableClosingConfirmation();
+      } else {
+        console.warn('⚠️ Closing confirmation not supported in this Telegram client version');
+      }
       
       if (tg.colorScheme === 'dark') {
         document.body.classList.add('telegram-dark');
       }
       
-      tg.setHeaderColor('#009b3a');
-      tg.setBackgroundColor('#ffffff');
-      
-      tg.BackButton.onClick(() => {
-        if (AppState.currentPage === 'bingo') {
-          exitGame();
-        } else if (AppState.currentPage !== 'lobby') {
-          showPage('lobby');
+      // Only set header color if supported
+      if (typeof tg.setHeaderColor === 'function') {
+        try {
+          tg.setHeaderColor('#009b3a');
+        } catch (e) {
+          console.warn('⚠️ Header color not supported:', e.message);
         }
-      });
+      } else {
+        console.warn('⚠️ Header color not supported in this Telegram client version');
+      }
       
-      updateBackButton();
+      // Only set background color if supported
+      if (typeof tg.setBackgroundColor === 'function') {
+        try {
+          tg.setBackgroundColor('#ffffff');
+        } catch (e) {
+          console.warn('⚠️ Background color not supported:', e.message);
+        }
+      } else {
+        console.warn('⚠️ Background color not supported in this Telegram client version');
+      }
+      
+      // Check if BackButton is supported before using it
+      if (tg.BackButton && typeof tg.BackButton.onClick === 'function') {
+        tg.BackButton.onClick(() => {
+          if (AppState.currentPage === 'bingo') {
+            exitGame();
+          } else if (AppState.currentPage !== 'lobby') {
+            showPage('lobby');
+          }
+        });
+        
+        updateBackButton();
+      } else {
+        console.warn('⚠️ BackButton not supported in this Telegram client version');
+      }
     }
 
     function updateBackButton() {
       const tg = window.Telegram?.WebApp;
-      if (!tg) return;
+      if (!tg || !tg.BackButton || typeof tg.BackButton.show !== 'function') {
+        return; // BackButton not supported
+      }
       
       if (['bingo', 'profile', 'deposit'].includes(AppState.currentPage)) {
         tg.BackButton.show();
