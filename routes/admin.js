@@ -46,14 +46,22 @@ router.post('/login', (req, res) => {
 // 📊 GET /admin/stats - Requires valid token
 router.get('/stats', auth, adminOnly, async (req, res) => {
   try {
-    const [totalUsers, activeUsers, totalBalance, pendingDeposits, pendingWithdrawals, totalPools, houseEarnings] = await Promise.all([
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const [totalUsers, activeUsers, totalBalance, pendingDeposits, pendingWithdrawals, totalPools, houseEarnings, dailyHouseCommission] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ lastActive: { $gte: new Date(Date.now() - 86400000) } }),
       User.aggregate([{ $group: { _id: null, total: { $sum: '$balance' } } }]),
       Transaction.countDocuments({ type: 'deposit', status: 'pending' }),
       Transaction.countDocuments({ type: 'withdrawal', status: 'pending' }),
       RoomPool.aggregate([{ $group: { _id: null, total: { $sum: '$currentPool' } } }]),
-      RoomPool.aggregate([{ $group: { _id: null, total: { $sum: '$houseTotal' } } }])
+      RoomPool.aggregate([{ $group: { _id: null, total: { $sum: '$houseTotal' } } }]),
+      RoomPool.aggregate([{ 
+        $match: { updatedAt: { $gte: startOfDay } } 
+      }, { 
+        $group: { _id: null, total: { $sum: '$houseTotal' } } 
+      }])
     ]);
     
     res.json({ 
@@ -65,7 +73,8 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
         pendingDeposits, 
         pendingWithdrawals, 
         totalPools: totalPools[0]?.total || 0, 
-        houseEarnings: houseEarnings[0]?.total || 0 
+        houseEarnings: houseEarnings[0]?.total || 0,
+        dailyHouseCommission: dailyHouseCommission[0]?.total || 0
       } 
     });
   } catch (err) {

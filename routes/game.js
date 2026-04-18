@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { auth } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
+const User = require('../models/User');
 const RoomPool = require('../models/RoomPool');
 const GameSession = require('../models/GameSession');
 const Transaction = require('../models/Transaction');
