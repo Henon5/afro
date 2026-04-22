@@ -117,32 +117,45 @@ router.get('/transactions', auth, adminOnly, async (req, res) => {
   }
 });
 
-// ✅ POST /admin/transaction/:id/approve
-router.post('/transaction/:id/approve', auth, adminOnly, validate('adminApproveTransaction'), async (req, res) => {
+// ✅ POST /admin/transaction/:id/process - Approve or Reject transaction
+router.post('/transaction/:id/process', auth, adminOnly, async (req, res) => {
   try {
-    const { transactionId, action, reason } = req.body;
-    const tx = await Transaction.findById(transactionId);
-    if (!tx || tx.status !== 'pending') return res.status(400).json({ error: 'Invalid transaction' });
+    const { action, reason } = req.body;
+    const tx = await Transaction.findById(req.params.id);
+    
+    if (!tx || tx.status !== 'pending') {
+      return res.status(400).json({ error: 'Invalid or already processed transaction' });
+    }
+    
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action. Must be "approve" or "reject"' });
+    }
     
     if (action === 'approve') {
-      tx.status = 'completed'; 
+      tx.status = 'completed';
       tx.approvedBy = req.user._id;
+      tx.completedAt = new Date();
       
       // Use atomic update for balance changes
       if (tx.type === 'deposit') { 
         await User.findByIdAndUpdate(tx.userId, { $inc: { balance: tx.amount } });
+      } else if (tx.type === 'withdrawal') {
+        // For withdrawal, balance was already deducted, just mark as completed
       }
     } else {
-      tx.status = 'rejected'; 
-      tx.metadata.rejectionReason = reason;
+      tx.status = 'rejected';
+      tx.metadata = tx.metadata || {};
+      tx.metadata.rejectionReason = reason || 'No reason provided';
+      tx.rejectedAt = new Date();
       
       // Refund for rejected withdrawals
       if (tx.type === 'withdrawal') { 
         await User.findByIdAndUpdate(tx.userId, { $inc: { balance: tx.amount } });
       }
     }
+    
     await tx.save();
-    res.json({ success: true, message: `Transaction ${action}d` });
+    res.json({ success: true, message: `Transaction ${action}d successfully`, transaction: tx });
   } catch (err) {
     console.error('Process transaction error:', err);
     res.status(500).json({ error: 'Failed to process transaction' });

@@ -5,9 +5,33 @@ const { validate } = require('../middleware/validate');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 
+// POST /deposit - Create deposit request
 router.post('/deposit', auth, validate('deposit'), async (req, res) => {
-  const tx = await Transaction.create({ userId: req.user._id, type: 'deposit', amount: req.body.amount, paymentMethod: req.body.paymentMethod || 'telebirr', status: 'pending' });
-  res.json({ success: true, transaction: { id: tx._id, amount: tx.amount, status: tx.status } });
+  try {
+    const tx = await Transaction.create({ 
+      userId: req.user._id, 
+      type: 'deposit', 
+      amount: req.body.amount, 
+      paymentMethod: req.body.paymentMethod || 'telebirr', 
+      status: 'pending',
+      metadata: { 
+        referenceId: `DEP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` 
+      }
+    });
+    res.json({ 
+      success: true, 
+      transaction: { 
+        id: tx._id, 
+        amount: tx.amount, 
+        status: tx.status,
+        referenceId: tx.metadata.referenceId,
+        message: 'Deposit request submitted. Processing times vary, typically within 24 hours.'
+      } 
+    });
+  } catch (err) {
+    console.error('Deposit error:', err);
+    res.status(500).json({ error: 'Failed to create deposit request' });
+  }
 });
 
 router.post('/withdraw', auth, validate('withdrawal'), async (req, res) => {
@@ -32,9 +56,21 @@ router.post('/withdraw', auth, validate('withdrawal'), async (req, res) => {
       amount: req.body.amount, 
       paymentMethod: 'telebirr', 
       status: 'pending', 
-      metadata: { phone: req.body.phone } 
+      metadata: { 
+        phone: req.body.phone,
+        referenceId: `WTH-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      } 
     });
-    res.json({ success: true, transaction: { id: tx._id, amount: tx.amount, newBalance: updatedUser.balance } });
+    res.json({ 
+      success: true, 
+      transaction: { 
+        id: tx._id, 
+        amount: tx.amount, 
+        newBalance: updatedUser.balance,
+        referenceId: tx.metadata.referenceId,
+        message: 'Withdrawal request submitted. Processing times vary, typically within 24 hours.'
+      } 
+    });
   } catch (err) {
     console.error('Withdrawal error:', err);
     res.status(500).json({ error: 'Failed to process withdrawal' });
