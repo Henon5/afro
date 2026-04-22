@@ -992,19 +992,19 @@
     
     // Auto-detect backend URL based on environment
     const getBackendUrl = () => {
-      // If running on GitHub Pages or other static host, use Railway backend
-      if (window.location.hostname.includes('github.io')) {
-        return 'https://afro-production-dd8e.up.railway.app/api';
-      }
-      // If running on localhost, use local backend
-      if (window.location.hostname === 'localhost') {
-        return 'http://localhost:3000/api';
-      }
-      // For other deployments, check if BACKEND_URL is set via environment
-      // You can inject this via build process or use a meta tag
+      // Check for meta tag first (allows deployment configuration)
       const metaBackend = document.querySelector('meta[name="backend-url"]');
       if (metaBackend) {
         return metaBackend.getAttribute('content');
+      }
+      // If running on GitHub Pages, use Railway backend
+      if (window.location.hostname.includes('github.io')) {
+        // Update this to your actual Railway URL
+        return 'https://your-backend.up.railway.app/api';
+      }
+      // If running on localhost, use local backend
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'http://localhost:3000/api';
       }
       // Default: try relative /api path (works if frontend & backend on same domain)
       return '/api';
