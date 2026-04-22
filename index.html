@@ -999,8 +999,8 @@
       }
       // If running on GitHub Pages, use Railway backend
       if (window.location.hostname.includes('github.io')) {
-        // Update this to your actual Railway URL
-        return 'https://your-backend.up.railway.app/api';
+        // ✅ Updated to actual Railway URL
+        return 'https://afro-production-dd8e.up.railway.app/api';
       }
       // If running on localhost, use local backend
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -1011,6 +1011,7 @@
     };
     
     const BACKEND_URL = getBackendUrl();
+    console.log('🔧 Backend API URL:', BACKEND_URL);
     
     const CONFIG = {
       // 🔗 Backend API URL
