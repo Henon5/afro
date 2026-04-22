@@ -1047,11 +1047,20 @@
           headers['x-telegram-init-data'] = Telegram.WebApp.initData;
         }
         
-        // Merge with any custom headers (like x-admin-token)
+        // Add admin token if available (supports both header formats)
+        const adminToken = localStorage.getItem('adminToken');
+        if (adminToken) {
+          // Support both x-admin-token and standard Authorization header
+          headers['x-admin-token'] = adminToken;
+          headers['Authorization'] = `Bearer ${adminToken}`;
+        }
+        
+        // Merge with any custom headers
         if (customHeaders && typeof customHeaders === 'object') {
           Object.assign(headers, customHeaders);
         }
         
+        console.log('📋 API Headers:', headers);
         return headers;
       },
 
@@ -2140,6 +2149,10 @@
           AppState.admin.isLoggedIn = true;
           AppState.admin.token = response.token;
           
+          // Store token in localStorage for persistence across requests
+          localStorage.setItem('adminToken', response.token);
+          console.log('✅ Admin token saved to localStorage');
+          
           showToast('Admin login successful', 'success');
           modal.remove();
           showFullAdminPanel();
@@ -2153,8 +2166,16 @@
 
     async function showFullAdminPanel() {
       if(!AppState.admin.isLoggedIn) {
-        showAdminLogin();
-        return;
+        // Try to restore session from localStorage
+        const savedToken = localStorage.getItem('adminToken');
+        if (savedToken) {
+          AppState.admin.token = savedToken;
+          AppState.admin.isLoggedIn = true;
+          console.log('✅ Admin session restored from localStorage');
+        } else {
+          showAdminLogin();
+          return;
+        }
       }
       
       showLoading('Loading admin data...');

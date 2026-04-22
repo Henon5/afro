@@ -108,9 +108,18 @@ exports.auth = async (req, res, next) => {
       }
     }
     // 🔑 Case 3: Admin authentication via token (subsequent requests)
-    else if (req.headers['x-admin-token']) {
+    // Support both x-admin-token and standard Authorization: Bearer <token>
+    else if (req.headers['x-admin-token'] || req.headers['authorization']) {
       try {
-        const token = req.headers['x-admin-token'];
+        // Try x-admin-token first, then Authorization header
+        const authHeader = req.headers['x-admin-token'] || req.headers['authorization'];
+        
+        // Handle "Bearer <token>" format for Authorization header
+        let token = authHeader;
+        if (authHeader.startsWith('Bearer ')) {
+          token = authHeader.split(' ')[1];
+        }
+        
         // Decode base64 token (simple format for now)
         const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
         
