@@ -8,10 +8,13 @@ const transactionSchema = new mongoose.Schema({
   paymentMethod: String,
   status: { type: String, enum: ['pending', 'approved', 'rejected', 'completed'], default: 'pending' },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  completedAt: Date,
+  rejectedAt: Date,
   metadata: { type: Object, default: {} },
   createdAt: { type: Date, default: Date.now }
 });
 
 transactionSchema.index({ userId: 1, createdAt: -1 });
+transactionSchema.index({ status: 1, type: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Transaction', transactionSchema);
