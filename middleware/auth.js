@@ -109,50 +109,46 @@ exports.auth = async (req, res, next) => {
     }
     // 🔑 Case 3: Admin authentication via token (subsequent requests)
     // Support both x-admin-token and standard Authorization: Bearer <token>
-    else if (req.headers['x-admin-token'] || req.headers['authorization']) {
+    const adminToken = req.headers['x-admin-token'] || req.headers['authorization'];
+    if (adminToken) {
       try {
-        // Try x-admin-token first, then Authorization header
-        const authHeader = req.headers['x-admin-token'] || req.headers['authorization'];
-        
         // Handle "Bearer <token>" format for Authorization header
-        let token = authHeader;
-        if (authHeader.startsWith('Bearer ')) {
-          token = authHeader.split(' ')[1];
-        }
+        let token = adminToken.startsWith('Bearer ') ? adminToken.split(' ')[1] : adminToken;
         
-        // Validate token is not empty or malformed
-        if (!token || typeof token !== 'string') {
-          console.warn('⚠️ Empty or invalid token provided');
+        // Fast path: Validate token format before decoding
+        if (!token || typeof token !== 'string' || token.length < 10) {
+          console.warn('⚠️ Invalid token format');
           return res.status(401).json({ error: 'Invalid token format' });
         }
         
-        // Decode base64 token (simple format for now)
+        // Decode base64 token with early validation
         let decoded;
         try {
-          decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
+          const decodedStr = Buffer.from(token, 'base64').toString('utf8');
+          // Quick validation: must start with { to be valid JSON
+          if (decodedStr[0] !== '{') throw new Error('Invalid token structure');
+          decoded = JSON.parse(decodedStr);
         } catch (decodeErr) {
-          console.warn('⚠️ Token decode failed - token may be corrupted or invalid');
           return res.status(401).json({ error: 'Invalid token encoding' });
         }
         
-        // Check expiry
+        // Check expiry first (fastest check)
         if (decoded.exp && decoded.exp < Date.now()) {
           return res.status(401).json({ error: 'Admin token expired' });
         }
         
         // Validate token structure
-        if (decoded.id === 'admin') {
-          user = { 
-            _id: 'admin', 
-            isAdmin: true, 
-            displayName: 'MasterAdmin',
-            role: 'admin'
-          };
-        } else {
+        if (decoded.id !== 'admin') {
           return res.status(401).json({ error: 'Invalid admin token' });
         }
+        
+        user = { 
+          _id: 'admin', 
+          isAdmin: true, 
+          displayName: 'MasterAdmin',
+          role: 'admin'
+        };
       } catch (tokenError) {
-        console.error('Admin token validation error:', tokenError.message);
         return res.status(401).json({ error: 'Invalid or malformed admin token' });
       }
     }
