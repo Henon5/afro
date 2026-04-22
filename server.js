@@ -60,14 +60,14 @@ app.use(helmet({
 // SECURITY FIX: Restrict CORS to specific trusted origins instead of allowing all with credentials
 const allowedOrigins = process.env.FRONTEND_URL 
   ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
-  : ['http://localhost:3000'];
+  : ['http://localhost:3000', 'https://henon5.github.io'];
 
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app') || origin.endsWith('telegram.org')) {
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app') || origin.endsWith('telegram.org') || origin.endsWith('.github.io')) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
