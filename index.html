@@ -1181,13 +1181,31 @@
         headers: { 'x-admin-token': token }
       }),
       
+      getTransactions: (status, token) => Api._request(`/admin/transactions?status=${status || 'pending'}`, {
+        headers: { 'x-admin-token': token }
+      }),
+      
+      processTransaction: (id, action, reason, token) => Api._request(`/admin/transaction/${id}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ transactionId: id, action, reason }),
+        headers: { 'x-admin-token': token }
+      }),
+      
       approveDeposit: (id, token) => Api._request(`/admin/transaction/${id}/approve`, {
         method: 'POST',
+        body: JSON.stringify({ transactionId: id, action: 'approve' }),
         headers: { 'x-admin-token': token }
       }),
       
       approveWithdrawal: (id, token) => Api._request(`/admin/transaction/${id}/approve`, {
         method: 'POST',
+        body: JSON.stringify({ transactionId: id, action: 'approve' }),
+        headers: { 'x-admin-token': token }
+      }),
+      
+      rejectTransaction: (id, reason, token) => Api._request(`/admin/transaction/${id}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ transactionId: id, action: 'reject', reason }),
         headers: { 'x-admin-token': token }
       }),
       
@@ -1963,7 +1981,7 @@
             <li>Send money to one of the accounts above</li>
             <li>Use your Telegram username as reference</li>
             <li>Enter amount below and submit request</li>
-            <li>Wait for admin approval (usually <5 min)</li>
+            <li>Wait for admin approval (processing times vary, typically within 24 hours)</li>
           </ol>
         </div>
         
@@ -2208,12 +2226,13 @@
       
       try {
         const stats = await Api.getAdminStats(AppState.admin.token);
+        const transactions = await Api.getTransactions('pending', AppState.admin.token);
         hideLoading();
         
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
-          <div class="modal-content" style="max-width:550px; max-height:90vh; overflow-y:auto;">
+          <div class="modal-content" style="max-width:600px; max-height:90vh; overflow-y:auto;">
             <h3 style="color:var(--green);">🛡️ Admin Control Panel</h3>
             
             <div class="admin-stats-grid">
@@ -2247,6 +2266,30 @@
               </div>
             </div>
             
+            <div style="margin:20px 0; padding:15px; background:#f8f9fa; border-radius:12px; border:2px solid #e0e0e0;">
+              <h4 style="margin-bottom:12px; color:var(--dark);">📋 Pending Transactions</h4>
+              ${transactions.transactions && transactions.transactions.length > 0 ? `
+                <div id="transactionList" style="max-height:300px; overflow-y:auto;">
+                  ${transactions.transactions.map(tx => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; margin:8px 0; background:white; border-radius:8px; border:1px solid #e0e0e0; box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+                      <div style="flex:1;">
+                        <div style="font-weight:700; color:var(--dark);">${tx.type === 'deposit' ? '📥 Deposit' : '📤 Withdrawal'} - ${tx.amount} ETB</div>
+                        <div style="font-size:0.85rem; color:var(--gray); margin-top:4px;">
+                          User: ${tx.userId?.username || tx.userId?.firstName || tx.userId?.phone || 'Unknown'}<br>
+                          ${tx.type === 'deposit' ? (tx.metadata?.paymentMethod || 'Manual') + (tx.metadata?.referenceId ? ' | Ref: ' + tx.metadata.referenceId : '') : ''}
+                          <br><small>${new Date(tx.createdAt).toLocaleString()}</small>
+                        </div>
+                      </div>
+                      <div style="display:flex; gap:8px;">
+                        <button class="btn btn-green btn-sm approve-tx-btn" data-id="${tx._id}" data-type="${tx.type}">✓</button>
+                        <button class="btn btn-red btn-sm reject-tx-btn" data-id="${tx._id}" data-type="${tx.type}">✗</button>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : '<p style="text-align:center; color:var(--gray); padding:20px;">No pending transactions</p>'}
+            </div>
+            
             <div style="margin:15px 0;">
               <button class="btn btn-green" id="addFundsBtn">➕ Add Funds</button>
             </div>
@@ -2260,6 +2303,42 @@
         `;
         
         document.body.appendChild(modal);
+        
+        // Add event listeners for approve/reject buttons
+        modal.querySelectorAll('.approve-tx-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            const type = btn.dataset.type;
+            if(confirm(`✅ Approve this ${type}?`)) {
+              try {
+                await Api.processTransaction(id, 'approve', null, AppState.admin.token);
+                showToast(`✅ Transaction approved`, 'success');
+                modal.remove();
+                showFullAdminPanel();
+              } catch (error) {
+                showToast('Failed to approve transaction', 'error');
+              }
+            }
+          });
+        });
+        
+        modal.querySelectorAll('.reject-tx-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            const type = btn.dataset.type;
+            const reason = prompt(`Reason for rejecting this ${type}? (optional)`);
+            if(reason !== null) {
+              try {
+                await Api.rejectTransaction(id, reason || 'No reason provided', AppState.admin.token);
+                showToast(`❌ Transaction rejected`, 'warning');
+                modal.remove();
+                showFullAdminPanel();
+              } catch (error) {
+                showToast('Failed to reject transaction', 'error');
+              }
+            }
+          });
+        });
         
         document.getElementById('addFundsBtn')?.addEventListener('click', async () => {
           const phone = prompt("Enter user's phone number (e.g., +2519...):");
