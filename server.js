@@ -53,17 +53,36 @@ app.use(helmet({
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
-      frameAncestors: ["'self'", "https://t.me", "*"]
+      frameAncestors: ["'self'", "https://t.me"]
     }
   }
 }));
-app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
+// SECURITY FIX: Restrict CORS to specific trusted origins instead of allowing all with credentials
+const allowedOrigins = process.env.FRONTEND_URL 
+  ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
+  : ['http://localhost:3000'];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app') || origin.endsWith('telegram.org')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Telegram-Init-Data', 'X-Admin-Auth', 'X-Admin-Token']
+}));
 app.use(express.json({ limit: '10kb' })); // Limit body size for performance
 // Trust Railway's proxy
 app.set('trust proxy', 1);
 
-// Rate limiting with better defaults
-app.use(rateLimit({
+// Rate limiting with stricter limits for auth endpoints
+const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: 'draft-7',
@@ -71,12 +90,25 @@ app.use(rateLimit({
   trustProxy: true,
   skipSuccessfulRequests: false,
   message: { error: 'Too many requests, please try again later' }
-}));
-app.use('/api/auth', require('./routes/auth'));
+});
+
+// Stricter rate limit for authentication endpoints to prevent brute force
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per window
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  trustProxy: true,
+  message: { error: 'Too many login attempts, please try again after 15 minutes' }
+});
+
+app.use(generalLimiter);
+// Apply stricter rate limiting to auth and admin login endpoints
+app.use('/api/auth', authLimiter, require('./routes/auth'));
+app.use('/api/admin', authLimiter, require('./routes/admin'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/game', require('./routes/game'));
 app.use('/api/transaction', require('./routes/transaction'));
-app.use('/api/admin', require('./routes/admin'));
 
 // Serve static files from current directory (for GitHub Pages deployment)
 app.use(express.static(path.join(__dirname)));

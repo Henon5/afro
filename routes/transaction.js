@@ -12,16 +12,17 @@ router.post('/deposit', auth, validate('deposit'), async (req, res) => {
 
 router.post('/withdraw', auth, validate('withdrawal'), async (req, res) => {
   try {
-    // Use atomic update to prevent race conditions
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user._id,
+    // SECURITY FIX: Use atomic update with condition to prevent race conditions and double-spending
+    const updatedUser = await User.findOneAndUpdate(
+      { 
+        _id: req.user._id,
+        balance: { $gte: req.body.amount } // Condition: must have sufficient balance
+      },
       { $inc: { balance: -req.body.amount } },
       { new: true }
     );
     
-    if (updatedUser.balance < 0) {
-      // Rollback the deduction
-      await User.findByIdAndUpdate(req.user._id, { $inc: { balance: req.body.amount } });
+    if (!updatedUser) {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
     
@@ -41,8 +42,15 @@ router.post('/withdraw', auth, validate('withdrawal'), async (req, res) => {
 });
 
 router.get('/:id', auth, async (req, res) => {
+  // SECURITY FIX: Add authorization check - users can only view their own transactions
   const tx = await Transaction.findById(req.params.id).lean();
   if (!tx) return res.status(404).json({ error: 'Transaction not found' });
+  
+  // Check if user owns this transaction or is admin
+  if (tx.userId.toString() !== req.user._id.toString() && !req.user.isAdmin) {
+    return res.status(403).json({ error: 'Access denied - cannot view other users transactions' });
+  }
+  
   res.json({ success: true, transaction: tx });
 });
 

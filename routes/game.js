@@ -23,16 +23,17 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
   try {
     const { roomAmount } = req.body;
     
-    // Use atomic update to prevent race conditions
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user._id,
+    // SECURITY FIX: Use atomic update with condition to prevent race conditions and double-spending
+    const updatedUser = await User.findOneAndUpdate(
+      { 
+        _id: req.user._id,
+        balance: { $gte: roomAmount } // Condition: must have sufficient balance
+      },
       { $inc: { balance: -roomAmount } },
       { new: true, select: 'balance telegramId' }
     );
     
-    if (updatedUser.balance < 0) {
-      // Rollback the deduction
-      await User.findByIdAndUpdate(req.user._id, { $inc: { balance: roomAmount } });
+    if (!updatedUser) {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
@@ -50,7 +51,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Create transaction asynchronously (non-blocking)
     Transaction.create({ userId: req.user._id, type: 'game_entry', amount: -roomAmount, status: 'completed', metadata: { roomAmount } }).catch(console.error);
 
-    // Atomic updates for room pool
+    // SECURITY FIX: Atomic updates for room pool with $addToSet to prevent duplicate players
     await RoomPool.findByIdAndUpdate(
       roomPool._id,
       { 
@@ -69,12 +70,16 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         players: [{ user: req.user._id, cardGrid, markedState }]
       });
     } else {
-      gameSession.players.push({ user: req.user._id, cardGrid, markedState });
-      if (gameSession.gameStatus === 'waiting') { 
-        gameSession.gameStatus = 'active'; 
-        gameSession.startedAt = new Date(); 
+      // SECURITY FIX: Check if player already in this session to prevent duplicates
+      const existingPlayer = gameSession.players.find(p => p.user.toString() === req.user._id.toString());
+      if (!existingPlayer) {
+        gameSession.players.push({ user: req.user._id, cardGrid, markedState });
+        if (gameSession.gameStatus === 'waiting') { 
+          gameSession.gameStatus = 'active'; 
+          gameSession.startedAt = new Date(); 
+        }
+        await gameSession.save();
       }
-      await gameSession.save();
     }
 
     const updatedRoomPool = await RoomPool.findOne({ roomAmount });

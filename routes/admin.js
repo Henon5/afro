@@ -1,5 +1,6 @@
 // app/routes/admin.js
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const router = express.Router(); // 👈 MUST be at the top!
 
 const { auth, adminOnly } = require('../middleware/auth');
@@ -36,11 +37,16 @@ router.post('/login', (req, res) => {
       secureCode === process.env.ADMIN_SECURE_CODE &&
       securityKey === process.env.ADMIN_SECURITY_KEY
     ) {
-      // Generate a simple token (in production: use JWT)
-      const token = Buffer.from(JSON.stringify({
-        id: 'admin',
-        exp: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
-      })).toString('base64');
+      // SECURITY FIX: Use proper JWT signing instead of weak Base64 encoding
+      const token = jwt.sign(
+        { 
+          id: 'admin',
+          role: 'admin',
+          isAdmin: true
+        },
+        process.env.JWT_SECRET || 'fallback-secret-change-in-production',
+        { expiresIn: '24h' }
+      );
       
       return res.json({ 
         success: true, 
