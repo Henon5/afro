@@ -36,6 +36,12 @@ const verifyTelegramData = (initData) => {
       .update(dataCheckString)
       .digest('hex');
     
+    // Ensure both hashes are same length before comparison
+    if (hash.length !== expectedHash.length) {
+      console.warn('Hash length mismatch');
+      return false;
+    }
+    
     return crypto.timingSafeEqual(
       Buffer.from(hash, 'hex'),
       Buffer.from(expectedHash, 'hex')
