@@ -14,7 +14,11 @@ const userSchema = new mongoose.Schema({
   isBlocked: { type: Boolean, default: false },
   lastActive: { type: Date, default: Date.now },
   registeredAt: { type: Date, default: Date.now }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
 
 userSchema.virtual('displayName').get(function() {
   return this.firstName || this.username || this.telegramHandle || 'Player';
