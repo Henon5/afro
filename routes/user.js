@@ -16,6 +16,8 @@ router.get('/', auth, async (req, res) => {
       user: { 
         _id: user._id,
         displayName: user.displayName, 
+        username: user.username,
+        firstName: user.firstName,
         phone: user.phone, 
         telegramHandle: user.telegramHandle,
         balance: user.balance,
@@ -31,10 +33,26 @@ router.get('/', auth, async (req, res) => {
 // POST method (legacy support)
 router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
-    const updates = { firstName: req.body.name || req.user.firstName, phone: req.body.phone || req.user.phone, telegramHandle: req.body.telegramHandle || req.user.telegramHandle, lastActive: Date.now() };
+    const updates = { 
+      firstName: req.body.name || req.user.firstName, 
+      username: req.body.username || req.user.username,
+      phone: req.body.phone || req.user.phone, 
+      telegramHandle: req.body.telegramHandle || req.user.telegramHandle, 
+      lastActive: Date.now() 
+    };
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
-    res.json({ success: true, user: { displayName: user.displayName, phone: user.phone, telegramHandle: user.telegramHandle } });
+    res.json({ 
+      success: true, 
+      user: { 
+        displayName: user.displayName, 
+        username: user.username,
+        firstName: user.firstName,
+        phone: user.phone, 
+        telegramHandle: user.telegramHandle 
+      } 
+    });
   } catch (err) {
+    console.error('Error updating profile:', err);
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });
@@ -42,10 +60,26 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
 // PUT method (preferred)
 router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
-    const updates = { firstName: req.body.name || req.user.firstName, phone: req.body.phone || req.user.phone, telegramHandle: req.body.telegramHandle || req.user.telegramHandle, lastActive: Date.now() };
+    const updates = { 
+      firstName: req.body.name || req.user.firstName, 
+      username: req.body.username || req.user.username,
+      phone: req.body.phone || req.user.phone, 
+      telegramHandle: req.body.telegramHandle || req.user.telegramHandle, 
+      lastActive: Date.now() 
+    };
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
-    res.json({ success: true, user: { displayName: user.displayName, phone: user.phone, telegramHandle: user.telegramHandle } });
+    res.json({ 
+      success: true, 
+      user: { 
+        displayName: user.displayName, 
+        username: user.username,
+        firstName: user.firstName,
+        phone: user.phone, 
+        telegramHandle: user.telegramHandle 
+      } 
+    });
   } catch (err) {
+    console.error('Error updating profile:', err);
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });
