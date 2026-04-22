@@ -989,13 +989,32 @@
     //   - Railway: 'https://your-app.up.railway.app/api'
     //   - Render: 'https://your-app.onrender.com/api'
     //   - Vercel: 'https://your-app.vercel.app/api'
-    const BACKEND_URL = 'https://afro-production-dd8e.up.railway.app/api'; // ← PUT YOUR BACKEND URL HERE (leave empty for auto-detect)
+    
+    // Auto-detect backend URL based on environment
+    const getBackendUrl = () => {
+      // If running on GitHub Pages or other static host, use Railway backend
+      if (window.location.hostname.includes('github.io')) {
+        return 'https://afro-production-dd8e.up.railway.app/api';
+      }
+      // If running on localhost, use local backend
+      if (window.location.hostname === 'localhost') {
+        return 'http://localhost:3000/api';
+      }
+      // For other deployments, check if BACKEND_URL is set via environment
+      // You can inject this via build process or use a meta tag
+      const metaBackend = document.querySelector('meta[name="backend-url"]');
+      if (metaBackend) {
+        return metaBackend.getAttribute('content');
+      }
+      // Default: try relative /api path (works if frontend & backend on same domain)
+      return '/api';
+    };
+    
+    const BACKEND_URL = getBackendUrl();
     
     const CONFIG = {
       // 🔗 Backend API URL
-      API_BASE: BACKEND_URL || (window.location.hostname === 'localhost' 
-        ? 'http://localhost:3000/api' 
-        : '/api'),
+      API_BASE: BACKEND_URL,
       
       // 🎮 Game Settings
       AUTO_PLAY_INTERVAL: 3000,
@@ -1019,12 +1038,20 @@
     // 🌐 API SERVICE LAYER
     // ============================================
     const Api = {
-      // Get headers with Telegram auth
-      _headers() {
+      // Get headers with Telegram auth and admin token support
+      _headers(customHeaders = {}) {
         const headers = { 'Content-Type': 'application/json' };
+        
+        // Add Telegram auth if available
         if (window.Telegram?.WebApp?.initData) {
           headers['x-telegram-init-data'] = Telegram.WebApp.initData;
         }
+        
+        // Merge with any custom headers (like x-admin-token)
+        if (customHeaders && typeof customHeaders === 'object') {
+          Object.assign(headers, customHeaders);
+        }
+        
         return headers;
       },
 
@@ -1033,13 +1060,14 @@
         const url = `${CONFIG.API_BASE}${endpoint}`;
         
         console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
+        console.log('📋 Request Headers:', this._headers(options.headers));
         
         try {
           showLoading(options.loadingText || 'Processing...');
           
           const response = await fetch(url, {
             ...options,
-            headers: { ...this._headers(), ...options.headers }
+            headers: this._headers(options.headers)
           });
           
           console.log(`📡 API Response: ${response.status}`);
@@ -1055,6 +1083,7 @@
           const data = await response.json();
           
           if (!response.ok) {
+            console.error('❌ API Error:', data);
             throw new Error(data.error || 'Request failed');
           }
           
@@ -2186,19 +2215,30 @@
         document.body.appendChild(modal);
         
         document.getElementById('addFundsBtn')?.addEventListener('click', async () => {
-          const phone = prompt("Enter user's phone number:");
-          if(!phone) return;
+          const phone = prompt("Enter user's phone number (e.g., +2519...):");
+          if(!phone || phone.trim() === '') {
+            showToast('❌ Phone number is required', 'error');
+            return;
+          }
           
-          const amount = parseInt(prompt("Enter amount to add (ETB):", "100"));
-          if(!amount || amount <= 0) return;
+          const amountStr = prompt("Enter amount to add (ETB):", "100");
+          if(!amountStr) return;
+          
+          const amount = parseInt(amountStr);
+          if(!amount || isNaN(amount) || amount <= 0) {
+            showToast('❌ Please enter a valid amount', 'error');
+            return;
+          }
           
           try {
-            await Api.addFunds({ userPhone: phone, amount }, AppState.admin.token);
+            console.log('💰 Adding funds:', { userPhone: phone, amount });
+            await Api.addFunds({ userPhone: phone.trim(), amount: Number(amount) }, AppState.admin.token);
             showToast(`✅ Added ${amount} ETB`, 'success');
             modal.remove();
             showFullAdminPanel();
           } catch (error) {
-            // Error already shown
+            console.error('Add funds error:', error);
+            // Error already shown by API layer
           }
         });
         
