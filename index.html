@@ -2193,7 +2193,7 @@
           if(!amount || amount <= 0) return;
           
           try {
-            await Api.addFunds({ phone, amount }, AppState.admin.token);
+            await Api.addFunds({ userPhone: phone, amount }, AppState.admin.token);
             showToast(`✅ Added ${amount} ETB`, 'success');
             modal.remove();
             showFullAdminPanel();

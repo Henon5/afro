@@ -119,16 +119,20 @@ router.post('/transaction/:id/approve', auth, adminOnly, validate('adminApproveT
     if (!tx || tx.status !== 'pending') return res.status(400).json({ error: 'Invalid transaction' });
     
     if (action === 'approve') {
-      tx.status = 'completed'; tx.approvedBy = req.user._id;
+      tx.status = 'completed'; 
+      tx.approvedBy = req.user._id;
+      
+      // Use atomic update for balance changes
       if (tx.type === 'deposit') { 
-        const u = await User.findById(tx.userId); 
-        if (u) { u.balance += tx.amount; await u.save(); } 
+        await User.findByIdAndUpdate(tx.userId, { $inc: { balance: tx.amount } });
       }
     } else {
-      tx.status = 'rejected'; tx.metadata.rejectionReason = reason;
+      tx.status = 'rejected'; 
+      tx.metadata.rejectionReason = reason;
+      
+      // Refund for rejected withdrawals
       if (tx.type === 'withdrawal') { 
-        const u = await User.findById(tx.userId); 
-        if (u) { u.balance += tx.amount; await u.save(); } 
+        await User.findByIdAndUpdate(tx.userId, { $inc: { balance: tx.amount } });
       }
     }
     await tx.save();
@@ -144,16 +148,23 @@ router.post('/user/add-funds', auth, adminOnly, validate('adminAddFunds'), async
   try {
     const user = await User.findOne({ phone: req.body.userPhone });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    user.balance += req.body.amount; 
-    await user.save();
+    
+    // Use atomic update to prevent race conditions
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      { $inc: { balance: req.body.amount } },
+      { new: true }
+    );
+    
     await Transaction.create({ 
       userId: user._id, 
       type: 'deposit', 
       amount: req.body.amount, 
       status: 'completed', 
-      metadata: { manual: true } 
+      metadata: { manual: true, addedBy: req.user._id } 
     });
-    res.json({ success: true, newBalance: user.balance });
+    
+    res.json({ success: true, newBalance: updatedUser.balance });
   } catch (err) {
     console.error('Add funds error:', err);
     res.status(500).json({ error: 'Failed to add funds' });

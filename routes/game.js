@@ -95,19 +95,37 @@ router.post('/claim', auth, async (req, res) => {
 
     const roomPool = await RoomPool.findOne({ roomAmount: gameSession.roomAmount });
     const winnings = roomPool.currentPool;
-    roomPool.currentPool = 0; roomPool.players = [];
-    await roomPool.save();
+    
+    // Use atomic updates to prevent race conditions
+    await RoomPool.updateOne(
+      { _id: roomPool._id },
+      { $set: { currentPool: 0, players: [] } }
+    );
 
-    const user = await User.findById(req.user._id);
-    user.balance += winnings; user.totalWins++; user.totalWinnings += winnings; user.gamesPlayed++;
-    await user.save();
+    // Atomic balance update
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { 
+        $inc: { 
+          balance: winnings, 
+          totalWins: 1, 
+          totalWinnings: winnings,
+          gamesPlayed: 1 
+        } 
+      },
+      { new: true }
+    );
 
-    await Transaction.create({ userId: user._id, type: 'winning', amount: winnings, status: 'completed' });
-    gameSession.gameStatus = 'completed'; gameSession.completedAt = new Date(); gameSession.winner = user._id; gameSession.winningPattern = winResult.pattern;
+    await Transaction.create({ userId: req.user._id, type: 'winning', amount: winnings, status: 'completed' });
+    gameSession.gameStatus = 'completed'; 
+    gameSession.completedAt = new Date(); 
+    gameSession.winner = req.user._id; 
+    gameSession.winningPattern = winResult.pattern;
     await gameSession.save();
 
-    res.json({ success: true, winnings, newBalance: user.balance, pattern: winResult.pattern });
+    res.json({ success: true, winnings, newBalance: updatedUser.balance, pattern: winResult.pattern });
   } catch (err) {
+    console.error('Claim win error:', err);
     res.status(500).json({ error: 'Failed to claim win' });
   }
 });
