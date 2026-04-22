@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1776857660508" clover="3.2.0">
+  <project timestamp="1776857660508" name="All files">
+    <metrics statements="43" coveredstatements="42" conditionals="37" coveredconditionals="32" methods="10" coveredmethods="9" elements="90" coveredelements="83" complexity="0" loc="43" ncloc="43" packages="3" files="4" classes="4"/>
+    <package name="middleware">
+      <metrics statements="13" coveredstatements="13" conditionals="10" coveredconditionals="10" methods="5" coveredmethods="5"/>
+      <file name="errorHandler.js" path="/workspace/middleware/errorHandler.js">
+        <metrics statements="5" coveredstatements="5" conditionals="8" coveredconditionals="8" methods="2" coveredmethods="2"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="6" type="stmt"/>
+        <line num="3" count="6" type="cond" truecount="2" falsecount="0"/>
+        <line num="4" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="5" count="4" type="cond" truecount="4" falsecount="0"/>
+      </file>
+      <file name="validate.js" path="/workspace/middleware/validate.js">
+        <metrics statements="8" coveredstatements="8" conditionals="2" coveredconditionals="2" methods="3" coveredmethods="3"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="12" count="1" type="stmt"/>
+        <line num="13" count="6" type="stmt"/>
+        <line num="14" count="29" type="stmt"/>
+        <line num="15" count="29" type="cond" truecount="2" falsecount="0"/>
+        <line num="16" count="16" type="stmt"/>
+        <line num="17" count="16" type="stmt"/>
+      </file>
+    </package>
+    <package name="models">
+      <metrics statements="5" coveredstatements="4" conditionals="4" coveredconditionals="0" methods="1" coveredmethods="0"/>
+      <file name="User.js" path="/workspace/models/User.js">
+        <metrics statements="5" coveredstatements="4" conditionals="4" coveredconditionals="0" methods="1" coveredmethods="0"/>
+        <line num="1" count="10" type="stmt"/>
+        <line num="3" count="10" type="stmt"/>
+        <line num="19" count="10" type="stmt"/>
+        <line num="20" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="23" count="10" type="stmt"/>
+      </file>
+    </package>
+    <package name="utils">
+      <metrics statements="25" coveredstatements="25" conditionals="23" coveredconditionals="22" methods="4" coveredmethods="4"/>
+      <file name="bingoLogic.js" path="/workspace/utils/bingoLogic.js">
+        <metrics statements="25" coveredstatements="25" conditionals="23" coveredconditionals="22" methods="4" coveredmethods="4"/>
+        <line num="7" count="6" type="stmt"/>
+        <line num="8" count="38" type="cond" truecount="2" falsecount="0"/>
+        <line num="9" count="1" type="stmt"/>
+        <line num="14" count="5" type="stmt"/>
+        <line num="15" count="21" type="stmt"/>
+        <line num="16" count="21" type="stmt"/>
+        <line num="17" count="28" type="cond" truecount="2" falsecount="0"/>
+        <line num="18" count="20" type="stmt"/>
+        <line num="19" count="20" type="stmt"/>
+        <line num="22" count="21" type="cond" truecount="2" falsecount="0"/>
+        <line num="26" count="4" type="stmt"/>
+        <line num="27" count="4" type="stmt"/>
+        <line num="28" count="20" type="cond" truecount="2" falsecount="0"/>
+        <line num="29" count="20" type="cond" truecount="2" falsecount="0"/>
+        <line num="32" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="39" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="42" count="4" type="stmt"/>
+        <line num="43" count="4" type="stmt"/>
+        <line num="46" count="4" type="stmt"/>
+        <line num="53" count="10" type="cond" truecount="2" falsecount="0"/>
+        <line num="54" count="8" type="cond" truecount="2" falsecount="0"/>
+        <line num="55" count="6" type="cond" truecount="2" falsecount="0"/>
+        <line num="56" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="57" count="2" type="stmt"/>
+        <line num="60" count="1" type="stmt"/>
+      </file>
+    </package>
+  </project>
+</coverage>
