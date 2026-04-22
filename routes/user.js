@@ -21,6 +21,8 @@ router.get('/', auth, async (req, res) => {
         phone: user.phone, 
         telegramHandle: user.telegramHandle,
         balance: user.balance,
+        gamesPlayed: user.gamesPlayed || 0,
+        totalWins: user.totalWins || 0,
         createdAt: user.createdAt
       } 
     });
@@ -48,7 +50,9 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
         username: user.username,
         firstName: user.firstName,
         phone: user.phone, 
-        telegramHandle: user.telegramHandle 
+        telegramHandle: user.telegramHandle,
+        gamesPlayed: user.gamesPlayed || 0,
+        totalWins: user.totalWins || 0
       } 
     });
   } catch (err) {
@@ -75,7 +79,9 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
         username: user.username,
         firstName: user.firstName,
         phone: user.phone, 
-        telegramHandle: user.telegramHandle 
+        telegramHandle: user.telegramHandle,
+        gamesPlayed: user.gamesPlayed || 0,
+        totalWins: user.totalWins || 0
       } 
     });
   } catch (err) {

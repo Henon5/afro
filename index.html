@@ -999,7 +999,7 @@
       }
       // If running on GitHub Pages, use Railway backend
       if (window.location.hostname.includes('github.io')) {
-        // ✅ Updated to actual Railway URL
+        // ✅ Updated to actual Railway URL (no trailing spaces)
         return 'https://afro-production-dd8e.up.railway.app/api';
       }
       // If running on localhost, use local backend
@@ -1422,6 +1422,11 @@
       }
       
       setTimeout(() => page.classList.add('active'), 10);
+      
+      // Re-render lobby if returning to it to show updated profile info
+      if(pageId === 'lobby' && AppState.user) {
+        console.log('🔄 Refreshing lobby with user data:', AppState.user);
+      }
     }
 
     // ============================================
@@ -1896,15 +1901,24 @@
         return;
       }
       
+      // Validate phone number format (Ethiopian format)
+      if(phone && !/^\+?2519\d{8}$|^\+?2517\d{8}$|^09\d{8}$|^07\d{8}$/.test(phone.replace(/\s/g, ''))) {
+        showToast('Invalid phone format. Use 09XXXXXXXX or +2519XXXXXXXX', 'error');
+        return;
+      }
+      
       try {
-        await Api.updateProfile({
+        const response = await Api.updateProfile({
           name: name,
           username: username || undefined,
           phone: phone || undefined,
           telegramHandle: telegram || undefined
         });
         
-        if(AppState.user) {
+        // Update AppState with the returned user data
+        if(response && response.user) {
+          AppState.user = { ...AppState.user, ...response.user };
+        } else if(AppState.user) {
           AppState.user.firstName = name;
           AppState.user.displayName = name;
           if(username) AppState.user.username = username;
@@ -1916,7 +1930,8 @@
         Sound.success();
         showPage('lobby');
       } catch (error) {
-        // Error already shown
+        // Error already shown by Api._request
+        console.error('Save profile error:', error);
       }
     }
 
@@ -2357,13 +2372,23 @@
       
       try {
         const response = await Api.syncUser();
-        AppState.user = response.user || response;
+        // Merge user data properly, ensuring all fields are available
+        AppState.user = { 
+          ...AppState.user, 
+          ...(response.user || response),
+          displayName: (response.user || response).displayName || (response.user || response).firstName || 'Player'
+        };
+        console.log('✅ User loaded:', AppState.user);
       } catch (error) {
         console.warn('Using offline mode');
+        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
         AppState.user = {
-          name: window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || 'Player',
+          firstName: tgUser?.first_name || 'Player',
+          displayName: tgUser ? `${tgUser.first_name || ''} ${tgUser.last_name || ''}`.trim() : 'Player',
+          username: tgUser?.username,
           balance: 100, // Demo balance
-          selectedRoom: 20,
+          gamesPlayed: 0,
+          totalWins: 0,
           isBlocked: false
         };
       }
