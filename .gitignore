@@ -1,1 +1,472 @@
-Nothing needs to be added to .gitignore since the changes only include source files (.md, .js) and no build artifacts, dependencies, or temporary files.
+# Examples
+*.log
+
+# Environment variables
+.env
+.env.local
+*.env.*
+
+# Dependencies
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.py~
+
+# Build outputs
+dist/
+build/
+*.min.js
+*.bundle.js
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Testing
+*.tmp
+*.temp
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+
+# Python virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Node.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Gradle
+.gradle/
+build/
+
+# MyPy
+.mypy_cache/
+
+# PyTest
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Temporary files
+*.tmp
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+
+# Logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# nyc test coverage
+.nyc_output/
+
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Typescript v1 declaration files
+typings/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env.test
+
+# next.js build output
+.next
+
+# nuxt.js build output
+.nuxt
+
+# vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file for the editor
+.tern-port
+
+# Stores additional npm metadata
+.npmrc
+
+# Optional commitizen config
+.czrc
+
+# Map of all dependencies
+.dependency-map
+
+# Webpack
+webpack-stats.json
+
+# Jest coverage
+coverage/
+*.lcov
+
+# CodeClimate
+.codeclimate.yml
+
+# CircleCI
+.circleci/config.yml
+
+# Visual Studio Code
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# IntelliJ IDEA
+.idea/
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+
+# NetBeans
+nbproject/private/
+build/
+dist/
+nbdime/
+.nb-gradle/
+
+# Eclipse
+.metadata
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.settings/
+.loadpath
+.recommenders
+
+# Android Studio
+build/
+*.keystore
+local.properties
+
+# Xcode
+*.xcodeproj
+*.xcworkspace
+*.pbxuser
+*.mode1v3
+*.perspectivev3
+*.xcuserstate
+*.xccheckout
+
+# Ruby/Rails
+*.gem
+*.rbc
+.rake_opts
+.rbx
+.bundle
+.rbx
+vendor/bundle
+tmp/
+.rvmrc
+.gemrc
+db/*.sqlite3
+db/*.sqlite3-journal
+.rake_opts
+.ruby-version
+.ruby-gemset
+.travis.yml
+capybara-*.html
+.sass-cache
+capybara-*.html
+sass-*
+*.sass-cache
+.rspec
+Guardfile
+Vagrantfile
+*.cap
+*.sh
+.env
+config/application.yml
+config/secrets.yml
+
+# Go
+*.out
+*.exe
+*.dll
+*.so
+*.dylib
+*.pyc
+__pycache__/
+*.egg-info/
+.eggs/
+build/
+dist/
+*.egg
+.tox/
+.python-version
+.coverage
+htmlcov/
+.coverage.*
+.cache
+.pytest_cache/
+.hypothesis/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+.nyc_output/
+coverage/
+.nyc_output
+.coverage
+htmlcov/
+.pytest_cache/
+.hypothesis/
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+hs_err_pid*
+replay_pid*
+
+# C#
+*.sln
+*.csproj
+*.user
+*.userosscache
+*.suo
+*.cache
+*.VC.db
+*.VC.VC.opendb
+[Bb]in/
+[Oo]bj/
+[Tt]est[Rr]esult*/
+[Bb]uild/
+[Ll]og/
+_UpgradeReport_Files/
+*.VC.db
+*.VC.VC.opendb
+[Dd]eploy/
+[Pp]ackages/
+*.nupkg
+*.snupkg
+*.snk
+*.vspscc
+*.vssscc
+*.docstates
+.vs/
+*.metagen
+*.userprefs
+*.svclog
+*.orig
+*.pidb
+*.userprefs
+*.gidb
+*.vcxproj.user
+*.vcxproj.filters
+*.vcproj.user
+*.vcproj.filters
+*.vcproj.userosscache
+*.VC.VC.opendb
+*.VC.db
+*.VC.opendb
+*.VC.db-shm
+*.VC.db-wal
+*.VC.db-journal
+*.VC.db.bak
+*.VC.db.tmp
+*.VC.db.lock
+*.VC.db.lck
+*.VC.db.log
+*.VC.db.err
+*.VC.db.copyspace
+*.VC.db.rollback
+*.VC.db.rollbackjournal
+*.VC.db.rollbackjournal.bak
+*.VC.db.rollbackjournal.tmp
+*.VC.db.rollbackjournal.lock
+*.VC.db.rollbackjournal.lck
+*.VC.db.rollbackjournal.log
+*.VC.db.rollbackjournal.err
+*.VC.db.rollbackjournal.copyspace
+*.VC.db.rollbackjournal.rollback
+*.VC.db.rollbackjournal.rollbackjournal
+
+# Rust
+target/
+*.rs.bk
+Cargo.lock
+
+# PHP
+vendor/
+composer.phar
+composer.lock
+.php_cs
+.php_cs.dist
+.php_cs.cache
+.php_cs.cache.php
+.php_cs.cache.php.php
+.php_cs.cache.php.php.php
+.php_cs.cache.php.php.php.php
+.php_cs.cache.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php
+.php_cs.cache.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php......php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php......php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php.php......

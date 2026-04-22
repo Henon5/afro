@@ -132,6 +132,12 @@ exports.auth = async (req, res, next) => {
           // If JWT verification fails, fall back to legacy Base64 token for backward compatibility
           // This allows gradual migration but should be removed in future versions
           try {
+            // First check if token looks like base64 (only alphanumeric + /+=)
+            if (!/^[A-Za-z0-9+/=]+$/.test(token)) {
+              console.warn('⚠️ Invalid token encoding: not valid base64');
+              throw new Error('Invalid token encoding');
+            }
+            
             const decodedStr = Buffer.from(token, 'base64').toString('utf8');
             // Quick validation: must start with { to be valid JSON
             if (!decodedStr || decodedStr[0] !== '{') {
