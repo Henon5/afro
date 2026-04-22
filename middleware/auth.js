@@ -120,8 +120,20 @@ exports.auth = async (req, res, next) => {
           token = authHeader.split(' ')[1];
         }
         
+        // Validate token is not empty or malformed
+        if (!token || typeof token !== 'string') {
+          console.warn('⚠️ Empty or invalid token provided');
+          return res.status(401).json({ error: 'Invalid token format' });
+        }
+        
         // Decode base64 token (simple format for now)
-        const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+        let decoded;
+        try {
+          decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
+        } catch (decodeErr) {
+          console.warn('⚠️ Token decode failed - token may be corrupted or invalid');
+          return res.status(401).json({ error: 'Invalid token encoding' });
+        }
         
         // Check expiry
         if (decoded.exp && decoded.exp < Date.now()) {
@@ -140,7 +152,7 @@ exports.auth = async (req, res, next) => {
           return res.status(401).json({ error: 'Invalid admin token' });
         }
       } catch (tokenError) {
-        console.error('Admin token validation error:', tokenError);
+        console.error('Admin token validation error:', tokenError.message);
         return res.status(401).json({ error: 'Invalid or malformed admin token' });
       }
     }
