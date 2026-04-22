@@ -1,6 +1,25 @@
+nohup: ignoring input
 🚀 Server running on port 3000
-MongooseError: Operation `roompools.findOneAndUpdate()` buffering timed out after 10000ms
-    at Timeout.<anonymous> (/workspace/node_modules/mongoose/lib/drivers/node-mongodb-native/collection.js:185:23)
-    at listOnTimeout (node:internal/timers:581:17)
-    at process.processTimers (node:internal/timers:519:7)
-❌ Database connection error: connect ECONNREFUSED 127.0.0.1:27017
+✅ MongoDB Connected: ac-nayprdv-shard-00-01.enemcot.mongodb.net
+Admin token validation error: SyntaxError: Unexpected token '�', "�{ږ'" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at exports.auth (/workspace/middleware/auth.js:115:30)
+    at Layer.handle [as handle_request] (/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at next (/workspace/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/workspace/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at /workspace/node_modules/express/lib/router/index.js:284:15
+    at Function.process_params (/workspace/node_modules/express/lib/router/index.js:346:12)
+    at next (/workspace/node_modules/express/lib/router/index.js:280:10)
+    at Function.handle (/workspace/node_modules/express/lib/router/index.js:175:3)
+Admin token validation error: SyntaxError: Unexpected token '�', "�{ږ'" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at exports.auth (/workspace/middleware/auth.js:115:30)
+    at Layer.handle [as handle_request] (/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at next (/workspace/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/workspace/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at /workspace/node_modules/express/lib/router/index.js:284:15
+    at Function.process_params (/workspace/node_modules/express/lib/router/index.js:346:12)
+    at next (/workspace/node_modules/express/lib/router/index.js:280:10)
+    at Function.handle (/workspace/node_modules/express/lib/router/index.js:175:3)
