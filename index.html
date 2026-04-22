@@ -1119,7 +1119,8 @@
           const tg = window.Telegram?.WebApp?.initDataUnsafe?.user;
           return {
             user: {
-              name: tg ? `${tg.first_name || ''} ${tg.last_name || ''}`.trim() : 'Player',
+              firstName: tg ? `${tg.first_name || ''} ${tg.last_name || ''}`.trim() : 'Player',
+              displayName: tg ? `${tg.first_name || ''} ${tg.last_name || ''}`.trim() : 'Player',
               balance: 0,
               telegramId: tg?.id?.toString() || 'guest',
               username: tg?.username,
@@ -1454,7 +1455,7 @@
         
         <div class="profile-mini">
           <div class="profile-info">
-            <b>${user?.name || 'Player'}</b>
+            <b>${user?.firstName || user?.displayName || user?.name || 'Player'}</b>
             <div>💰 <span id="userBalance">${user?.balance || 0}</span> ETB</div>
           </div>
           <button class="btn btn-outline btn-sm" onclick="showPage('profile')">✏️ Edit</button>
@@ -1850,7 +1851,7 @@
         
         <div class="input-group">
           <label>Full Name</label>
-          <input type="text" id="editName" value="${user.name || ''}" placeholder="Enter your name">
+          <input type="text" id="editName" value="${user.firstName || user.displayName || user.name || ''}" placeholder="Enter your name">
         </div>
         
         <div class="input-group">
@@ -1860,7 +1861,7 @@
         
         <div class="input-group">
           <label>💬 Telegram Username</label>
-          <input type="text" id="editTelegram" value="${user.telegram || ''}" placeholder="@username">
+          <input type="text" id="editTelegram" value="${user.telegramHandle || user.telegram || ''}" placeholder="@username">
         </div>
         
         <button class="btn btn-green" onclick="saveProfile()">💾 Save Changes</button>
@@ -1891,15 +1892,16 @@
       
       try {
         await Api.updateProfile({
-          name: name || AppState.user?.name,
+          name: name,
           phone: phone || undefined,
-          telegram: telegram || undefined
+          telegramHandle: telegram || undefined
         });
         
         if(AppState.user) {
-          AppState.user.name = name;
+          AppState.user.firstName = name;
+          AppState.user.displayName = name;
           if(phone) AppState.user.phone = phone;
-          if(telegram) AppState.user.telegram = telegram;
+          if(telegram) AppState.user.telegramHandle = telegram;
         }
         
         showToast('Profile updated successfully!', 'success');
