@@ -68,7 +68,23 @@ exports.auth = async (req, res, next) => {
       const params = new URLSearchParams(initData);
       const tgUser = JSON.parse(params.get('user'));
       
-      // Upsert user in database
+      // Extract additional user data from Chat object if available
+      let chatData = {};
+      try {
+        const chatStr = params.get('chat');
+        if (chatStr) {
+          const chat = JSON.parse(chatStr);
+          chatData = {
+            telegramHandle: chat.username ? `@${chat.username}` : undefined,
+            photoUrl: chat.photo_url,
+            allowsWriteToPm: chat.allows_write_to_pm
+          };
+        }
+      } catch (e) {
+        // Ignore chat parsing errors
+      }
+      
+      // Upsert user in database with all available data
       user = await User.findOneAndUpdate(
         { telegramId: String(tgUser.id) },
         {
@@ -77,6 +93,9 @@ exports.auth = async (req, res, next) => {
           firstName: tgUser.first_name,
           lastName: tgUser.last_name,
           languageCode: tgUser.language_code,
+          telegramHandle: chatData.telegramHandle || (tgUser.username ? `@${tgUser.username}` : undefined),
+          photoUrl: chatData.photoUrl,
+          allowsWriteToPm: chatData.allowsWriteToPm,
           lastActive: Date.now()
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
