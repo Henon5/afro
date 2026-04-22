@@ -38,10 +38,21 @@ function checkBingoWin(markedGrid) {
 function generateBingoNumber(calledNumbers = []) {
   if (calledNumbers.length >= 75) return null;
   
+  // Use Set for O(1) lookup instead of O(n) array includes
+  const calledSet = new Set(calledNumbers);
+  
+  // If most numbers are called, use efficient loop instead of random retry
+  if (calledNumbers.length > 50) {
+    for (let num = 1; num <= 75; num++) {
+      if (!calledSet.has(num)) return num;
+    }
+  }
+  
+  // Random selection with Set lookup for better performance
   let num;
   do {
     num = Math.floor(Math.random() * 75) + 1;
-  } while (calledNumbers.includes(num));
+  } while (calledSet.has(num));
   
   return num;
 }

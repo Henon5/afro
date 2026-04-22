@@ -106,7 +106,9 @@ router.post('/mark', auth, async (req, res) => {
     if (!player) return res.status(403).json({ error: 'Not in this game' });
     
     const num = player.cardGrid[row][col];
-    if (!(row === 2 && col === 2) && !gameSession.calledNumbers.includes(num)) {
+    // Use Set for O(1) lookup instead of O(n) array includes
+    const calledSet = new Set(gameSession.calledNumbers);
+    if (!(row === 2 && col === 2) && !calledSet.has(num)) {
       return res.status(400).json({ error: 'Number not called yet' });
     }
 

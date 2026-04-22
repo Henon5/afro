@@ -165,23 +165,23 @@ router.post('/transaction/:id/process', auth, adminOnly, async (req, res) => {
 // 💰 POST /admin/user/add-funds
 router.post('/user/add-funds', auth, adminOnly, validate('adminAddFunds'), async (req, res) => {
   try {
-    const user = await User.findOne({ phone: req.body.userPhone });
+    const user = await User.findOne({ phone: req.body.userPhone }).select('_id');
     if (!user) return res.status(404).json({ error: 'User not found' });
     
     // Use atomic update to prevent race conditions
     const updatedUser = await User.findByIdAndUpdate(
       user._id,
       { $inc: { balance: req.body.amount } },
-      { new: true }
+      { new: true, select: 'balance' }
     );
     
-    await Transaction.create({ 
+    Transaction.create({ 
       userId: user._id, 
       type: 'deposit', 
       amount: req.body.amount, 
       status: 'completed', 
       metadata: { manual: true, addedBy: req.user._id } 
-    });
+    }).catch(console.error);
     
     res.json({ success: true, newBalance: updatedUser.balance });
   } catch (err) {
