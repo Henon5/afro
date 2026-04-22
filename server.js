@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -9,8 +8,12 @@ const RoomPool = require('./models/RoomPool');
 const path = require('path');
 
 const app = express();
-connectDB();
-RoomPool.initializeRooms().catch(console.error);
+
+// Connect DB and initialize rooms in parallel
+const initPromise = Promise.all([
+  connectDB(),
+  RoomPool.initializeRooms().catch(console.error)
+]).catch(console.error);
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -55,16 +58,19 @@ app.use(helmet({
   }
 }));
 app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: '10kb' })); // Limit body size for performance
 // Trust Railway's proxy
 app.set('trust proxy', 1);
 
+// Rate limiting with better defaults
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  trustProxy: true
+  trustProxy: true,
+  skipSuccessfulRequests: false,
+  message: { error: 'Too many requests, please try again later' }
 }));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/user'));
