@@ -1,9 +1,18 @@
-// middleware/auth.js
+/**
+ * Authentication Middleware
+ * Handles Telegram WebApp authentication, admin authentication, and user authorization
+ * @module middleware/auth
+ */
+
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
 
-// 🔐 Verify Telegram WebApp initData signature
+/**
+ * Verify Telegram WebApp initData signature
+ * @param {string} initData - Telegram WebApp initialization data
+ * @returns {boolean} - True if valid, false otherwise
+ */
 const verifyTelegramData = (initData) => {
   // Skip verification in development if no bot token is set
   if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -14,14 +23,17 @@ const verifyTelegramData = (initData) => {
   try {
     const params = new URLSearchParams(initData);
     const hash = params.get('hash');
-    if (!hash) return false;
+    
+    if (!hash) {
+      return false;
+    }
     
     params.delete('hash');
     
     // Sort params alphabetically by key (Telegram requirement)
     const dataCheckString = Array.from(params.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}=${v}`)
+      .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+      .map(([key, value]) => `${key}=${value}`)
       .join('\n');
     
     // Generate secret key per Telegram docs
@@ -52,12 +64,21 @@ const verifyTelegramData = (initData) => {
   }
 };
 
-// 🔑 Main auth middleware - handles Telegram users AND admin
+/**
+ * Main authentication middleware
+ * Handles three authentication methods:
+ * 1. Telegram WebApp (via x-telegram-init-data header)
+ * 2. Admin credentials (via x-admin-auth header)
+ * 3. Admin token (via x-admin-token or Authorization header)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
 exports.auth = async (req, res, next) => {
   try {
     let user = null;
 
-    // 📱 Case 1: Telegram WebApp authentication
+    // Case 1: Telegram WebApp authentication
     const initData = req.headers['x-telegram-init-data'];
     if (initData) {
       if (!verifyTelegramData(initData)) {
@@ -66,23 +87,23 @@ exports.auth = async (req, res, next) => {
       }
       
       const params = new URLSearchParams(initData);
-      const tgUser = JSON.parse(params.get('user'));
+      const telegramUser = JSON.parse(params.get('user'));
       
       // Upsert user in database
       user = await User.findOneAndUpdate(
-        { telegramId: String(tgUser.id) },
+        { telegramId: String(telegramUser.id) },
         {
-          telegramId: String(tgUser.id),
-          username: tgUser.username,
-          firstName: tgUser.first_name,
-          lastName: tgUser.last_name,
-          languageCode: tgUser.language_code,
+          telegramId: String(telegramUser.id),
+          username: telegramUser.username,
+          firstName: telegramUser.first_name,
+          lastName: telegramUser.last_name,
+          languageCode: telegramUser.language_code,
           lastActive: Date.now()
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
     } 
-    // 👮 Case 2: Admin authentication via credentials (login request)
+    // Case 2: Admin authentication via credentials (login request)
     else if (req.headers['x-admin-auth']) {
       try {
         const { masterId, secureCode, securityKey } = JSON.parse(req.headers['x-admin-auth']);
@@ -106,16 +127,17 @@ exports.auth = async (req, res, next) => {
         console.error('Admin auth header parse error:', parseError);
         return res.status(400).json({ error: 'Invalid admin auth format' });
       }
-    }
-    // 🔑 Case 3: Admin authentication via token (subsequent requests)
-    // Support both x-admin-token and standard Authorization: Bearer <token>
+    } 
+    // Case 3: Admin authentication via token (subsequent requests)
     const adminToken = req.headers['x-admin-token'] || req.headers['authorization'];
     if (adminToken) {
       try {
         // Handle "Bearer <token>" format for Authorization header
-        let token = adminToken.startsWith('Bearer ') ? adminToken.split(' ')[1] : adminToken;
+        const token = adminToken.startsWith('Bearer ') 
+          ? adminToken.split(' ')[1] 
+          : adminToken;
         
-        // Fast path: Validate token format before decoding
+        // Validate token format before decoding
         if (!token || typeof token !== 'string' || token.length < 10) {
           console.warn('⚠️ Invalid token format');
           return res.status(401).json({ error: 'Invalid token format' });
@@ -126,7 +148,9 @@ exports.auth = async (req, res, next) => {
         try {
           const decodedStr = Buffer.from(token, 'base64').toString('utf8');
           // Quick validation: must start with { to be valid JSON
-          if (decodedStr[0] !== '{') throw new Error('Invalid token structure');
+          if (decodedStr[0] !== '{') {
+            throw new Error('Invalid token structure');
+          }
           decoded = JSON.parse(decodedStr);
         } catch (decodeErr) {
           return res.status(401).json({ error: 'Invalid token encoding' });
@@ -153,17 +177,17 @@ exports.auth = async (req, res, next) => {
       }
     }
 
-    // ❌ No valid authentication method found
+    // No valid authentication method found
     if (!user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // 🚫 Check if user is blocked (skip for admin)
+    // Check if user is blocked (skip for admin)
     if (user.isBlocked && !user.isAdmin) {
       return res.status(403).json({ error: 'Account is blocked' });
     }
 
-    // ✅ Attach user to request and proceed
+    // Attach user to request and proceed
     req.user = user;
     next();
     
@@ -173,8 +197,13 @@ exports.auth = async (req, res, next) => {
   }
 };
 
-// 🛡️ Admin-only authorization middleware
-// MUST be used AFTER exports.auth middleware
+/**
+ * Admin-only authorization middleware
+ * Must be used AFTER auth middleware
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
 exports.adminOnly = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -188,7 +217,12 @@ exports.adminOnly = (req, res, next) => {
   next();
 };
 
-// 👤 Optional: User-only middleware (for regular players)
+/**
+ * User-only middleware (for regular players, excludes admins)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
 exports.userOnly = (req, res, next) => {
   if (!req.user || req.user.isAdmin) {
     return res.status(403).json({ error: 'Player access required' });
