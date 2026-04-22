@@ -126,9 +126,13 @@ exports.auth = async (req, res, next) => {
         try {
           const decodedStr = Buffer.from(token, 'base64').toString('utf8');
           // Quick validation: must start with { to be valid JSON
-          if (decodedStr[0] !== '{') throw new Error('Invalid token structure');
+          if (!decodedStr || decodedStr[0] !== '{') {
+            console.warn('⚠️ Invalid token structure: does not start with {');
+            throw new Error('Invalid token structure');
+          }
           decoded = JSON.parse(decodedStr);
         } catch (decodeErr) {
+          console.warn('⚠️ Token decoding failed:', decodeErr.message);
           return res.status(401).json({ error: 'Invalid token encoding' });
         }
         
