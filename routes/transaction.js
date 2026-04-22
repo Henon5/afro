@@ -11,11 +11,33 @@ router.post('/deposit', auth, validate('deposit'), async (req, res) => {
 });
 
 router.post('/withdraw', auth, validate('withdrawal'), async (req, res) => {
-  const user = await User.findById(req.user._id);
-  if (user.balance < req.body.amount) return res.status(400).json({ error: 'Insufficient balance' });
-  user.balance -= req.body.amount; await user.save();
-  const tx = await Transaction.create({ userId: user._id, type: 'withdrawal', amount: req.body.amount, paymentMethod: 'telebirr', status: 'pending', metadata: { phone: req.body.phone } });
-  res.json({ success: true, transaction: { id: tx._id, amount: tx.amount, newBalance: user.balance } });
+  try {
+    // Use atomic update to prevent race conditions
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { $inc: { balance: -req.body.amount } },
+      { new: true }
+    );
+    
+    if (updatedUser.balance < 0) {
+      // Rollback the deduction
+      await User.findByIdAndUpdate(req.user._id, { $inc: { balance: req.body.amount } });
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
+    
+    const tx = await Transaction.create({ 
+      userId: req.user._id, 
+      type: 'withdrawal', 
+      amount: req.body.amount, 
+      paymentMethod: 'telebirr', 
+      status: 'pending', 
+      metadata: { phone: req.body.phone } 
+    });
+    res.json({ success: true, transaction: { id: tx._id, amount: tx.amount, newBalance: updatedUser.balance } });
+  } catch (err) {
+    console.error('Withdrawal error:', err);
+    res.status(500).json({ error: 'Failed to process withdrawal' });
+  }
 });
 
 router.get('/:id', auth, async (req, res) => {

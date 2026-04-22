@@ -21,8 +21,19 @@ router.get('/rooms', auth, async (req, res) => {
 router.post('/join', auth, validate('joinRoom'), async (req, res) => {
   try {
     const { roomAmount } = req.body;
-    const user = await User.findById(req.user._id);
-    if (user.balance < roomAmount) return res.status(400).json({ error: 'Insufficient balance' });
+    
+    // Use atomic update to prevent race conditions
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { $inc: { balance: -roomAmount } },
+      { new: true }
+    );
+    
+    if (updatedUser.balance < 0) {
+      // Rollback the deduction
+      await User.findByIdAndUpdate(req.user._id, { $inc: { balance: roomAmount } });
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
 
     let roomPool = await RoomPool.findOne({ roomAmount });
     if (!roomPool) roomPool = await RoomPool.create({ roomAmount });
@@ -31,24 +42,30 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     const houseContribution = roomAmount - poolContribution;
     const { cardGrid, markedState } = GameSession.generateCard();
 
-    user.balance -= roomAmount;
-    await user.save();
-    await Transaction.create({ userId: user._id, type: 'game_entry', amount: -roomAmount, status: 'completed', metadata: { roomAmount } });
+    await Transaction.create({ userId: req.user._id, type: 'game_entry', amount: -roomAmount, status: 'completed', metadata: { roomAmount } });
 
-    roomPool.currentPool += poolContribution;
-    roomPool.houseTotal += houseContribution;
-    if (!roomPool.players.some(p => p.telegramId === user.telegramId)) roomPool.players.push({ telegramId: user.telegramId });
-    await roomPool.save();
+    // Use atomic updates for room pool
+    await RoomPool.findByIdAndUpdate(
+      roomPool._id,
+      { 
+        $inc: { currentPool: poolContribution, houseTotal: houseContribution },
+        $addToSet: { players: { telegramId: updatedUser.telegramId } }
+      }
+    );
 
     let gameSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
     if (!gameSession) gameSession = await GameSession.create({ roomAmount, gameStatus: 'waiting' });
     
-    gameSession.players.push({ user: user._id, cardGrid, markedState });
-    if (gameSession.gameStatus === 'waiting') { gameSession.gameStatus = 'active'; gameSession.startedAt = new Date(); }
+    gameSession.players.push({ user: req.user._id, cardGrid, markedState });
+    if (gameSession.gameStatus === 'waiting') { 
+      gameSession.gameStatus = 'active'; 
+      gameSession.startedAt = new Date(); 
+    }
     await gameSession.save();
 
-    res.json({ success: true, game: { sessionId: gameSession._id, roomAmount, currentPool: roomPool.currentPool, playersCount: roomPool.players.length, cardGrid, markedState, calledNumbers: gameSession.calledNumbers } });
+    res.json({ success: true, game: { sessionId: gameSession._id, roomAmount, currentPool: roomPool.currentPool + poolContribution, playersCount: roomPool.players.length + 1, cardGrid, markedState, calledNumbers: gameSession.calledNumbers } });
   } catch (err) {
+    console.error('Join room error:', err);
     res.status(500).json({ error: 'Failed to join room' });
   }
 });
