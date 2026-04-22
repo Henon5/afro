@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
@@ -8,6 +9,16 @@ const RoomPool = require('./models/RoomPool');
 const path = require('path');
 
 const app = express();
+
+// Enable gzip compression for all responses (performance optimization)
+app.use(compression({
+  level: 6, // Balanced compression level (1-9, higher = better compression but slower)
+  threshold: 1024, // Only compress responses > 1KB
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  }
+}));
 
 // Connect DB and initialize rooms in parallel
 const initPromise = Promise.all([

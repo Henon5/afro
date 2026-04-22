@@ -7,7 +7,8 @@ const User = require('../models/User');
 // GET /api/user - Get current user profile (requires auth)
 router.get('/', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
+    // Use projection to only fetch needed fields (performance optimization)
+    const user = await User.findById(req.user._id).select('displayName username firstName phone telegramHandle balance gamesPlayed totalWins createdAt');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
