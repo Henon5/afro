@@ -1,98 +1,92 @@
 ```
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-*.o
-*.obj
-dist/
-build/
-target/
-
-# Dependencies
-.venv/
-venv/
-node_modules/
-.julia/
-zig*/
-.deps/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-*.swo
-
-# Environment
+# Environment variables
 .env
 .env.local
 .env.*
 
-# Editors
+# Logs
+*.log
+
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+build/
+target/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/refs/original/
+install_manifest.txt
+.pytest_cache/
+.mypy_cache/
+
+# Node.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+node_modules/
+dist/
+build/
+.nyc_output
+coverage/
+*.lcov
+.next/
+.nuxt/
+public/dist
+public/build
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
+*~
 .DS_Store
 Thumbs.db
 
-# Coverage
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
 coverage/
-htmlcov/
-.coverage
+*.lcov
 
-# Python specific
-*.pyc
-__pycache__/
-*.pyo
-*.pyd
-.Python
-*.so
-*.egg-info/
-.eggs/
+# Temporary folders
+tmp/
+temp/
 
-# Node specific
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Local development settings
+.settings/
 
-# Java specific
-*.class
-*.jar
-*.war
-*.ear
-hs_err_pid*
-
-# C/C++ specific
-*.o
-*.a
-*.so
-*.dll
-*.exe
-*.out
-
-# Compressed files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 ```

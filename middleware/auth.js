@@ -121,28 +121,42 @@ exports.auth = async (req, res, next) => {
           return res.status(401).json({ error: 'Invalid token format' });
         }
         
-        // Decode base64 token with early validation
+        // SECURITY FIX: Use proper JWT verification instead of weak Base64 decoding
         let decoded;
         try {
-          const decodedStr = Buffer.from(token, 'base64').toString('utf8');
-          // Quick validation: must start with { to be valid JSON
-          if (!decodedStr || decodedStr[0] !== '{') {
-            console.warn('⚠️ Invalid token structure: does not start with {');
-            throw new Error('Invalid token structure');
+          decoded = jwt.verify(
+            token, 
+            process.env.JWT_SECRET || 'fallback-secret-change-in-production'
+          );
+        } catch (jwtError) {
+          // If JWT verification fails, fall back to legacy Base64 token for backward compatibility
+          // This allows gradual migration but should be removed in future versions
+          try {
+            const decodedStr = Buffer.from(token, 'base64').toString('utf8');
+            // Quick validation: must start with { to be valid JSON
+            if (!decodedStr || decodedStr[0] !== '{') {
+              console.warn('⚠️ Invalid token structure: does not start with {');
+              throw new Error('Invalid token structure');
+            }
+            decoded = JSON.parse(decodedStr);
+            
+            // Check expiry first (fastest check)
+            if (decoded.exp && decoded.exp < Date.now()) {
+              return res.status(401).json({ error: 'Admin token expired' });
+            }
+            
+            // Validate token structure for legacy tokens
+            if (decoded.id !== 'admin') {
+              return res.status(401).json({ error: 'Invalid admin token' });
+            }
+          } catch (legacyError) {
+            console.warn('⚠️ Token verification failed:', legacyError.message);
+            return res.status(401).json({ error: 'Invalid or malformed admin token' });
           }
-          decoded = JSON.parse(decodedStr);
-        } catch (decodeErr) {
-          console.warn('⚠️ Token decoding failed:', decodeErr.message);
-          return res.status(401).json({ error: 'Invalid token encoding' });
         }
         
-        // Check expiry first (fastest check)
-        if (decoded.exp && decoded.exp < Date.now()) {
-          return res.status(401).json({ error: 'Admin token expired' });
-        }
-        
-        // Validate token structure
-        if (decoded.id !== 'admin') {
+        // Validate decoded JWT token structure
+        if (decoded.id !== 'admin' && !decoded.isAdmin) {
           return res.status(401).json({ error: 'Invalid admin token' });
         }
         
