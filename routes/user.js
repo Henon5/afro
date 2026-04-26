@@ -38,22 +38,40 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
     const updates = {};
     
-    // Only update fields that are provided in the request
-    if (req.body.name !== undefined) {
+    // Only update fields that are provided and not empty/null in the request
+    if (req.body.name !== undefined && req.body.name !== null && req.body.name !== '') {
       updates.firstName = req.body.name;
     }
-    if (req.body.username !== undefined) {
+    if (req.body.username !== undefined && req.body.username !== null && req.body.username !== '') {
       updates.username = req.body.username;
     }
-    if (req.body.phone !== undefined) {
+    if (req.body.phone !== undefined && req.body.phone !== null && req.body.phone !== '') {
       updates.phone = req.body.phone;
     }
-    if (req.body.telegramHandle !== undefined) {
+    if (req.body.telegramHandle !== undefined && req.body.telegramHandle !== null && req.body.telegramHandle !== '') {
       updates.telegramHandle = req.body.telegramHandle;
     }
     
     // Always update lastActive
     updates.lastActive = Date.now();
+    
+    // If no valid updates, return current user data without changes
+    if (Object.keys(updates).length === 1 && updates.lastActive) {
+      const user = await User.findById(req.user._id);
+      return res.json({ 
+        success: true, 
+        message: 'No changes to update',
+        user: { 
+          displayName: user.firstName || user.username || user.telegramHandle || 'Player', 
+          username: user.username,
+          firstName: user.firstName,
+          phone: user.phone, 
+          telegramHandle: user.telegramHandle,
+          gamesPlayed: user.gamesPlayed || 0,
+          totalWins: user.totalWins || 0
+        } 
+      });
+    }
     
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
     res.json({ 
@@ -79,22 +97,40 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
     const updates = {};
     
-    // Only update fields that are provided in the request
-    if (req.body.name !== undefined) {
+    // Only update fields that are provided and not empty/null in the request
+    if (req.body.name !== undefined && req.body.name !== null && req.body.name !== '') {
       updates.firstName = req.body.name;
     }
-    if (req.body.username !== undefined) {
+    if (req.body.username !== undefined && req.body.username !== null && req.body.username !== '') {
       updates.username = req.body.username;
     }
-    if (req.body.phone !== undefined) {
+    if (req.body.phone !== undefined && req.body.phone !== null && req.body.phone !== '') {
       updates.phone = req.body.phone;
     }
-    if (req.body.telegramHandle !== undefined) {
+    if (req.body.telegramHandle !== undefined && req.body.telegramHandle !== null && req.body.telegramHandle !== '') {
       updates.telegramHandle = req.body.telegramHandle;
     }
     
     // Always update lastActive
     updates.lastActive = Date.now();
+    
+    // If no valid updates, return current user data without changes
+    if (Object.keys(updates).length === 1 && updates.lastActive) {
+      const user = await User.findById(req.user._id);
+      return res.json({ 
+        success: true, 
+        message: 'No changes to update',
+        user: { 
+          displayName: user.firstName || user.username || user.telegramHandle || 'Player', 
+          username: user.username,
+          firstName: user.firstName,
+          phone: user.phone, 
+          telegramHandle: user.telegramHandle,
+          gamesPlayed: user.gamesPlayed || 0,
+          totalWins: user.totalWins || 0
+        } 
+      });
+    }
     
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
     res.json({ 
