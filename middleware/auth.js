@@ -47,7 +47,7 @@ const verifyTelegramData = (initData) => {
       Buffer.from(expectedHash, 'hex')
     );
   } catch (error) {
-    console.error('Telegram data verification error:', error);
+    console.error('Telegram data verification error:', error.message);
     return false;
   }
 };
@@ -61,36 +61,76 @@ exports.auth = async (req, res, next) => {
     // 📱 Case 1: Telegram WebApp authentication (regular players)
     const initData = req.headers['x-telegram-init-data'];
     if (initData) {
-      if (!verifyTelegramData(initData)) {
-        console.warn('❌ Invalid Telegram initData');
-        return res.status(401).json({ error: 'Invalid Telegram data' });
-      }
-      
-      const params = new URLSearchParams(initData);
-      const tgUser = JSON.parse(params.get('user'));
-      
-      // Upsert user in database
-      user = await User.findOneAndUpdate(
-        { telegramId: String(tgUser.id) },
-        {
-          $set: {
-            username: tgUser.username,
-            firstName: tgUser.first_name,
-            lastName: tgUser.last_name,
-            languageCode: tgUser.language_code,
-            lastActive: Date.now()
+      try {
+        // Skip verification in development if no bot token is set
+        if (!verifyTelegramData(initData)) {
+          console.warn('❌ Invalid Telegram initData');
+          return res.status(401).json({ error: 'Invalid Telegram data' });
+        }
+        
+        const params = new URLSearchParams(initData);
+        const userStr = params.get('user');
+        
+        // Handle URL-encoded user string (Telegram sends it double-encoded sometimes)
+        let decodedUserStr = userStr;
+        if (userStr && userStr.startsWith('%7B')) {
+          try {
+            decodedUserStr = decodeURIComponent(userStr);
+          } catch (e) {
+            // Keep original if decoding fails
           }
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
-      
-      // ✅ IMPORTANT: Regular player authenticated via Telegram - explicitly NOT an admin
-      isAdminAuth = false;
+        }
+        
+        if (!decodedUserStr) {
+          console.warn('❌ Missing user data in Telegram initData');
+          return res.status(400).json({ error: 'Invalid Telegram data format' });
+        }
+        
+        const tgUser = JSON.parse(decodedUserStr);
+        
+        // Validate required fields
+        if (!tgUser.id) {
+          console.warn('❌ Invalid Telegram user data - missing ID');
+          return res.status(400).json({ error: 'Invalid Telegram user data' });
+        }
+        
+        // Upsert user in database
+        user = await User.findOneAndUpdate(
+          { telegramId: String(tgUser.id) },
+          {
+            $set: {
+              username: tgUser.username,
+              firstName: tgUser.first_name,
+              lastName: tgUser.last_name,
+              languageCode: tgUser.language_code,
+              lastActive: Date.now()
+            }
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+        
+        // Log successful user creation/update
+        console.log('✅ Player authenticated:', user._id, 'telegramId:', user.telegramId);
+        
+        // ✅ IMPORTANT: Regular player authenticated via Telegram - explicitly NOT an admin
+        isAdminAuth = false;
+      } catch (telegramError) {
+        console.error('❌ Telegram authentication error:', telegramError.message);
+        return res.status(400).json({ error: 'Invalid Telegram authentication data' });
+      }
     } 
     // 👮 Case 2: Admin authentication via credentials (login request)
     else if (req.headers['x-admin-auth']) {
       try {
-        const { masterId, secureCode, securityKey } = JSON.parse(req.headers['x-admin-auth']);
+        const authHeader = req.headers['x-admin-auth'];
+        
+        // Validate header is valid JSON string before parsing
+        if (typeof authHeader !== 'string' || !authHeader.trim().startsWith('{')) {
+          console.warn('❌ Invalid admin auth header format');
+          return res.status(400).json({ error: 'Invalid admin auth format' });
+        }
+        
+        const { masterId, secureCode, securityKey } = JSON.parse(authHeader);
         
         if (
           masterId === process.env.ADMIN_MASTER_ID &&
@@ -109,7 +149,7 @@ exports.auth = async (req, res, next) => {
           return res.status(401).json({ error: 'Invalid admin credentials' });
         }
       } catch (parseError) {
-        console.error('Admin auth header parse error:', parseError);
+        console.error('Admin auth header parse error:', parseError.message);
         return res.status(400).json({ error: 'Invalid admin auth format' });
       }
     }
@@ -141,61 +181,37 @@ exports.auth = async (req, res, next) => {
             return res.status(401).json({ error: 'Invalid session. Please login again.' });
           }
           
-          // SECURITY FIX: Use proper JWT verification instead of weak Base64 decoding
-          let decoded;
+          // SECURITY FIX: Use proper JWT verification ONLY - no Base64 fallback for Bearer tokens
+          // This prevents "Invalid Base64" errors when regular player JWTs are sent
           try {
-            decoded = jwt.verify(
+            const decoded = jwt.verify(
               token, 
               process.env.JWT_SECRET || 'fallback-secret-change-in-production'
             );
-          } catch (jwtError) {
-            // If JWT verification fails, fall back to legacy Base64 token for backward compatibility
-            try {
-              // First check if token looks like base64 (only alphanumeric + /+=)
-              if (!/^[A-Za-z0-9+/=]+$/.test(token)) {
-                throw new Error('Invalid token encoding');
-              }
-              
-              const decodedStr = Buffer.from(token, 'base64').toString('utf8');
-              // Quick validation: must start with { to be valid JSON
-              if (!decodedStr || decodedStr[0] !== '{') {
-                throw new Error('Invalid token structure');
-              }
-              decoded = JSON.parse(decodedStr);
-              
-              // Check expiry first (fastest check)
-              if (decoded.exp && decoded.exp < Date.now()) {
-                throw new Error('Token expired');
-              }
-              
-              // Validate token structure for legacy tokens
-              if (decoded.id !== 'admin') {
-                throw new Error('Invalid admin token');
-              }
-            } catch (legacyError) {
-              console.warn('⚠️ Token verification failed:', legacyError.message);
-              // STOP HERE - Don't set user as admin, reject the request
-              return res.status(401).json({ error: 'Invalid session. Please login again.' });
+            
+            // Validate decoded JWT token structure - must be an admin token
+            if (decoded && (decoded.id === 'admin' || decoded.isAdmin)) {
+              user = { 
+                _id: 'admin', 
+                isAdmin: true, 
+                displayName: 'MasterAdmin',
+                role: 'admin'
+              };
+              isAdminAuth = true;
+            } else {
+              // Token decoded but not an admin token - this is a regular player JWT
+              // Do NOT treat as admin, just continue without setting user (will fall through to Telegram auth or reject)
+              console.log('ℹ️ Valid JWT but not admin credentials - treating as regular player');
+              // Don't set user here - allow other auth methods or reject
             }
-          }
-          
-          // Validate decoded JWT token structure
-          if (decoded && (decoded.id === 'admin' || decoded.isAdmin)) {
-            user = { 
-              _id: 'admin', 
-              isAdmin: true, 
-              displayName: 'MasterAdmin',
-              role: 'admin'
-            };
-            isAdminAuth = true;
-          } else {
-            // Token decoded but not an admin token - stop here
-            console.warn('⚠️ Valid token but not admin credentials');
+          } catch (jwtError) {
+            console.warn('⚠️ JWT verification failed:', jwtError.message);
+            // For Bearer tokens, we do NOT fall back to Base64 decoding
+            // This prevents "Invalid Base64" errors and security issues
             return res.status(401).json({ error: 'Invalid session. Please login again.' });
           }
         } catch (tokenError) {
-          console.warn('⚠️ Admin token invalid:', tokenError.message);
-          // STOP HERE - Don't allow fallback to anonymous/no auth for Bearer tokens
+          console.warn('⚠️ Admin token processing error:', tokenError.message);
           return res.status(401).json({ error: 'Invalid session. Please login again.' });
         }
       }
@@ -211,6 +227,9 @@ exports.auth = async (req, res, next) => {
       // This is a regular player - explicitly set isAdminAuth to false
       isAdminAuth = false;
       user.isAdmin = false;
+      console.log('✅ Regular player authenticated:', user._id, 'telegramId:', user.telegramId);
+    } else if (user._id === 'admin') {
+      console.log('👮 Admin authenticated');
     }
 
     // 🚫 Check if user is blocked (skip for admin)
@@ -221,10 +240,11 @@ exports.auth = async (req, res, next) => {
     // ✅ Attach user to request and proceed
     req.user = user;
     req.isAdminAuth = isAdminAuth; // Flag to indicate admin auth (not a real DB user)
+    console.log('✅ Auth successful - user:', req.user._id, 'isAdminAuth:', req.isAdminAuth);
     next();
     
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    console.error('❌ Auth middleware error:', error.message);
     res.status(401).json({ error: 'Authentication failed' });
   }
 };

@@ -1225,6 +1225,13 @@
       resetPools: (token) => Api._request('/admin/pools/reset', {
         method: 'POST',
         headers: { isAdminRequest: true, 'x-admin-token': token }
+      }),
+
+      // 👤 Create Player - Admin can create new players manually
+      createUser: (data, token) => Api._request('/admin/create-user', {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: { isAdminRequest: true, 'x-admin-token': token }
       })
     };
 
@@ -2296,6 +2303,10 @@
             </div>
             
             <div style="margin:10px 0;">
+              <button class="btn btn-blue" id="createPlayerBtn">👤 Create Player</button>
+            </div>
+            
+            <div style="margin:10px 0;">
               <button class="btn btn-red" id="resetPoolsBtn">🔄 Reset Pools</button>
             </div>
             
@@ -2366,6 +2377,42 @@
           } catch (error) {
             console.error('Add funds error:', error);
             // Error already shown by API layer
+          }
+        });
+        
+        document.getElementById('createPlayerBtn')?.addEventListener('click', async () => {
+          const username = prompt("Enter player username (optional):") || '';
+          const firstName = prompt("Enter player first name (optional):") || '';
+          const phone = prompt("Enter player phone number (e.g., +2519...):") || '';
+          const telegramId = prompt("Enter Telegram ID (optional):") || '';
+          const balanceStr = prompt("Enter initial balance (ETB):", "0") || '0';
+          
+          if(!username && !phone) {
+            showToast('❌ Username or phone number is required', 'error');
+            return;
+          }
+          
+          const balance = parseInt(balanceStr);
+          if(isNaN(balance) || balance < 0) {
+            showToast('❌ Please enter a valid balance', 'error');
+            return;
+          }
+          
+          try {
+            console.log('👤 Creating player:', { username, firstName, phone, telegramId, balance });
+            await Api.createUser({ 
+              username: username || undefined, 
+              firstName: firstName || undefined,
+              phone: phone || undefined, 
+              telegramId: telegramId || undefined,
+              balance 
+            }, AppState.admin.token);
+            showToast(`✅ Player created successfully`, 'success');
+            modal.remove();
+            showFullAdminPanel();
+          } catch (error) {
+            console.error('Create player error:', error);
+            showToast('Failed to create player: ' + (error.message || 'Unknown error'), 'error');
           }
         });
         
