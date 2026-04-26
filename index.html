@@ -1082,21 +1082,37 @@
       async _request(endpoint, options = {}) {
         const url = `${CONFIG.API_BASE}${endpoint}`;
         
-        // Always check for token in localStorage before sending request
+        // 1. Header Logic: Always include Content-Type
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        // 2. Player Token: Check localStorage for JWT
         const token = localStorage.getItem('token');
         if (token) {
-          // Ensure Authorization header is set with Bearer token
-          options.headers = options.headers || {};
-          options.headers['Authorization'] = 'Bearer ' + token;
-          console.log('🔑 Authorization header set from localStorage:', token.substring(0, 20) + '...');
-        } else {
-          console.log('⚠️ No token in localStorage for this request');
+          headers['Authorization'] = 'Bearer ' + token;
+        } 
+        // 3. Admin Token: Check localStorage for Admin Token
+        else {
+          const adminToken = localStorage.getItem('adminToken');
+          if (adminToken) {
+            headers['x-admin-token'] = adminToken;
+          } 
+          // 4. Telegram Init: Fallback if no stored tokens exist
+          else if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+            headers['Authorization'] = window.Telegram.WebApp.initData;
+          }
         }
-        
-        const headers = this._headers(options.headers);
-        console.log("📤 Sending request to:", url, "with headers:", JSON.stringify(headers, null, 2));
-        console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
-        
+
+        // Merge with any custom headers passed in options
+        if (options.headers) {
+          Object.assign(headers, options.headers);
+        }
+
+        // 5. Logging: Show exactly what is being sent
+        console.log('🚀 Request Headers:', JSON.stringify(headers));
+        console.log(`📤 Sending ${options.method || 'GET'} to ${url}`);
+
         try {
           showLoading(options.loadingText || 'Processing...');
           
@@ -1117,15 +1133,21 @@
           
           const data = await response.json();
           
+          // 6. Error Handling: 401 clears tokens and shows error
+          if (response.status === 401) {
+            console.error('❌ Auth failed: No valid token found or token expired.');
+            // Clear invalid tokens
+            localStorage.removeItem('token');
+            localStorage.removeItem('adminToken');
+            
+            // Show user feedback
+            showToast('Login Required. Please restart the bot.', 'error');
+            
+            throw new Error('Authentication failed');
+          }
+          
           if (!response.ok) {
             console.error('❌ API Error Response:', JSON.stringify(data, null, 2));
-            // If the /api/user request returns a 401, do NOT set the user to 'guest'
-            if (response.status === 401) {
-              console.error("❌ Auth failed: No valid token found in storage.");
-              // Clear any stale tokens on 401
-              localStorage.removeItem('token');
-              localStorage.removeItem('adminToken');
-            }
             throw new Error(data.error || 'Request failed');
           }
           
@@ -1133,7 +1155,7 @@
         } catch (error) {
           console.error('❌ API Request Error:', error.message);
           // Don't show toast for every error - some are expected
-          if (error.message !== 'Authentication required') {
+          if (error.message !== 'Authentication required' && error.message !== 'Authentication failed') {
             showToast(error.message || 'Connection error', 'error');
           }
           throw error;
