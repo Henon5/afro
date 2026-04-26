@@ -7,6 +7,26 @@ const User = require('../models/User');
 // GET /api/user - Get current user profile (requires auth)
 router.get('/', auth, async (req, res) => {
   try {
+    // Admin users authenticated via token don't have a real DB record
+    if (req.isAdminAuth) {
+      return res.json({ 
+        success: true, 
+        user: { 
+          _id: req.user._id,
+          displayName: req.user.displayName || 'Admin', 
+          username: 'admin',
+          firstName: 'Admin',
+          phone: '', 
+          telegramHandle: '',
+          isAdmin: true,
+          balance: 0,
+          gamesPlayed: 0,
+          totalWins: 0,
+          createdAt: new Date()
+        } 
+      });
+    }
+    
     // Use projection to only fetch needed fields (performance optimization)
     const user = await User.findById(req.user._id).select('username firstName phone telegramHandle balance gamesPlayed totalWins createdAt');
     if (!user) {
@@ -36,6 +56,11 @@ router.get('/', auth, async (req, res) => {
 // POST method (legacy support)
 router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
+    // Admin users authenticated via token cannot update profile (no DB record)
+    if (req.isAdminAuth) {
+      return res.status(403).json({ error: 'Admin profiles cannot be updated via this endpoint' });
+    }
+    
     const updates = {};
     
     // Only update fields that are provided and not empty/null in the request
@@ -54,6 +79,15 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
     
     // Always update lastActive
     updates.lastActive = Date.now();
+    
+    // Debug logging
+    console.log('Profile update request:', {
+      userId: req.user._id,
+      updates: Object.keys(updates),
+      hasName: !!updates.firstName,
+      hasUsername: !!updates.username,
+      hasPhone: !!updates.phone
+    });
     
     // If no valid updates, return current user data without changes
     if (Object.keys(updates).length === 1 && updates.lastActive) {
@@ -108,6 +142,11 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
 // PUT method (preferred)
 router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
+    // Admin users authenticated via token cannot update profile (no DB record)
+    if (req.isAdminAuth) {
+      return res.status(403).json({ error: 'Admin profiles cannot be updated via this endpoint' });
+    }
+    
     const updates = {};
     
     // Only update fields that are provided and not empty/null in the request
