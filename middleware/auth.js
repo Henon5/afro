@@ -183,10 +183,20 @@ exports.auth = async (req, res, next) => {
           
           // SECURITY FIX: Use proper JWT verification ONLY - no Base64 fallback for Bearer tokens
           // This prevents "Invalid Base64" errors when regular player JWTs are sent
+          
+          // Safe Check: Prevent crash if environment variable has typo
+          const secret = process.env.JWT_SECRET || process.env.JWT_SSECRET;
+          
+          if (!secret) {
+            console.error('❌ CRITICAL: No JWT Secret found in environment variables!');
+          }
+          
+          console.log('Verifying token with secret exists:', !!secret);
+          
           try {
             const decoded = jwt.verify(
               token, 
-              process.env.JWT_SSECRET || process.env.JWT_SECRET || 'fallback-secret-change-in-production'
+              secret || 'fallback-secret-change-in-production'
             );
             
             // Validate decoded JWT token structure - must be an admin token

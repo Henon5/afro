@@ -37,6 +37,15 @@ router.post('/login', (req, res) => {
       secureCode === process.env.ADMIN_SECURE_CODE &&
       securityKey === process.env.ADMIN_SECURITY_KEY
     ) {
+      // Safe Check: Prevent crash if environment variable has typo
+      const secret = process.env.JWT_SECRET || process.env.JWT_SSECRET;
+      
+      if (!secret) {
+        console.error('❌ CRITICAL: No JWT Secret found in environment variables for signing!');
+      }
+      
+      console.log('Signing admin token with secret exists:', !!secret);
+      
       // SECURITY FIX: Use proper JWT signing instead of weak Base64 encoding
       const token = jwt.sign(
         { 
@@ -44,7 +53,7 @@ router.post('/login', (req, res) => {
           role: 'admin',
           isAdmin: true
         },
-        process.env.JWT_SECRET || 'fallback-secret-change-in-production',
+        secret || 'fallback-secret-change-in-production',
         { expiresIn: '24h' }
       );
       

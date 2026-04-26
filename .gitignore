@@ -1,8 +1,8 @@
 ```
 # Coverage reports
 coverage/
-*.xml
-*.html
+*.lcov
+*.clover.xml
 
 # Logs and temp files
 *.log
@@ -12,7 +12,7 @@ coverage/
 # Environment
 .env
 .env.local
-.env.*
+*.env.*
 
 # Editors
 .vscode/
@@ -20,23 +20,16 @@ coverage/
 
 # Dependencies
 node_modules/
+.venv/
+venv/
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.egg-info/
 dist/
 build/
 target/
-.venv/
-venv/
-.env
+.gradle/
 
 # OS generated files
 .DS_Store
 Thumbs.db
-
-# Testing
-.mypy_cache/
-.pytest_cache/
-coverage/
 ```
