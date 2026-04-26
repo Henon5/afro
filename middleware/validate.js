@@ -5,8 +5,8 @@ const schemas = {
   deposit: Joi.object({ amount: Joi.number().min(20).required(), paymentMethod: Joi.string().optional() }),
   withdrawal: Joi.object({ amount: Joi.number().min(10).max(5000).required(), phone: Joi.string().required() }),
   updateProfile: Joi.object({ 
-    name: Joi.string().optional(), 
-    username: Joi.string().optional(),
+    name: Joi.string().min(1).optional(), 
+    username: Joi.string().min(3).optional(),
     phone: Joi.string().optional(), 
     telegramHandle: Joi.string().optional() 
   }),

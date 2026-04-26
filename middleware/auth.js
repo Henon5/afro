@@ -72,12 +72,13 @@ exports.auth = async (req, res, next) => {
       user = await User.findOneAndUpdate(
         { telegramId: String(tgUser.id) },
         {
-          telegramId: String(tgUser.id),
-          username: tgUser.username,
-          firstName: tgUser.first_name,
-          lastName: tgUser.last_name,
-          languageCode: tgUser.language_code,
-          lastActive: Date.now()
+          $set: {
+            username: tgUser.username,
+            firstName: tgUser.first_name,
+            lastName: tgUser.last_name,
+            languageCode: tgUser.language_code,
+            lastActive: Date.now()
+          }
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
