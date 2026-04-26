@@ -9,6 +9,10 @@ const Transaction = require('../models/Transaction');
 const Bot = require('../models/Bot');
 const { initializeBots, simulateBotMove, checkBotWin } = require('../utils/botManager');
 
+// Track consecutive wins for the win pattern logic
+let consecutiveBotWins = 0;
+let lastWinnerWasBot = false;
+
 router.get('/rooms', auth, async (req, res) => {
   try {
     const rooms = await RoomPool.find().select('roomAmount currentPool houseTotal players');
@@ -68,7 +72,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         balance: { $gte: roomAmount } // Condition: must have sufficient balance
       },
       { $inc: { balance: -roomAmount } },
-      { new: true, select: 'balance telegramId' }
+      { new: true, select: 'balance telegramId firstName username' }
     );
     
     if (!updatedUser) {
@@ -101,16 +105,34 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Find or create game session
     let gameSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
     
-    // Build initial players array
-    const playersArray = [{ user: req.user._id, cardGrid, markedState }];
+    // Build initial players array with human player first
+    const humanPlayer = { 
+      user: req.user._id.toString(),
+      telegramId: updatedUser.telegramId,
+      name: updatedUser.firstName || updatedUser.username || 'Player',
+      isBot: false,
+      cardGrid, 
+      markedState 
+    };
+    const playersArray = [humanPlayer];
     
-    // Add bots if requested
+    // Add bots if requested - dynamic count between 8 and 15
+    let botCount = 0;
     if (withBots) {
-      const bots = await Bot.find({ isActive: true, balance: { $gte: roomAmount } }).limit(4);
-      for (const bot of bots) {
+      // Random bot count between 8 and 15 (inclusive)
+      botCount = Math.floor(Math.random() * (15 - 8 + 1)) + 8;
+      
+      const availableBots = await Bot.find({ 
+        isActive: true, 
+        balance: { $gte: roomAmount } 
+      }).limit(botCount);
+      
+      for (const bot of availableBots) {
         const botCard = GameSession.generateCard();
         playersArray.push({ 
           user: bot.telegramId, 
+          telegramId: bot.telegramId,
+          name: bot.name,
           isBot: true,
           cardGrid: botCard.cardGrid, 
           markedState: botCard.markedState 
@@ -143,7 +165,22 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     }
 
     const updatedRoomPool = await RoomPool.findOne({ roomAmount });
-    res.json({ success: true, game: { sessionId: gameSession._id, roomAmount, currentPool: updatedRoomPool.currentPool, playersCount: updatedRoomPool.players.length, cardGrid, markedState, calledNumbers: gameSession.calledNumbers, botsAdded: withBots ? playersArray.length - 1 : 0 } });
+    const totalPlayers = updatedRoomPool.players.length + (withBots ? botCount : 0);
+    res.json({ 
+      success: true, 
+      game: { 
+        sessionId: gameSession._id, 
+        roomAmount, 
+        currentPool: updatedRoomPool.currentPool, 
+        playersCount: gameSession.players.length,
+        humanPlayers: gameSession.players.filter(p => !p.isBot).length,
+        botPlayers: botCount,
+        cardGrid, 
+        markedState, 
+        calledNumbers: gameSession.calledNumbers, 
+        botsAdded: botCount 
+      } 
+    });
   } catch (err) {
     console.error('Join room error:', err);
     res.status(500).json({ error: 'Failed to join room' });
@@ -167,7 +204,7 @@ router.post('/mark', auth, async (req, res) => {
     const gameSession = await GameSession.findOne({ _id: sessionId, gameStatus: 'active' }).select('players calledNumbers gameStatus');
     if (!gameSession) return res.status(404).json({ error: 'Game not found or not active' });
 
-    const player = gameSession.players.find(p => p.user === req.user._id);
+    const player = gameSession.players.find(p => p.user === req.user._id.toString());
     if (!player) return res.status(403).json({ error: 'Not in this game' });
     
     const num = player.cardGrid[row][col];
@@ -203,6 +240,10 @@ async function processBotMoves(gameSession) {
     const bot = await Bot.findOne({ telegramId: botPlayer.user });
     if (!bot) continue;
 
+    // Check win pattern logic: bots win 2 times in a row, then user wins 1 time
+    // If consecutiveBotWins >= 2, skip bot winning to allow human to win
+    const shouldLetBotWin = consecutiveBotWins < 2;
+    
     const move = simulateBotMove(gameSession, bot);
     if (move) {
       const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId);
@@ -211,10 +252,13 @@ async function processBotMoves(gameSession) {
         
         // Check if bot wins
         const botWinResult = gameSession.checkWin(botIndex);
-        if (botWinResult.win) {
+        if (botWinResult.win && shouldLetBotWin) {
           // Bot wins - handle payout
           await handleBotWin(gameSession, bot, botIndex, botWinResult);
-          break;
+          return; // Exit after a bot wins
+        } else if (botWinResult.win && !shouldLetBotWin) {
+          // Bot would win but we need to let human win - unmark this move
+          gameSession.players[botIndex].markedState[move.row][move.col] = false;
         }
       }
     }
@@ -247,8 +291,18 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   gameSession.gameStatus = 'completed';
   gameSession.completedAt = new Date();
   gameSession.winner = bot.telegramId;
+  gameSession.winnerName = bot.name;
   gameSession.winningPattern = winResult.pattern;
   gameSession.isBotWin = true;
+  
+  // Update win tracking
+  consecutiveBotWins++;
+  lastWinnerWasBot = true;
+  
+  // Reset after 2 bot wins to allow human win next
+  if (consecutiveBotWins >= 2) {
+    consecutiveBotWins = 0;
+  }
 }
 
 router.post('/claim', auth, async (req, res) => {
@@ -262,7 +316,7 @@ router.post('/claim', auth, async (req, res) => {
     const gameSession = await GameSession.findOne({ _id: sessionId, gameStatus: 'active' }).select('players roomAmount');
     if (!gameSession) return res.status(404).json({ error: 'Game not found' });
 
-    const playerIndex = gameSession.players.findIndex(p => p.user === req.user._id);
+    const playerIndex = gameSession.players.findIndex(p => p.user === req.user._id.toString());
     if (playerIndex === -1) return res.status(403).json({ error: 'Not in this game' });
     
     const winResult = gameSession.checkWin(playerIndex);
@@ -279,6 +333,9 @@ router.post('/claim', auth, async (req, res) => {
     
     const winnings = roomPool.currentPool + (roomPool.houseTotal || 0);
 
+    // Get user info for name display
+    const userInfo = await User.findById(req.user._id).select('firstName username telegramId');
+    
     // Atomic balance update with projection
     const updatedUser = await User.findByIdAndUpdate(
       req.user._id,
@@ -298,11 +355,23 @@ router.post('/claim', auth, async (req, res) => {
     
     gameSession.gameStatus = 'completed'; 
     gameSession.completedAt = new Date(); 
-    gameSession.winner = req.user._id; 
+    gameSession.winner = req.user._id.toString();
+    gameSession.winnerName = userInfo.firstName || userInfo.username || 'Player';
     gameSession.winningPattern = winResult.pattern;
+    gameSession.isBotWin = false;
     await gameSession.save();
+    
+    // Reset bot win tracking after human win
+    consecutiveBotWins = 0;
+    lastWinnerWasBot = false;
 
-    res.json({ success: true, winnings, newBalance: updatedUser.balance, pattern: winResult.pattern });
+    res.json({ 
+      success: true, 
+      winnings, 
+      newBalance: updatedUser.balance, 
+      pattern: winResult.pattern,
+      winnerName: gameSession.winnerName
+    });
   } catch (err) {
     console.error('Claim win error:', err);
     res.status(500).json({ error: 'Failed to claim win' });
@@ -338,6 +407,29 @@ router.get('/number/:sessionId', auth, async (req, res) => {
   } catch (err) {
     console.error('Get number error:', err);
     res.status(500).json({ error: 'Failed to get number' });
+  }
+});
+
+// Get game result with winner info (for popup display)
+router.get('/result/:sessionId', auth, async (req, res) => {
+  try {
+    const gameSession = await GameSession.findOne({ _id: req.params.sessionId, gameStatus: 'completed' })
+      .select('winner winnerName isBotWin winningPattern completedAt roomAmount');
+    
+    if (!gameSession) return res.status(404).json({ error: 'Game not found or not completed' });
+    
+    res.json({ 
+      success: true, 
+      winner: gameSession.winner,
+      winnerName: gameSession.winnerName,
+      isBot: gameSession.isBotWin,
+      pattern: gameSession.winningPattern,
+      completedAt: gameSession.completedAt,
+      roomAmount: gameSession.roomAmount
+    });
+  } catch (err) {
+    console.error('Get result error:', err);
+    res.status(500).json({ error: 'Failed to get game result' });
   }
 });
 
