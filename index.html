@@ -1130,8 +1130,11 @@
         try {
           return await Api._request('/user', { method: 'GET' });
         } catch (error) {
-          // If syncUser fails, do NOT set user to 'guest' - throw error to show login required
+          // If syncUser fails, do NOT set user to 'guest' - clear localStorage and throw error
           console.error('❌ syncUser failed - user not authenticated:', error);
+          // Clear any stale tokens
+          localStorage.removeItem('token');
+          localStorage.removeItem('adminToken');
           throw new Error('Authentication failed. Please log in again.');
         }
       },

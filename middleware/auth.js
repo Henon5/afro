@@ -186,7 +186,7 @@ exports.auth = async (req, res, next) => {
           try {
             const decoded = jwt.verify(
               token, 
-              process.env.JWT_SECRET || 'fallback-secret-change-in-production'
+              process.env.JWT_SSECRET || process.env.JWT_SECRET || 'fallback-secret-change-in-production'
             );
             
             // Validate decoded JWT token structure - must be an admin token
