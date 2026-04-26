@@ -1,4 +1,4 @@
-# Examples where no .gitignore rules are needed
-# (Only source/config files were modified)
-middleware/auth.js
-routes/user.js
+```
+# Coverage reports
+coverage/
+```
