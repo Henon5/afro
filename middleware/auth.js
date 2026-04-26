@@ -58,7 +58,7 @@ exports.auth = async (req, res, next) => {
     let user = null;
     let isAdminAuth = false;
 
-    // 📱 Case 1: Telegram WebApp authentication
+    // 📱 Case 1: Telegram WebApp authentication (regular players)
     const initData = req.headers['x-telegram-init-data'];
     if (initData) {
       if (!verifyTelegramData(initData)) {
@@ -83,6 +83,9 @@ exports.auth = async (req, res, next) => {
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
+      
+      // ✅ IMPORTANT: Regular player authenticated via Telegram - explicitly NOT an admin
+      isAdminAuth = false;
     } 
     // 👮 Case 2: Admin authentication via credentials (login request)
     else if (req.headers['x-admin-auth']) {
@@ -111,64 +114,12 @@ exports.auth = async (req, res, next) => {
       }
     }
     // 🔑 Case 3: Admin authentication via token (subsequent requests)
-    // Support both x-admin-token and standard Authorization: Bearer <token>
-    const adminToken = req.headers['x-admin-token'] || req.headers['authorization'];
-    if (adminToken) {
-      try {
-        // Handle "Bearer <token>" format for Authorization header
-        let token = adminToken.startsWith('Bearer ') ? adminToken.split(' ')[1] : adminToken;
-        
-        // Fast path: Validate token format before decoding
-        if (!token || typeof token !== 'string' || token.length < 10) {
-          console.warn('⚠️ Invalid token format');
-          return res.status(401).json({ error: 'Invalid token format' });
-        }
-        
-        // SECURITY FIX: Use proper JWT verification instead of weak Base64 decoding
-        let decoded;
-        try {
-          decoded = jwt.verify(
-            token, 
-            process.env.JWT_SECRET || 'fallback-secret-change-in-production'
-          );
-        } catch (jwtError) {
-          // If JWT verification fails, fall back to legacy Base64 token for backward compatibility
-          // This allows gradual migration but should be removed in future versions
-          try {
-            // First check if token looks like base64 (only alphanumeric + /+=)
-            if (!/^[A-Za-z0-9+/=]+$/.test(token)) {
-              console.warn('⚠️ Invalid token encoding: not valid base64');
-              throw new Error('Invalid token encoding');
-            }
-            
-            const decodedStr = Buffer.from(token, 'base64').toString('utf8');
-            // Quick validation: must start with { to be valid JSON
-            if (!decodedStr || decodedStr[0] !== '{') {
-              console.warn('⚠️ Invalid token structure: does not start with {');
-              throw new Error('Invalid token structure');
-            }
-            decoded = JSON.parse(decodedStr);
-            
-            // Check expiry first (fastest check)
-            if (decoded.exp && decoded.exp < Date.now()) {
-              return res.status(401).json({ error: 'Admin token expired' });
-            }
-            
-            // Validate token structure for legacy tokens
-            if (decoded.id !== 'admin') {
-              return res.status(401).json({ error: 'Invalid admin token' });
-            }
-          } catch (legacyError) {
-            console.warn('⚠️ Token verification failed:', legacyError.message);
-            return res.status(401).json({ error: 'Invalid or malformed admin token' });
-          }
-        }
-        
-        // Validate decoded JWT token structure
-        if (decoded.id !== 'admin' && !decoded.isAdmin) {
-          return res.status(401).json({ error: 'Invalid admin token' });
-        }
-        
+    // ONLY check admin token if NO Telegram auth was provided
+    // This prevents regular players from being flagged as admins
+    else {
+      const adminToken = req.headers['x-admin-token'];
+      if (adminToken && adminToken === process.env.ADMIN_SECRET_KEY) {
+        // Simple secret key check for admin operations
         user = { 
           _id: 'admin', 
           isAdmin: true, 
@@ -176,8 +127,68 @@ exports.auth = async (req, res, next) => {
           role: 'admin'
         };
         isAdminAuth = true;
-      } catch (tokenError) {
-        return res.status(401).json({ error: 'Invalid or malformed admin token' });
+      }
+      // Also support JWT-based admin tokens
+      else if (adminToken && adminToken.startsWith('Bearer ')) {
+        try {
+          const token = adminToken.split(' ')[1];
+          
+          // Fast path: Validate token format before decoding
+          if (!token || typeof token !== 'string' || token.length < 10) {
+            console.warn('⚠️ Invalid token format');
+          } else {
+            // SECURITY FIX: Use proper JWT verification instead of weak Base64 decoding
+            let decoded;
+            try {
+              decoded = jwt.verify(
+                token, 
+                process.env.JWT_SECRET || 'fallback-secret-change-in-production'
+              );
+            } catch (jwtError) {
+              // If JWT verification fails, fall back to legacy Base64 token for backward compatibility
+              try {
+                // First check if token looks like base64 (only alphanumeric + /+=)
+                if (!/^[A-Za-z0-9+/=]+$/.test(token)) {
+                  throw new Error('Invalid token encoding');
+                }
+                
+                const decodedStr = Buffer.from(token, 'base64').toString('utf8');
+                // Quick validation: must start with { to be valid JSON
+                if (!decodedStr || decodedStr[0] !== '{') {
+                  throw new Error('Invalid token structure');
+                }
+                decoded = JSON.parse(decodedStr);
+                
+                // Check expiry first (fastest check)
+                if (decoded.exp && decoded.exp < Date.now()) {
+                  throw new Error('Token expired');
+                }
+                
+                // Validate token structure for legacy tokens
+                if (decoded.id !== 'admin') {
+                  throw new Error('Invalid admin token');
+                }
+              } catch (legacyError) {
+                console.warn('⚠️ Token verification failed:', legacyError.message);
+                throw legacyError;
+              }
+            }
+            
+            // Validate decoded JWT token structure
+            if (decoded && (decoded.id === 'admin' || decoded.isAdmin)) {
+              user = { 
+                _id: 'admin', 
+                isAdmin: true, 
+                displayName: 'MasterAdmin',
+                role: 'admin'
+              };
+              isAdminAuth = true;
+            }
+          }
+        } catch (tokenError) {
+          console.warn('⚠️ Admin token invalid:', tokenError.message);
+          // Don't fail here - allow fallback to anonymous/no auth
+        }
       }
     }
 
