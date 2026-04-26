@@ -6,6 +6,8 @@ const User = require('../models/User');
 const RoomPool = require('../models/RoomPool');
 const GameSession = require('../models/GameSession');
 const Transaction = require('../models/Transaction');
+const Bot = require('../models/Bot');
+const { initializeBots, simulateBotMove, checkBotWin } = require('../utils/botManager');
 
 router.get('/rooms', auth, async (req, res) => {
   try {
@@ -19,6 +21,37 @@ router.get('/rooms', auth, async (req, res) => {
   }
 });
 
+// Initialize bots endpoint (admin only)
+router.post('/bots/init', auth, async (req, res) => {
+  try {
+    if (!req.isAdminAuth) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    await initializeBots();
+    const botCount = await Bot.countDocuments();
+    res.json({ success: true, message: 'Bots initialized', count: botCount });
+  } catch (err) {
+    console.error('Init bots error:', err);
+    res.status(500).json({ error: 'Failed to initialize bots' });
+  }
+});
+
+// Get all bots status (admin only)
+router.get('/bots', auth, async (req, res) => {
+  try {
+    if (!req.isAdminAuth) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    const bots = await Bot.find().select('-__v');
+    res.json({ success: true, bots });
+  } catch (err) {
+    console.error('Get bots error:', err);
+    res.status(500).json({ error: 'Failed to get bots' });
+  }
+});
+
 router.post('/join', auth, validate('joinRoom'), async (req, res) => {
   try {
     // Admin users cannot join rooms (no real DB record)
@@ -26,7 +59,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       return res.status(403).json({ error: 'Admin accounts cannot join game rooms' });
     }
     
-    const { roomAmount } = req.body;
+    const { roomAmount, withBots } = req.body;
     
     // SECURITY FIX: Use atomic update with condition to prevent race conditions and double-spending
     const updatedUser = await User.findOneAndUpdate(
@@ -67,18 +100,40 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
 
     // Find or create game session
     let gameSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
+    
+    // Build initial players array
+    const playersArray = [{ user: req.user._id, cardGrid, markedState }];
+    
+    // Add bots if requested
+    if (withBots) {
+      const bots = await Bot.find({ isActive: true, balance: { $gte: roomAmount } }).limit(4);
+      for (const bot of bots) {
+        const botCard = GameSession.generateCard();
+        playersArray.push({ 
+          user: bot.telegramId, 
+          isBot: true,
+          cardGrid: botCard.cardGrid, 
+          markedState: botCard.markedState 
+        });
+        // Deduct bot balance
+        await Bot.findByIdAndUpdate(bot._id, { 
+          $inc: { balance: -roomAmount, gamesPlayed: 1 } 
+        });
+      }
+    }
+    
     if (!gameSession) {
       gameSession = await GameSession.create({ 
         roomAmount, 
         gameStatus: 'active',
         startedAt: new Date(),
-        players: [{ user: req.user._id, cardGrid, markedState }]
+        players: playersArray
       });
     } else {
       // SECURITY FIX: Check if player already in this session to prevent duplicates
       const existingPlayer = gameSession.players.find(p => p.user.toString() === req.user._id.toString());
       if (!existingPlayer) {
-        gameSession.players.push({ user: req.user._id, cardGrid, markedState });
+        gameSession.players.push(...playersArray);
         if (gameSession.gameStatus === 'waiting') { 
           gameSession.gameStatus = 'active'; 
           gameSession.startedAt = new Date(); 
@@ -88,7 +143,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     }
 
     const updatedRoomPool = await RoomPool.findOne({ roomAmount });
-    res.json({ success: true, game: { sessionId: gameSession._id, roomAmount, currentPool: updatedRoomPool.currentPool, playersCount: updatedRoomPool.players.length, cardGrid, markedState, calledNumbers: gameSession.calledNumbers } });
+    res.json({ success: true, game: { sessionId: gameSession._id, roomAmount, currentPool: updatedRoomPool.currentPool, playersCount: updatedRoomPool.players.length, cardGrid, markedState, calledNumbers: gameSession.calledNumbers, botsAdded: withBots ? playersArray.length - 1 : 0 } });
   } catch (err) {
     console.error('Join room error:', err);
     res.status(500).json({ error: 'Failed to join room' });
@@ -127,12 +182,74 @@ router.post('/mark', auth, async (req, res) => {
 
     const playerIndex = gameSession.players.indexOf(player);
     const winResult = gameSession.checkWin(playerIndex);
+    
+    // Process bot moves after human player marks
+    await processBotMoves(gameSession);
+
     res.json({ success: true, marked: player.markedState[row][col], matches: player.markedState.flat().filter(Boolean).length - 1, win: winResult.win, pattern: winResult.pattern });
   } catch (err) {
     console.error('Mark number error:', err);
     res.status(500).json({ error: 'Failed to mark number' });
   }
 });
+
+/**
+ * Process bot moves in the game session
+ */
+async function processBotMoves(gameSession) {
+  const botPlayers = gameSession.players.filter(p => p.isBot);
+  
+  for (const botPlayer of botPlayers) {
+    const bot = await Bot.findOne({ telegramId: botPlayer.user });
+    if (!bot) continue;
+
+    const move = simulateBotMove(gameSession, bot);
+    if (move) {
+      const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId);
+      if (botIndex !== -1) {
+        gameSession.players[botIndex].markedState[move.row][move.col] = true;
+        
+        // Check if bot wins
+        const botWinResult = gameSession.checkWin(botIndex);
+        if (botWinResult.win) {
+          // Bot wins - handle payout
+          await handleBotWin(gameSession, bot, botIndex, botWinResult);
+          break;
+        }
+      }
+    }
+  }
+  
+  if (gameSession.isModified()) {
+    await gameSession.save();
+  }
+}
+
+/**
+ * Handle bot winning the game
+ */
+async function handleBotWin(gameSession, bot, playerIndex, winResult) {
+  const roomPool = await RoomPool.findOneAndUpdate(
+    { roomAmount: gameSession.roomAmount },
+    { $set: { currentPool: 0, players: [] } },
+    { new: true }
+  );
+  
+  if (!roomPool) return;
+  
+  const winnings = roomPool.currentPool + (roomPool.houseTotal || 0);
+  
+  // Award winnings to bot
+  await Bot.findByIdAndUpdate(bot._id, { 
+    $inc: { balance: winnings, totalWins: 1, totalWinnings: winnings } 
+  });
+  
+  gameSession.gameStatus = 'completed';
+  gameSession.completedAt = new Date();
+  gameSession.winner = bot.telegramId;
+  gameSession.winningPattern = winResult.pattern;
+  gameSession.isBotWin = true;
+}
 
 router.post('/claim', auth, async (req, res) => {
   try {

@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 const RoomPool = require('./models/RoomPool');
+const { initializeBots } = require('./utils/botManager');
 const path = require('path');
 require('dotenv').config();
 
@@ -27,10 +28,11 @@ app.use(compression({
   }
 }));
 
-// Connect DB and initialize rooms in parallel
+// Connect DB and initialize rooms and bots in parallel
 const initPromise = Promise.all([
   connectDB(),
-  RoomPool.initializeRooms().catch(console.error)
+  RoomPool.initializeRooms().catch(console.error),
+  initializeBots().catch(console.error)
 ]).catch(console.error);
 
 app.use(helmet({
