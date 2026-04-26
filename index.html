@@ -1048,19 +1048,20 @@
           headers['x-telegram-init-data'] = Telegram.WebApp.initData;
         }
         
-        // Add admin token if available (supports both header formats)
+        // Add admin token ONLY for explicit admin requests
+        // Never send admin token with regular player requests to prevent 403 errors
         const adminToken = localStorage.getItem('adminToken');
-        if (adminToken) {
-          // Support both x-admin-token and standard Authorization header
+        if (adminToken && customHeaders.isAdminRequest) {
+          // Only include admin token when explicitly requested for admin operations
           headers['x-admin-token'] = adminToken;
-          headers['Authorization'] = `Bearer ${adminToken}`;
         }
         
-        // Merge with any custom headers
+        // Merge with any custom headers (excluding isAdminRequest flag)
         if (customHeaders && typeof customHeaders === 'object') {
-          Object.assign(headers, customHeaders);
-        }
+          const { isAdminRequest, ...restHeaders } = customHeaders;
+          Object.assign(headers, restHeaders);
         
+        }
         console.log('📋 API Headers:', headers);
         return headers;
       },
@@ -1178,52 +1179,52 @@
       },
       
       getAdminStats: (token) => Api._request('/admin/stats', {
-        headers: { 'x-admin-token': token }
+        headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
       
       getTransactions: (status, token) => Api._request(`/admin/transactions?status=${status || 'pending'}`, {
-        headers: { 'x-admin-token': token }
+        headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
       
       processTransaction: (id, action, reason, token) => Api._request(`/admin/transaction/${id}/approve`, {
         method: 'POST',
         body: JSON.stringify({ transactionId: id, action, reason }),
-        headers: { 'x-admin-token': token }
+        headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
       
       approveDeposit: (id, token) => Api._request(`/admin/transaction/${id}/approve`, {
         method: 'POST',
         body: JSON.stringify({ transactionId: id, action: 'approve' }),
-        headers: { 'x-admin-token': token }
+        headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
       
       approveWithdrawal: (id, token) => Api._request(`/admin/transaction/${id}/approve`, {
         method: 'POST',
         body: JSON.stringify({ transactionId: id, action: 'approve' }),
-        headers: { 'x-admin-token': token }
+        headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
       
       rejectTransaction: (id, reason, token) => Api._request(`/admin/transaction/${id}/approve`, {
         method: 'POST',
         body: JSON.stringify({ transactionId: id, action: 'reject', reason }),
-        headers: { 'x-admin-token': token }
+        headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
       
       addFunds: (data, token) => Api._request('/admin/user/add-funds', {
         method: 'POST',
         body: JSON.stringify(data),
-        headers: { 'x-admin-token': token }
+        headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
       
       toggleBlockUser: (data, token) => Api._request('/admin/user/block', {
         method: 'POST',
         body: JSON.stringify(data),
-        headers: { 'x-admin-token': token }
+        headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
       
       resetPools: (token) => Api._request('/admin/pools/reset', {
         method: 'POST',
-        headers: { 'x-admin-token': token }
+        headers: { isAdminRequest: true, 'x-admin-token': token }
       })
     };
 
