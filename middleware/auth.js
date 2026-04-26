@@ -56,6 +56,7 @@ const verifyTelegramData = (initData) => {
 exports.auth = async (req, res, next) => {
   try {
     let user = null;
+    let isAdminAuth = false;
 
     // 📱 Case 1: Telegram WebApp authentication
     const initData = req.headers['x-telegram-init-data'];
@@ -99,6 +100,7 @@ exports.auth = async (req, res, next) => {
             displayName: 'MasterAdmin',
             role: 'admin'
           };
+          isAdminAuth = true;
         } else {
           console.warn('❌ Invalid admin credentials attempt');
           return res.status(401).json({ error: 'Invalid admin credentials' });
@@ -173,6 +175,7 @@ exports.auth = async (req, res, next) => {
           displayName: 'MasterAdmin',
           role: 'admin'
         };
+        isAdminAuth = true;
       } catch (tokenError) {
         return res.status(401).json({ error: 'Invalid or malformed admin token' });
       }
@@ -190,6 +193,7 @@ exports.auth = async (req, res, next) => {
 
     // ✅ Attach user to request and proceed
     req.user = user;
+    req.isAdminAuth = isAdminAuth; // Flag to indicate admin auth (not a real DB user)
     next();
     
   } catch (error) {
