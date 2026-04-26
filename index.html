@@ -1211,8 +1211,10 @@
       }),
 
       // 🎮 Game Endpoints
-      joinRoom: (amount) => Api._request(`/game/join/${amount}`, {
+      getRooms: () => Api._request('/game/rooms', { method: 'GET' }),
+      joinRoom: (amount, withBots = true) => Api._request('/game/join', {
         method: 'POST',
+        body: JSON.stringify({ roomAmount: amount, withBots }),
         loadingText: 'Joining room...'
       }),
       
@@ -1573,7 +1575,7 @@
               <div class="room-entry">Entry: 100 ETB</div>
             </div>
             <div class="room-pool">
-              <div class="pool-amount" id="pool100">0</div>
+              <div class="pool-amount" id="pool100">Loading...</div>
               <div class="players-count">👥 <span id="players100">0</span></div>
             </div>
           </div>
@@ -1586,7 +1588,7 @@
               <div class="room-entry">Entry: 50 ETB</div>
             </div>
             <div class="room-pool">
-              <div class="pool-amount" id="pool50">0</div>
+              <div class="pool-amount" id="pool50">Loading...</div>
               <div class="players-count">👥 <span id="players50">0</span></div>
             </div>
           </div>
@@ -1599,7 +1601,7 @@
               <div class="room-entry">Entry: 20 ETB</div>
             </div>
             <div class="room-pool">
-              <div class="pool-amount" id="pool20">0</div>
+              <div class="pool-amount" id="pool20">Loading...</div>
               <div class="players-count">👥 <span id="players20">0</span></div>
             </div>
           </div>
@@ -1619,6 +1621,48 @@
         Sound.click();
         showAdminLogin();
       });
+      
+      // Load room pools from database
+      loadRooms();
+    }
+    
+    // Load room pools from database and update UI
+    async function loadRooms() {
+      try {
+        const response = await Api.getRooms();
+        if (response.rooms) {
+          const rooms = response.rooms;
+          
+          // Update 100 ETB room
+          if (rooms[100]) {
+            document.getElementById('pool100').textContent = `${rooms[100].pool} ETB`;
+            document.getElementById('players100').textContent = rooms[100].players;
+          } else {
+            document.getElementById('pool100').textContent = '0 ETB';
+            document.getElementById('players100').textContent = '0';
+          }
+          
+          // Update 50 ETB room
+          if (rooms[50]) {
+            document.getElementById('pool50').textContent = `${rooms[50].pool} ETB`;
+            document.getElementById('players50').textContent = rooms[50].players;
+          } else {
+            document.getElementById('pool50').textContent = '0 ETB';
+            document.getElementById('players50').textContent = '0';
+          }
+          
+          // Update 20 ETB room
+          if (rooms[20]) {
+            document.getElementById('pool20').textContent = `${rooms[20].pool} ETB`;
+            document.getElementById('players20').textContent = rooms[20].players;
+          } else {
+            document.getElementById('pool20').textContent = '0 ETB';
+            document.getElementById('players20').textContent = '0';
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load rooms:', error);
+      }
     }
 
     // ============================================
@@ -2542,26 +2586,29 @@
 
     async function joinRoom(amount) {
       try {
-        const response = await Api.joinRoom(amount);
+        const response = await Api.joinRoom(amount, true); // Always join with bots
         
-        AppState.user.balance = response.userBalance;
+        AppState.user.balance = response.game ? (response.game.currentPool > 0 ? AppState.user.balance - amount : AppState.user.balance) : AppState.user.balance;
         AppState.game.roomAmount = amount;
+        
+        if (response.game) {
+          AppState.game.cardGrid = response.game.cardGrid;
+          AppState.game.markedState = response.game.markedState;
+          AppState.game.sessionId = response.game.sessionId;
+          AppState.game.currentPool = response.game.currentPool;
+          AppState.game.playersCount = response.game.playersCount;
+          AppState.game.botPlayers = response.game.botPlayers || 0;
+        }
         
         showToast(response.message || 'Joined room!', 'success');
         Sound.success();
         
-        if(response.card) {
-          AppState.game.cardGrid = response.card.grid;
-          AppState.game.markedState = response.card.marked;
-        }
-        
         showPage('bingo');
+        updateBingoUI();
+        loadRooms(); // Reload rooms to update pool display
       } catch (error) {
-        // For demo: allow joining without backend
-        AppState.user.balance = (AppState.user.balance || 0) - amount;
-        AppState.game.roomAmount = amount;
-        showToast('Joined room (demo mode)', 'success');
-        showPage('bingo');
+        console.error('Failed to join room:', error);
+        showToast(error.message || 'Failed to join room', 'error');
       }
     }
 
