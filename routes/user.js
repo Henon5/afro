@@ -58,6 +58,9 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
     // If no valid updates, return current user data without changes
     if (Object.keys(updates).length === 1 && updates.lastActive) {
       const user = await User.findById(req.user._id);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
       return res.json({ 
         success: true, 
         message: 'No changes to update',
@@ -74,6 +77,9 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
     }
     
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
     res.json({ 
       success: true, 
       user: { 
@@ -88,7 +94,14 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
     });
   } catch (err) {
     console.error('Error updating profile:', err);
-    res.status(500).json({ error: 'Failed to update profile' });
+    console.error('Error details:', {
+      message: err.message,
+      stack: err.stack,
+      name: err.name,
+      code: err.code,
+      keyValue: err.keyValue
+    });
+    res.status(500).json({ error: 'Failed to update profile', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -114,9 +127,21 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
     // Always update lastActive
     updates.lastActive = Date.now();
     
+    // Debug logging
+    console.log('Profile update request:', {
+      userId: req.user._id,
+      updates: Object.keys(updates),
+      hasName: !!updates.firstName,
+      hasUsername: !!updates.username,
+      hasPhone: !!updates.phone
+    });
+    
     // If no valid updates, return current user data without changes
     if (Object.keys(updates).length === 1 && updates.lastActive) {
       const user = await User.findById(req.user._id);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
       return res.json({ 
         success: true, 
         message: 'No changes to update',
@@ -133,6 +158,9 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
     }
     
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
     res.json({ 
       success: true, 
       user: { 
@@ -147,7 +175,14 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
     });
   } catch (err) {
     console.error('Error updating profile:', err);
-    res.status(500).json({ error: 'Failed to update profile' });
+    console.error('Error details:', {
+      message: err.message,
+      stack: err.stack,
+      name: err.name,
+      code: err.code,
+      keyValue: err.keyValue
+    });
+    res.status(500).json({ error: 'Failed to update profile', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
