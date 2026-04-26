@@ -201,4 +201,57 @@ router.post('/pools/reset', auth, adminOnly, async (req, res) => {
   }
 });
 
+// 👤 POST /admin/create-user - Create a new player (without Telegram auth)
+// Allows admin to create players manually without needing a database record of its own
+router.post('/create-user', auth, adminOnly, async (req, res) => {
+  try {
+    const { username, firstName, phone, telegramId, balance } = req.body;
+    
+    // Validate required fields
+    if (!username && !phone) {
+      return res.status(400).json({ error: 'Username or phone number is required' });
+    }
+    
+    // Check if user already exists by telegramId or phone
+    const existingUser = await User.findOne({ 
+      $or: [
+        ...(telegramId ? [{ telegramId: String(telegramId) }] : []),
+        ...(phone ? [{ phone }] : [])
+      ]
+    });
+    
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists with this telegramId or phone' });
+    }
+    
+    // Create new user
+    const newUser = await User.create({
+      telegramId: telegramId ? String(telegramId) : undefined,
+      username: username || undefined,
+      firstName: firstName || undefined,
+      phone: phone || undefined,
+      balance: balance || 0,
+      gamesPlayed: 0,
+      totalWins: 0
+    });
+    
+    console.log('✅ Admin created new player:', newUser._id);
+    res.json({ 
+      success: true, 
+      message: 'Player created successfully',
+      user: {
+        _id: newUser._id,
+        username: newUser.username,
+        firstName: newUser.firstName,
+        phone: newUser.phone,
+        telegramId: newUser.telegramId,
+        balance: newUser.balance
+      }
+    });
+  } catch (err) {
+    console.error('Create user error:', err);
+    res.status(500).json({ error: 'Failed to create player' });
+  }
+});
+
 module.exports = router; // 👈 Export at the end

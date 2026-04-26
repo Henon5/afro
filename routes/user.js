@@ -57,11 +57,18 @@ router.get('/', auth, async (req, res) => {
 router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
     // Debug logging - FIRST thing to log
-    console.log("Attempting to save for user:", req.user._id);
-    console.log("Data received:", req.body);
+    console.log("📝 Attempting to save profile for user:", req.user._id);
+    console.log("📝 Data received:", JSON.stringify(req.body));
+    console.log("📝 User object:", JSON.stringify({ 
+      _id: req.user._id, 
+      telegramId: req.user.telegramId,
+      isAdminAuth: req.isAdminAuth,
+      isAdmin: req.user.isAdmin
+    }));
     
     // Admin users authenticated via token cannot update profile (no DB record)
     if (req.isAdminAuth) {
+      console.warn('⚠️ Admin attempted to update profile');
       return res.status(403).json({ error: 'Admin profiles cannot be updated via this endpoint' });
     }
     
@@ -158,11 +165,18 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
 router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
     // Debug logging - FIRST thing to log
-    console.log("Attempting to save for user:", req.user._id);
-    console.log("Data received:", req.body);
+    console.log("📝 Attempting to save profile for user (PUT):", req.user._id);
+    console.log("📝 Data received:", JSON.stringify(req.body));
+    console.log("📝 User object:", JSON.stringify({ 
+      _id: req.user._id, 
+      telegramId: req.user.telegramId,
+      isAdminAuth: req.isAdminAuth,
+      isAdmin: req.user.isAdmin
+    }));
     
     // Admin users authenticated via token cannot update profile (no DB record)
     if (req.isAdminAuth) {
+      console.warn('⚠️ Admin attempted to update profile');
       return res.status(403).json({ error: 'Admin profiles cannot be updated via this endpoint' });
     }
     
