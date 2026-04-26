@@ -1070,6 +1070,14 @@
       async _request(endpoint, options = {}) {
         const url = `${CONFIG.API_BASE}${endpoint}`;
         
+        // Always check for token in localStorage before sending request
+        const token = localStorage.getItem('token');
+        if (token) {
+          // Ensure Authorization header is set with Bearer token
+          options.headers = options.headers || {};
+          options.headers['Authorization'] = 'Bearer ' + token;
+        }
+        
         console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
         console.log('📋 Request Headers:', this._headers(options.headers));
         
@@ -1116,18 +1124,9 @@
         try {
           return await Api._request('/user', { method: 'GET' });
         } catch (error) {
-          // Fallback: create minimal user from Telegram
-          const tg = window.Telegram?.WebApp?.initDataUnsafe?.user;
-          return {
-            user: {
-              firstName: tg ? `${tg.first_name || ''} ${tg.last_name || ''}`.trim() : 'Player',
-              displayName: tg ? `${tg.first_name || ''} ${tg.last_name || ''}`.trim() : 'Player',
-              balance: 0,
-              telegramId: tg?.id?.toString() || 'guest',
-              username: tg?.username,
-              isBlocked: false
-            }
-          };
+          // If syncUser fails, do NOT set user to 'guest' - throw error to show login required
+          console.error('❌ syncUser failed - user not authenticated:', error);
+          throw new Error('Authentication failed. Please log in again.');
         }
       },
       
@@ -2507,17 +2506,10 @@
         };
         console.log('✅ User loaded:', AppState.user);
       } catch (error) {
-        console.warn('Using offline mode');
-        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-        AppState.user = {
-          firstName: tgUser?.first_name || 'Player',
-          displayName: tgUser ? `${tgUser.first_name || ''} ${tgUser.last_name || ''}`.trim() : 'Player',
-          username: tgUser?.username,
-          balance: 100, // Demo balance
-          gamesPlayed: 0,
-          totalWins: 0,
-          isBlocked: false
-        };
+        // If syncUser fails, show login error instead of falling back to guest/offline mode
+        console.error('❌ Failed to authenticate user:', error);
+        showToast('Authentication failed. Please log in again.', 'error');
+        AppState.user = null;
       }
       
       showPage('lobby');

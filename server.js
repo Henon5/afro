@@ -10,6 +10,12 @@ const path = require('path');
 
 const app = express();
 
+// CORS Configuration - Allow GitHub Pages origin with credentials
+app.use(cors({ 
+  origin: 'https://henon5.github.io', 
+  credentials: true 
+}));
+
 // Enable gzip compression for all responses (performance optimization)
 app.use(compression({
   level: 6, // Balanced compression level (1-9, higher = better compression but slower)
@@ -67,26 +73,6 @@ app.use(helmet({
       frameAncestors: ["'self'", "https://t.me"]
     }
   }
-}));
-// SECURITY FIX: Restrict CORS to specific trusted origins instead of allowing all with credentials
-const allowedOrigins = process.env.FRONTEND_URL 
-  ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
-  : ['http://localhost:3000', 'https://henon5.github.io'];
-
-app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app') || origin.endsWith('telegram.org') || origin.endsWith('.github.io')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Telegram-Init-Data', 'X-Admin-Auth', 'X-Admin-Token']
 }));
 app.use(express.json({ limit: '10kb' })); // Limit body size for performance
 // Trust Railway's proxy
