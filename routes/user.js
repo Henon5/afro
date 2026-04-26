@@ -17,10 +17,10 @@ router.get('/', auth, async (req, res) => {
       user: { 
         _id: user._id,
         displayName: user.firstName || user.username || user.telegramHandle || 'Player', 
-        username: user.username,
-        firstName: user.firstName,
-        phone: user.phone, 
-        telegramHandle: user.telegramHandle,
+        username: user.username || '',
+        firstName: user.firstName || '',
+        phone: user.phone || '', 
+        telegramHandle: user.telegramHandle || '',
         balance: user.balance,
         gamesPlayed: user.gamesPlayed || 0,
         totalWins: user.totalWins || 0,
@@ -63,10 +63,10 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
         message: 'No changes to update',
         user: { 
           displayName: user.firstName || user.username || user.telegramHandle || 'Player', 
-          username: user.username,
-          firstName: user.firstName,
-          phone: user.phone, 
-          telegramHandle: user.telegramHandle,
+          username: user.username || '',
+          firstName: user.firstName || '',
+          phone: user.phone || '', 
+          telegramHandle: user.telegramHandle || '',
           gamesPlayed: user.gamesPlayed || 0,
           totalWins: user.totalWins || 0
         } 
@@ -78,10 +78,10 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
       success: true, 
       user: { 
         displayName: user.firstName || user.username || user.telegramHandle || 'Player', 
-        username: user.username,
-        firstName: user.firstName,
-        phone: user.phone, 
-        telegramHandle: user.telegramHandle,
+        username: user.username || '',
+        firstName: user.firstName || '',
+        phone: user.phone || '', 
+        telegramHandle: user.telegramHandle || '',
         gamesPlayed: user.gamesPlayed || 0,
         totalWins: user.totalWins || 0
       } 
@@ -122,10 +122,10 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
         message: 'No changes to update',
         user: { 
           displayName: user.firstName || user.username || user.telegramHandle || 'Player', 
-          username: user.username,
-          firstName: user.firstName,
-          phone: user.phone, 
-          telegramHandle: user.telegramHandle,
+          username: user.username || '',
+          firstName: user.firstName || '',
+          phone: user.phone || '', 
+          telegramHandle: user.telegramHandle || '',
           gamesPlayed: user.gamesPlayed || 0,
           totalWins: user.totalWins || 0
         } 
@@ -137,10 +137,10 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
       success: true, 
       user: { 
         displayName: user.firstName || user.username || user.telegramHandle || 'Player', 
-        username: user.username,
-        firstName: user.firstName,
-        phone: user.phone, 
-        telegramHandle: user.telegramHandle,
+        username: user.username || '',
+        firstName: user.firstName || '',
+        phone: user.phone || '', 
+        telegramHandle: user.telegramHandle || '',
         gamesPlayed: user.gamesPlayed || 0,
         totalWins: user.totalWins || 0
       } 
