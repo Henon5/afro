@@ -2,14 +2,23 @@ const mongoose = require('mongoose');
 
 const gameSessionSchema = new mongoose.Schema({
   roomAmount: { type: Number, required: true },
-  players: [{ user: String, cardGrid: [[Number]], markedState: [[Boolean]] }],
+  players: [{ 
+    user: String, 
+    telegramId: String,
+    name: String,
+    isBot: Boolean,
+    cardGrid: [[Number]], 
+    markedState: [[Boolean]] 
+  }],
   calledNumbers: [Number],
   currentNumber: Number,
   gameStatus: { type: String, enum: ['waiting', 'active', 'completed'], default: 'waiting' },
   winner: String,
+  winnerName: String,
   winningPattern: String,
   startedAt: Date,
-  completedAt: Date
+  completedAt: Date,
+  isBotWin: Boolean
 });
 
 gameSessionSchema.statics.generateCard = function() {
