@@ -1872,6 +1872,25 @@
       });
     }
 
+    // Update bingo page display with pool and player information
+    function updateBingoDisplay() {
+      const game = AppState.game;
+      
+      // Update current pool display
+      const poolEl = document.getElementById('currentPool');
+      if(poolEl && game.currentPool !== undefined) {
+        poolEl.textContent = `${game.currentPool} ETB`;
+      }
+      
+      // Update players count display (including bots)
+      const playersEl = document.getElementById('currentPlayers');
+      if(playersEl) {
+        const totalPlayers = game.playersCount || 0;
+        const botPlayers = game.botPlayers || 0;
+        playersEl.textContent = `${totalPlayers} (${botPlayers} bots)`;
+      }
+    }
+
     function startAutoPlay() {
       const game = AppState.game;
       game.isAutoPlaying = true;
@@ -2604,7 +2623,7 @@
         Sound.success();
         
         showPage('bingo');
-        updateBingoUI();
+        updateBingoDisplay(); // Update the bingo page display with pool and player info
         loadRooms(); // Reload rooms to update pool display
       } catch (error) {
         console.error('Failed to join room:', error);
@@ -2674,6 +2693,7 @@
     window.checkForBingo = checkForBingo;
     window.requestDeposit = requestDeposit;
     window.showAdminLogin = showAdminLogin;
+    window.updateBingoDisplay = updateBingoDisplay;
     
     window.AppState = AppState;
     window.Api = Api;
