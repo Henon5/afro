@@ -1,7 +1,7 @@
 const Joi = require('joi');
 
 const schemas = {
-  joinRoom: Joi.object({ roomAmount: Joi.number().valid(20, 50, 100).required() }),
+  joinRoom: Joi.object({ roomAmount: Joi.number().valid(20, 50, 100).required(), withBots: Joi.boolean().default(true) }),
   deposit: Joi.object({ amount: Joi.number().min(20).required(), paymentMethod: Joi.string().optional() }),
   withdrawal: Joi.object({ amount: Joi.number().min(10).max(5000).required(), phone: Joi.string().required() }),
   updateProfile: Joi.object({ 
