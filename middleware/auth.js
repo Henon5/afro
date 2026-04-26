@@ -94,10 +94,17 @@ exports.auth = async (req, res, next) => {
     }
 
     // 📱 Case 1: Telegram WebApp authentication via Authorization header
-    // Check if header starts with query_id= or user= (Telegram initData format)
-    if (authHeader && (authHeader.startsWith('query_id=') || authHeader.startsWith('user='))) {
+    // First, strip Bearer prefix if present (frontend bug fix)
+    let authToken = authHeader;
+    if (authToken && authToken.startsWith('Bearer ')) {
+      authToken = authToken.substring(7); // Remove 'Bearer ' prefix
+      console.log('✂️ Stripped Bearer prefix, raw token:', authToken.substring(0, 50) + '...');
+    }
+    
+    // Check if it's Telegram initData (starts with query_id= or user=, or contains hash=)
+    if (authToken && (authToken.startsWith('query_id=') || authToken.startsWith('user=') || authToken.includes('hash='))) {
       try {
-        const initData = authHeader;
+        const initData = authToken;
         
         // Verify Telegram data signature
         if (!verifyTelegramData(initData)) {

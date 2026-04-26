@@ -1090,7 +1090,17 @@
         
         // Immediately add Authorization if token exists
         if (token) {
-          headers['Authorization'] = 'Bearer ' + token;
+          // Smart detection: If token is Telegram initData (contains user= or hash=), send it raw without Bearer
+          // Otherwise, it's a JWT token, so add Bearer prefix
+          if (token.startsWith('user=') || token.includes('hash=')) {
+            // Telegram initData - send raw without Bearer prefix
+            headers['Authorization'] = token;
+            console.log('📱 Using Telegram initData (raw, no Bearer)');
+          } else {
+            // JWT token - add Bearer prefix
+            headers['Authorization'] = 'Bearer ' + token;
+            console.log('🔑 Using JWT token (with Bearer)');
+          }
         }
         
         // 3. Admin Fallback: Check for admin token
