@@ -118,8 +118,9 @@ exports.auth = async (req, res, next) => {
     // This prevents regular players from being flagged as admins
     else {
       const adminToken = req.headers['x-admin-token'];
+      
+      // STRICT CHECK: Only set admin if token matches exactly
       if (adminToken && adminToken === process.env.ADMIN_SECRET_KEY) {
-        // Simple secret key check for admin operations
         user = { 
           _id: 'admin', 
           isAdmin: true, 
@@ -136,58 +137,66 @@ exports.auth = async (req, res, next) => {
           // Fast path: Validate token format before decoding
           if (!token || typeof token !== 'string' || token.length < 10) {
             console.warn('⚠️ Invalid token format');
-          } else {
-            // SECURITY FIX: Use proper JWT verification instead of weak Base64 decoding
-            let decoded;
+            // STOP HERE - Don't let invalid tokens continue as admin
+            return res.status(401).json({ error: 'Invalid session. Please login again.' });
+          }
+          
+          // SECURITY FIX: Use proper JWT verification instead of weak Base64 decoding
+          let decoded;
+          try {
+            decoded = jwt.verify(
+              token, 
+              process.env.JWT_SECRET || 'fallback-secret-change-in-production'
+            );
+          } catch (jwtError) {
+            // If JWT verification fails, fall back to legacy Base64 token for backward compatibility
             try {
-              decoded = jwt.verify(
-                token, 
-                process.env.JWT_SECRET || 'fallback-secret-change-in-production'
-              );
-            } catch (jwtError) {
-              // If JWT verification fails, fall back to legacy Base64 token for backward compatibility
-              try {
-                // First check if token looks like base64 (only alphanumeric + /+=)
-                if (!/^[A-Za-z0-9+/=]+$/.test(token)) {
-                  throw new Error('Invalid token encoding');
-                }
-                
-                const decodedStr = Buffer.from(token, 'base64').toString('utf8');
-                // Quick validation: must start with { to be valid JSON
-                if (!decodedStr || decodedStr[0] !== '{') {
-                  throw new Error('Invalid token structure');
-                }
-                decoded = JSON.parse(decodedStr);
-                
-                // Check expiry first (fastest check)
-                if (decoded.exp && decoded.exp < Date.now()) {
-                  throw new Error('Token expired');
-                }
-                
-                // Validate token structure for legacy tokens
-                if (decoded.id !== 'admin') {
-                  throw new Error('Invalid admin token');
-                }
-              } catch (legacyError) {
-                console.warn('⚠️ Token verification failed:', legacyError.message);
-                throw legacyError;
+              // First check if token looks like base64 (only alphanumeric + /+=)
+              if (!/^[A-Za-z0-9+/=]+$/.test(token)) {
+                throw new Error('Invalid token encoding');
               }
+              
+              const decodedStr = Buffer.from(token, 'base64').toString('utf8');
+              // Quick validation: must start with { to be valid JSON
+              if (!decodedStr || decodedStr[0] !== '{') {
+                throw new Error('Invalid token structure');
+              }
+              decoded = JSON.parse(decodedStr);
+              
+              // Check expiry first (fastest check)
+              if (decoded.exp && decoded.exp < Date.now()) {
+                throw new Error('Token expired');
+              }
+              
+              // Validate token structure for legacy tokens
+              if (decoded.id !== 'admin') {
+                throw new Error('Invalid admin token');
+              }
+            } catch (legacyError) {
+              console.warn('⚠️ Token verification failed:', legacyError.message);
+              // STOP HERE - Don't set user as admin, reject the request
+              return res.status(401).json({ error: 'Invalid session. Please login again.' });
             }
-            
-            // Validate decoded JWT token structure
-            if (decoded && (decoded.id === 'admin' || decoded.isAdmin)) {
-              user = { 
-                _id: 'admin', 
-                isAdmin: true, 
-                displayName: 'MasterAdmin',
-                role: 'admin'
-              };
-              isAdminAuth = true;
-            }
+          }
+          
+          // Validate decoded JWT token structure
+          if (decoded && (decoded.id === 'admin' || decoded.isAdmin)) {
+            user = { 
+              _id: 'admin', 
+              isAdmin: true, 
+              displayName: 'MasterAdmin',
+              role: 'admin'
+            };
+            isAdminAuth = true;
+          } else {
+            // Token decoded but not an admin token - stop here
+            console.warn('⚠️ Valid token but not admin credentials');
+            return res.status(401).json({ error: 'Invalid session. Please login again.' });
           }
         } catch (tokenError) {
           console.warn('⚠️ Admin token invalid:', tokenError.message);
-          // Don't fail here - allow fallback to anonymous/no auth
+          // STOP HERE - Don't allow fallback to anonymous/no auth for Bearer tokens
+          return res.status(401).json({ error: 'Invalid session. Please login again.' });
         }
       }
     }
@@ -195,6 +204,13 @@ exports.auth = async (req, res, next) => {
     // ❌ No valid authentication method found
     if (!user) {
       return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // 🛡️ FINAL SAFEGUARD: Ensure regular Telegram users are NEVER flagged as admin
+    if (user.telegramId || (user._id && user._id !== 'admin')) {
+      // This is a regular player - explicitly set isAdminAuth to false
+      isAdminAuth = false;
+      user.isAdmin = false;
     }
 
     // 🚫 Check if user is blocked (skip for admin)
