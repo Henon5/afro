@@ -6,7 +6,7 @@ const User = require('../models/User');
 // 🔐 Verify Telegram WebApp initData signature
 const verifyTelegramData = (initData) => {
   // Skip verification in development if no bot token is set
-  if (!process.env.TELEGRAM_BOT_TOKEN) {
+  if (!process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN === 'YOUR_TELEGRAM_BOT_TOKEN_HERE') {
     console.warn('⚠️ TELEGRAM_BOT_TOKEN not set - skipping initData verification (DEV MODE)');
     return true;
   }
@@ -123,7 +123,14 @@ exports.auth = async (req, res, next) => {
           return res.status(400).json({ error: 'Invalid Telegram data format' });
         }
         
-        const tgUser = JSON.parse(decodedUserStr);
+        let tgUser;
+        try {
+          tgUser = JSON.parse(decodedUserStr);
+        } catch (parseError) {
+          console.error('❌ Failed to parse Telegram user data:', parseError.message);
+          return res.status(400).json({ error: 'Invalid Telegram user data format' });
+        }
+        
         user = await processTelegramUser(tgUser);
         
         console.log('✅ Player authenticated via Authorization header:', user._id, 'telegramId:', user.telegramId);
@@ -162,7 +169,14 @@ exports.auth = async (req, res, next) => {
           return res.status(400).json({ error: 'Invalid Telegram data format' });
         }
         
-        const tgUser = JSON.parse(decodedUserStr);
+        let tgUser;
+        try {
+          tgUser = JSON.parse(decodedUserStr);
+        } catch (parseError) {
+          console.error('❌ Failed to parse Telegram user data:', parseError.message);
+          return res.status(400).json({ error: 'Invalid Telegram user data format' });
+        }
+        
         user = await processTelegramUser(tgUser);
         
         console.log('✅ Player authenticated via X-Telegram-Init-Data:', user._id, 'telegramId:', user.telegramId);

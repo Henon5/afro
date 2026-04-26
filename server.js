@@ -7,6 +7,7 @@ const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 const RoomPool = require('./models/RoomPool');
 const path = require('path');
+require('dotenv').config();
 
 const app = express();
 
