@@ -1082,37 +1082,32 @@
       async _request(endpoint, options = {}) {
         const url = `${CONFIG.API_BASE}${endpoint}`;
         
-        // 1. Header Logic: Always include Content-Type
-        const headers = {
-          'Content-Type': 'application/json'
-        };
-
-        // 2. Player Token: Check localStorage for JWT
-        const token = localStorage.getItem('token');
+        // 1. Retrieve the Token: Check localStorage first, then Telegram initData fallback
+        const token = localStorage.getItem('token') || window.Telegram?.WebApp?.initData;
+        
+        // 2. Force the Header: Always include Content-Type
+        const headers = { 'Content-Type': 'application/json' };
+        
+        // Immediately add Authorization if token exists
         if (token) {
           headers['Authorization'] = 'Bearer ' + token;
-        } 
-        // 3. Admin Token: Check localStorage for Admin Token
-        else {
-          const adminToken = localStorage.getItem('adminToken');
-          if (adminToken) {
-            headers['x-admin-token'] = adminToken;
-          } 
-          // 4. Telegram Init: Fallback if no stored tokens exist
-          else if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
-            headers['Authorization'] = window.Telegram.WebApp.initData;
-          }
         }
-
+        
+        // 3. Admin Fallback: Check for admin token
+        const adminToken = localStorage.getItem('adminToken');
+        if (adminToken) {
+          headers['x-admin-token'] = adminToken;
+        }
+        
         // Merge with any custom headers passed in options
         if (options.headers) {
           Object.assign(headers, options.headers);
         }
-
-        // 5. Logging: Show exactly what is being sent
+        
+        // 4. Debug Log: Verify 'Authorization' appears in headers
         console.log('🚀 Request Headers:', JSON.stringify(headers));
         console.log(`📤 Sending ${options.method || 'GET'} to ${url}`);
-
+        
         try {
           showLoading(options.loadingText || 'Processing...');
           
@@ -1133,15 +1128,37 @@
           
           const data = await response.json();
           
-          // 6. Error Handling: 401 clears tokens and shows error
+          // 5. Error Handling: If 401, clear tokens and show Retry button
           if (response.status === 401) {
             console.error('❌ Auth failed: No valid token found or token expired.');
             // Clear invalid tokens
             localStorage.removeItem('token');
             localStorage.removeItem('adminToken');
             
-            // Show user feedback
-            showToast('Login Required. Please restart the bot.', 'error');
+            // Show Retry button that clears localStorage and reloads Telegram WebApp
+            showToast('Login Required', 'error');
+            setTimeout(() => {
+              const retryBtn = document.createElement('button');
+              retryBtn.textContent = 'Retry';
+              retryBtn.style.cssText = 'background:#e74c3c;color:white;border:none;padding:10px 20px;border-radius:5px;margin-top:10px;cursor:pointer;';
+              retryBtn.onclick = () => {
+                localStorage.clear();
+                if (window.Telegram?.WebApp) {
+                  window.Telegram.WebApp.close();
+                  window.location.reload();
+                } else {
+                  window.location.reload();
+                }
+              };
+              
+              const toast = document.querySelector('.toast-message');
+              if (toast && !document.querySelector('.retry-btn-container')) {
+                const container = document.createElement('div');
+                container.className = 'retry-btn-container';
+                container.appendChild(retryBtn);
+                toast.appendChild(container);
+              }
+            }, 500);
             
             throw new Error('Authentication failed');
           }
