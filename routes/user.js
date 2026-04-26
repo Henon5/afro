@@ -61,6 +61,13 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
       return res.status(403).json({ error: 'Admin profiles cannot be updated via this endpoint' });
     }
     
+    // Validate that req.user._id is a valid ObjectId format (not 'admin' string or invalid ID)
+    const mongoose = require('mongoose');
+    if (!req.user._id || !mongoose.Types.ObjectId.isValid(req.user._id)) {
+      console.error('❌ Invalid user ID for profile update:', req.user._id);
+      return res.status(400).json({ error: 'Invalid user authentication - please log in again' });
+    }
+    
     const updates = {};
     
     // Only update fields that are provided and not empty/null in the request
@@ -81,9 +88,10 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
     updates.lastActive = Date.now();
     
     // Debug logging
-    console.log('Profile update request:', {
+    console.log('📝 Profile update request (POST):', {
       userId: req.user._id,
-      updates: Object.keys(updates),
+      userType: 'telegram',
+      updates: Object.keys(updates).filter(k => k !== 'lastActive'),
       hasName: !!updates.firstName,
       hasUsername: !!updates.username,
       hasPhone: !!updates.phone
@@ -93,6 +101,7 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
     if (Object.keys(updates).length === 1 && updates.lastActive) {
       const user = await User.findById(req.user._id);
       if (!user) {
+        console.error('❌ User not found in DB:', req.user._id);
         return res.status(404).json({ error: 'User not found' });
       }
       return res.json({ 
@@ -110,10 +119,13 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
       });
     }
     
-    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    console.log('🔄 Updating user (POST):', req.user._id, 'with fields:', Object.keys(updates).filter(k => k !== 'lastActive'));
+    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true, runValidators: true });
     if (!user) {
+      console.error('❌ Failed to update user - not found:', req.user._id);
       return res.status(404).json({ error: 'User not found' });
     }
+    console.log('✅ User updated successfully (POST):', user._id);
     res.json({ 
       success: true, 
       user: { 
@@ -127,10 +139,9 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
       } 
     });
   } catch (err) {
-    console.error('Error updating profile:', err);
+    console.error('❌ Error updating profile (POST):', err);
     console.error('Error details:', {
       message: err.message,
-      stack: err.stack,
       name: err.name,
       code: err.code,
       keyValue: err.keyValue
@@ -147,6 +158,13 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
       return res.status(403).json({ error: 'Admin profiles cannot be updated via this endpoint' });
     }
     
+    // Validate that req.user._id is a valid ObjectId format (not 'admin' string or invalid ID)
+    const mongoose = require('mongoose');
+    if (!req.user._id || !mongoose.Types.ObjectId.isValid(req.user._id)) {
+      console.error('❌ Invalid user ID for profile update:', req.user._id);
+      return res.status(400).json({ error: 'Invalid user authentication - please log in again' });
+    }
+    
     const updates = {};
     
     // Only update fields that are provided and not empty/null in the request
@@ -167,9 +185,10 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
     updates.lastActive = Date.now();
     
     // Debug logging
-    console.log('Profile update request:', {
+    console.log('📝 Profile update request (PUT):', {
       userId: req.user._id,
-      updates: Object.keys(updates),
+      userType: 'telegram',
+      updates: Object.keys(updates).filter(k => k !== 'lastActive'),
       hasName: !!updates.firstName,
       hasUsername: !!updates.username,
       hasPhone: !!updates.phone
@@ -179,6 +198,7 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
     if (Object.keys(updates).length === 1 && updates.lastActive) {
       const user = await User.findById(req.user._id);
       if (!user) {
+        console.error('❌ User not found in DB:', req.user._id);
         return res.status(404).json({ error: 'User not found' });
       }
       return res.json({ 
@@ -196,10 +216,13 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
       });
     }
     
-    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    console.log('🔄 Updating user (PUT):', req.user._id, 'with fields:', Object.keys(updates).filter(k => k !== 'lastActive'));
+    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true, runValidators: true });
     if (!user) {
+      console.error('❌ Failed to update user - not found:', req.user._id);
       return res.status(404).json({ error: 'User not found' });
     }
+    console.log('✅ User updated successfully (PUT):', user._id);
     res.json({ 
       success: true, 
       user: { 
@@ -213,10 +236,9 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
       } 
     });
   } catch (err) {
-    console.error('Error updating profile:', err);
+    console.error('❌ Error updating profile (PUT):', err);
     console.error('Error details:', {
       message: err.message,
-      stack: err.stack,
       name: err.name,
       code: err.code,
       keyValue: err.keyValue
