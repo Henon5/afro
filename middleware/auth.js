@@ -312,13 +312,25 @@ exports.auth = async (req, res, next) => {
     }
     
     // 🛡️ FINAL SAFEGUARD: Ensure regular Telegram users are NEVER flagged as admin
+    // EXCEPT: If their telegramId is in the ADMIN_IDS environment variable
     if (user.telegramId || (user._id && user._id !== 'admin')) {
-      // This is a regular player - explicitly set isAdminAuth to false
-      isAdminAuth = false;
-      user.isAdmin = false;
-      console.log('✅ Regular player authenticated:', user._id, 'telegramId:', user.telegramId);
+      // Check if this user's telegramId is in the admin list
+      const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [];
+      const isAdminByTelegramId = adminIds.includes(String(user.telegramId));
+      
+      if (isAdminByTelegramId) {
+        // This user is an admin based on their Telegram ID
+        isAdminAuth = true;
+        user.isAdmin = true;
+        console.log('✅ Admin authenticated via Telegram ID:', user._id, 'telegramId:', user.telegramId);
+      } else {
+        // This is a regular player - explicitly set isAdminAuth to false
+        isAdminAuth = false;
+        user.isAdmin = false;
+        console.log('✅ Regular player authenticated:', user._id, 'telegramId:', user.telegramId);
+      }
     } else if (user._id === 'admin') {
-      console.log('👮 Admin authenticated');
+      console.log('👮 Admin authenticated via credentials');
     }
 
     // 🚫 Check if user is blocked (skip for admin)
