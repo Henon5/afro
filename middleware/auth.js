@@ -57,6 +57,17 @@ exports.auth = async (req, res, next) => {
   try {
     let user = null;
     let isAdminAuth = false;
+    
+    // Log the raw authorization header for debugging
+    const authHeader = req.headers.authorization;
+    console.log('🔑 Raw Authorization Header:', authHeader || 'null');
+    
+    if (!authHeader || authHeader === 'null' || authHeader === 'undefined') {
+      console.log('❌ No Token Received');
+    } else {
+      const token = authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : authHeader;
+      console.log('🔑 Token Received:', token ? token.substring(0, 30) + '...' : 'null');
+    }
 
     // 📱 Case 1: Telegram WebApp authentication (regular players)
     const initData = req.headers['x-telegram-init-data'];
@@ -215,7 +226,15 @@ exports.auth = async (req, res, next) => {
               // Don't set user here - allow other auth methods or reject
             }
           } catch (jwtError) {
+            // Log specific error details before sending 401
             console.warn('⚠️ JWT verification failed:', jwtError.message);
+            if (jwtError.name === 'TokenExpiredError') {
+              console.error('❌ Token Expired:', jwtError.expiredAt);
+            } else if (jwtError.name === 'JsonWebTokenError') {
+              console.error('❌ Invalid Token (Wrong Secret or Malformed):', jwtError.message);
+            } else {
+              console.error('❌ JWT Error:', jwtError.name, jwtError.message);
+            }
             // For Bearer tokens, we do NOT fall back to Base64 decoding
             // This prevents "Invalid Base64" errors and security issues
             return res.status(401).json({ error: 'Invalid session. Please login again.' });

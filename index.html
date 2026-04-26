@@ -1048,12 +1048,24 @@
           headers['x-telegram-init-data'] = Telegram.WebApp.initData;
         }
         
+        // Always check for JWT token in localStorage first
+        const token = localStorage.getItem('token');
+        if (token) {
+          headers['Authorization'] = 'Bearer ' + token;
+          console.log('✅ JWT Token found in localStorage:', token.substring(0, 20) + '...');
+        } else {
+          console.log('⚠️ No JWT Token found in localStorage');
+        }
+        
         // Add admin token ONLY for explicit admin requests
         // Never send admin token with regular player requests to prevent 403 errors
         const adminToken = localStorage.getItem('adminToken');
         if (adminToken && customHeaders.isAdminRequest) {
           // Only include admin token when explicitly requested for admin operations
           headers['x-admin-token'] = adminToken;
+          console.log('✅ Admin Token added for admin request:', adminToken.substring(0, 20) + '...');
+        } else if (adminToken && !customHeaders.isAdminRequest) {
+          console.log('ℹ️ Admin Token exists but NOT sending (not an admin request)');
         }
         
         // Merge with any custom headers (excluding isAdminRequest flag)
@@ -1062,7 +1074,7 @@
           Object.assign(headers, restHeaders);
         
         }
-        console.log('📋 API Headers:', headers);
+        console.log('📋 Final API Headers:', JSON.stringify(headers, null, 2));
         return headers;
       },
 
@@ -1076,12 +1088,14 @@
           // Ensure Authorization header is set with Bearer token
           options.headers = options.headers || {};
           options.headers['Authorization'] = 'Bearer ' + token;
+          console.log('🔑 Authorization header set from localStorage:', token.substring(0, 20) + '...');
+        } else {
+          console.log('⚠️ No token in localStorage for this request');
         }
         
         const headers = this._headers(options.headers);
-        console.log("📤 Sending request to:", url, "with headers:", headers);
+        console.log("📤 Sending request to:", url, "with headers:", JSON.stringify(headers, null, 2));
         console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
-        console.log('📋 Request Headers:', headers);
         
         try {
           showLoading(options.loadingText || 'Processing...');
@@ -1091,7 +1105,7 @@
             headers: headers
           });
           
-          console.log(`📡 API Response: ${response.status}`);
+          console.log(`📡 API Response Status: ${response.status} ${response.statusText}`);
           
           // Check if response is JSON before parsing
           const contentType = response.headers.get('content-type');
@@ -1104,17 +1118,20 @@
           const data = await response.json();
           
           if (!response.ok) {
-            console.error('❌ API Error:', data);
+            console.error('❌ API Error Response:', JSON.stringify(data, null, 2));
             // If the /api/user request returns a 401, do NOT set the user to 'guest'
             if (response.status === 401) {
               console.error("❌ Auth failed: No valid token found in storage.");
+              // Clear any stale tokens on 401
+              localStorage.removeItem('token');
+              localStorage.removeItem('adminToken');
             }
             throw new Error(data.error || 'Request failed');
           }
           
           return data;
         } catch (error) {
-          console.error('❌ API Error:', error);
+          console.error('❌ API Request Error:', error.message);
           // Don't show toast for every error - some are expected
           if (error.message !== 'Authentication required') {
             showToast(error.message || 'Connection error', 'error');
@@ -1131,7 +1148,7 @@
           return await Api._request('/user', { method: 'GET' });
         } catch (error) {
           // If syncUser fails, do NOT set user to 'guest' - clear localStorage and throw error
-          console.error('❌ syncUser failed - user not authenticated:', error);
+          console.error('❌ syncUser failed - user not authenticated:', error.message);
           // Clear any stale tokens
           localStorage.removeItem('token');
           localStorage.removeItem('adminToken');
