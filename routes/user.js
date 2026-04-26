@@ -165,15 +165,14 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
 router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
     // Debug logging - FIRST thing to log
-    console.log("📝 Attempting to save profile for user (PUT):", req.user._id);
-    console.log("User ID:", req.user?._id);
-    console.log("📝 Data received:", JSON.stringify(req.body));
-    console.log("📝 User object:", JSON.stringify({ 
-      _id: req.user._id, 
-      telegramId: req.user.telegramId,
-      isAdminAuth: req.isAdminAuth,
-      isAdmin: req.user.isAdmin
-    }));
+    console.log("💾 Save attempt received. Body:", req.body);
+    console.log("👤 Authenticated User ID:", req.user?._id);
+    
+    // If req.user._id === 'admin', return 403
+    if (req.user._id === 'admin') {
+      console.warn('⚠️ Admin user attempted to update profile');
+      return res.status(403).json({ error: 'Admin cannot have a player profile' });
+    }
     
     // Admin users authenticated via token cannot update profile (no DB record)
     if (req.isAdminAuth) {
@@ -245,6 +244,7 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
       console.error('❌ Failed to update user - not found:', req.user._id);
       return res.status(404).json({ error: 'User not found' });
     }
+    console.log("✅ Database updated successfully");
     console.log('✅ User updated successfully (PUT):', user._id);
     res.json({ 
       success: true, 
