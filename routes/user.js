@@ -166,6 +166,7 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
     // Debug logging - FIRST thing to log
     console.log("📝 Attempting to save profile for user (PUT):", req.user._id);
+    console.log("User ID:", req.user?._id);
     console.log("📝 Data received:", JSON.stringify(req.body));
     console.log("📝 User object:", JSON.stringify({ 
       _id: req.user._id, 
