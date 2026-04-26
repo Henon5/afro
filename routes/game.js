@@ -21,6 +21,11 @@ router.get('/rooms', auth, async (req, res) => {
 
 router.post('/join', auth, validate('joinRoom'), async (req, res) => {
   try {
+    // Admin users cannot join rooms (no real DB record)
+    if (req.isAdminAuth) {
+      return res.status(403).json({ error: 'Admin accounts cannot join game rooms' });
+    }
+    
     const { roomAmount } = req.body;
     
     // SECURITY FIX: Use atomic update with condition to prevent race conditions and double-spending
@@ -92,6 +97,11 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
 
 router.post('/mark', auth, async (req, res) => {
   try {
+    // Admin users cannot play games (no real DB record)
+    if (req.isAdminAuth) {
+      return res.status(403).json({ error: 'Admin accounts cannot play games' });
+    }
+    
     const { sessionId, row, col } = req.body;
     
     // Validate coordinates first (fast fail)
@@ -126,6 +136,11 @@ router.post('/mark', auth, async (req, res) => {
 
 router.post('/claim', auth, async (req, res) => {
   try {
+    // Admin users cannot claim wins (no real DB record)
+    if (req.isAdminAuth) {
+      return res.status(403).json({ error: 'Admin accounts cannot claim wins' });
+    }
+    
     const { sessionId } = req.body;
     const gameSession = await GameSession.findOne({ _id: sessionId, gameStatus: 'active' }).select('players roomAmount');
     if (!gameSession) return res.status(404).json({ error: 'Game not found' });

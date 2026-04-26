@@ -8,6 +8,11 @@ const User = require('../models/User');
 // POST /deposit - Create deposit request
 router.post('/deposit', auth, validate('deposit'), async (req, res) => {
   try {
+    // Admin users cannot make deposits (no real DB record)
+    if (req.isAdminAuth) {
+      return res.status(403).json({ error: 'Admin accounts cannot make deposits' });
+    }
+    
     const tx = await Transaction.create({ 
       userId: req.user._id, 
       type: 'deposit', 
@@ -36,6 +41,11 @@ router.post('/deposit', auth, validate('deposit'), async (req, res) => {
 
 router.post('/withdraw', auth, validate('withdrawal'), async (req, res) => {
   try {
+    // Admin users cannot make withdrawals (no real DB record)
+    if (req.isAdminAuth) {
+      return res.status(403).json({ error: 'Admin accounts cannot make withdrawals' });
+    }
+    
     // SECURITY FIX: Use atomic update with condition to prevent race conditions and double-spending
     const updatedUser = await User.findOneAndUpdate(
       { 
