@@ -56,6 +56,10 @@ router.get('/', auth, async (req, res) => {
 // POST method (legacy support)
 router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
+    // Debug logging - FIRST thing to log
+    console.log("Attempting to save for user:", req.user._id);
+    console.log("Data received:", req.body);
+    
     // Admin users authenticated via token cannot update profile (no DB record)
     if (req.isAdminAuth) {
       return res.status(403).json({ error: 'Admin profiles cannot be updated via this endpoint' });
@@ -153,6 +157,10 @@ router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
 // PUT method (preferred)
 router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
+    // Debug logging - FIRST thing to log
+    console.log("Attempting to save for user:", req.user._id);
+    console.log("Data received:", req.body);
+    
     // Admin users authenticated via token cannot update profile (no DB record)
     if (req.isAdminAuth) {
       return res.status(403).json({ error: 'Admin profiles cannot be updated via this endpoint' });
