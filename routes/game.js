@@ -158,22 +158,18 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       balance: { $gte: roomAmount } 
     }).limit(botsNeeded);
     
-    // Calculate total players (human + existing + bots) for pool multiplication - Single Source of Truth
+    // RULE 1: ZERO-OUT FIRST - Initialize calculatedPrizePool at 0 before any calculation
+    let calculatedPrizePool = 0;
+    
+    // RULE 2: ATOMIC LOGIC - Calculate prize ONLY ONCE after all availableBots have been found
+    // Calculate total players (existing humans + joining human + new bots)
     const totalPlayers = currentHumanPlayers + 1 + availableBots.length;
     
-    // STRICT PRIZE FORMULA: (entryFee × totalPlayers) × 0.85
-    // Rule 1: Zero-out first - start fresh, no accumulation
-    // Rule 2: Use database values - roomAmount from room object, totalPlayers from actual count
-    // Rule 3: Round down only at the very end
-    let calculatedPrizePool = 0; // Zero-out first
-    const entryFee = roomAmount; // Pull entryFee directly from room object
-    const playerCount = totalPlayers; // Pull playerCount directly from room object
-    
-    // Apply strict formula: (Entry Fee * Total Players) * 0.85
-    calculatedPrizePool = Math.floor((entryFee * playerCount) * 0.85); // Round down at the very end
+    // RULE 3: THE CORRECT FORMULA - Math.floor((roomAmount * totalPlayers) * 0.85)
+    calculatedPrizePool = Math.floor((roomAmount * totalPlayers) * 0.85);
     
     // House gets 15% of total collected
-    const totalCollected = entryFee * playerCount;
+    const totalCollected = roomAmount * totalPlayers;
     const houseCut = totalCollected - calculatedPrizePool;
     
     // Deduct bot balances using deductBalance pattern and prepare player data
@@ -188,19 +184,16 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         cardGrid: botCard.cardGrid, 
         markedState: botCard.markedState 
       });
-      // Transaction Hook: Call deductBalance pattern from Bot Wallet account
+      // BOT WALLET: Keep deductBotBalance logic so bots pay from their own balance
       await deductBotBalance(bot._id, roomAmount);
     }
 
-    // SECURITY FIX: Atomic updates for room pool with $addToSet to prevent duplicate players
-    // Human contributes: entryFee * 0.85 (after house cut)
-    // Bots contribute: remaining prize pool amount
-    const humanContribution = Math.floor(roomAmount * 0.85);
+    // RULE 4: DATABASE SYNC - Use $set instead of $inc for currentPool to prevent doubling on refresh
     await RoomPool.findByIdAndUpdate(
       roomPool._id,
       { 
-        $inc: { 
-          currentPool: calculatedPrizePool, 
+        $set: { 
+          currentPool: calculatedPrizePool,
           houseTotal: houseCut 
         },
         $addToSet: { players: { telegramId: updatedUser.telegramId } }
@@ -244,9 +237,8 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     const updatedRoomPool = await RoomPool.findOne({ roomAmount });
     const actualBotCount = availableBots.length;
     
-    // Calculate final totalPrize to send to frontend (Single Source of Truth)
-    const finalTotalPlayers = updatedRoomPool.players.length;
-    const finalTotalPrize = Math.floor((roomAmount * finalTotalPlayers) * 0.85);
+    // Send the calculatedPrizePool (calculated once, set with $set) as totalPrize
+    const finalTotalPrize = calculatedPrizePool;
     
     res.json({ 
       success: true, 
@@ -254,7 +246,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         sessionId: gameSession._id, 
         roomAmount, 
         currentPool: updatedRoomPool.currentPool, 
-        totalPrize: finalTotalPrize, // Single finalized totalPrize value sent to frontend
+        totalPrize: finalTotalPrize,
         playersCount: gameSession.players.length,
         humanPlayers: gameSession.players.filter(p => !p.isBot).length,
         botPlayers: actualBotCount,
