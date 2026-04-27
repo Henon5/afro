@@ -142,11 +142,10 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
-// Helper function for prize calculation with 15% house cut
-function getCalculatedPrize(fee, players) {
-  const safeFee = Number(fee) || 0;
-  const safePlayers = Number(players) || 0;
-  const totalCollected = safeFee * safePlayers;
-  const prizePool = Math.floor(totalCollected * 0.85);
-  return prizePool;
+// Helper function for prize calculation with 15% house cut (Single Source of Truth)
+function calculateRoomPrize(entryFee, totalPlayers) {
+  const safeFee = Number(entryFee) || 0;
+  const safePlayers = Number(totalPlayers) || 0;
+  // Formula: (entryFee * totalPlayers) * 0.85, rounded down
+  return Math.floor((safeFee * safePlayers) * 0.85);
 }

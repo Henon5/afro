@@ -2639,7 +2639,7 @@
         
         console.log('✅ joinRoom response:', response);
         
-        AppState.user.balance = response.game ? (response.game.currentPool > 0 ? AppState.user.balance - amount : AppState.user.balance) : AppState.user.balance;
+        AppState.user.balance = response.game ? (response.game.totalPrize > 0 ? AppState.user.balance - amount : AppState.user.balance) : AppState.user.balance;
         AppState.game.roomAmount = amount;
         console.log('✅ Set AppState.game.roomAmount to:', amount);
         
@@ -2647,7 +2647,7 @@
           AppState.game.cardGrid = response.game.cardGrid;
           AppState.game.markedState = response.game.markedState;
           AppState.game.sessionId = response.game.sessionId;
-          AppState.game.currentPool = response.game.currentPool;
+          AppState.game.currentPool = response.game.totalPrize;
           AppState.game.playersCount = response.game.playersCount;
           AppState.game.botPlayers = response.game.botPlayers || 0;
         }
