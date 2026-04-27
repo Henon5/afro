@@ -38,7 +38,8 @@ async function deductBotBalance(botId, amount) {
 
 router.get('/rooms', auth, async (req, res) => {
   try {
-    const rooms = await RoomPool.find().select('roomAmount currentPool houseTotal players');
+    // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
+    const rooms = await RoomPool.find().select('roomAmount currentPool houseTotal players').lean();
     
     // Single Source of Truth: Calculate prize pool fresh from entry fee and player count
     const roomsData = {};
@@ -49,7 +50,7 @@ router.get('/rooms', auth, async (req, res) => {
       const gameSession = await GameSession.findOne({ 
         roomAmount: entryFee, 
         gameStatus: { $in: ['waiting', 'active'] } 
-      }).select('players');
+      }).select('players').lean();
       
       // Count actual players array length from game session
       const totalPlayers = gameSession ? gameSession.players.length : r.players.length;
@@ -304,7 +305,9 @@ router.post('/mark', auth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid coordinates' });
     }
     
-    const gameSession = await GameSession.findOne({ _id: sessionId, gameStatus: 'active' }).select('players calledNumbers gameStatus');
+    // Use lean() for faster query, but we need to save later so don't use lean here
+    const gameSession = await GameSession.findOne({ _id: sessionId, gameStatus: 'active' })
+      .select('players calledNumbers gameStatus');
     if (!gameSession) return res.status(404).json({ error: 'Game not found or not active' });
 
     const player = gameSession.players.find(p => p.user === req.user._id.toString());
@@ -318,7 +321,12 @@ router.post('/mark', auth, async (req, res) => {
     }
 
     player.markedState[row][col] = !player.markedState[row][col];
-    await gameSession.save();
+    
+    // Use updateOne instead of save() for better performance (only updates changed fields)
+    await GameSession.updateOne(
+      { _id: sessionId },
+      { $set: { [`players.${gameSession.players.indexOf(player)}.markedState`]: player.markedState } }
+    );
 
     const playerIndex = gameSession.players.indexOf(player);
     const winResult = gameSession.checkWin(playerIndex);

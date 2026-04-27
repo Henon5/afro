@@ -1,25 +1,31 @@
 const mongoose = require('mongoose');
 
 const gameSessionSchema = new mongoose.Schema({
-  roomAmount: { type: Number, required: true },
+  roomAmount: { type: Number, required: true, index: true },
   players: [{ 
-    user: String, 
+    user: { type: String, index: true }, 
     telegramId: String,
     name: String,
-    isBot: Boolean,
+    isBot: { type: Boolean, index: true },
     cardGrid: [[Number]], 
     markedState: [[Boolean]] 
   }],
   calledNumbers: [Number],
   currentNumber: Number,
-  gameStatus: { type: String, enum: ['waiting', 'active', 'completed'], default: 'waiting' },
-  winner: String,
+  gameStatus: { type: String, enum: ['waiting', 'active', 'completed'], default: 'waiting', index: true },
+  winner: { type: String, index: true },
   winnerName: String,
   winningPattern: String,
-  startedAt: Date,
-  completedAt: Date,
-  isBotWin: Boolean
-});
+  startedAt: { type: Date, index: true },
+  completedAt: { type: Date, index: true },
+  isBotWin: { type: Boolean, index: true }
+}, { timestamps: true });
+
+// Compound indexes for common query patterns
+gameSessionSchema.index({ roomAmount: 1, gameStatus: 1 });
+gameSessionSchema.index({ 'players.user': 1, gameStatus: 1 });
+gameSessionSchema.index({ gameStatus: 1, startedAt: -1 });
+gameSessionSchema.index({ winner: 1, completedAt: -1 });
 
 gameSessionSchema.statics.generateCard = function() {
   const card = [], marked = [];
