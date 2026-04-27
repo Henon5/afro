@@ -1942,13 +1942,12 @@
         poolEl.textContent = `${game.currentPool} ETB`;
       }
       
-      // Update players count display (including bots)
+      // Update players count display - show TOTAL players (human + bots) to match pool calculation
       const playersEl = document.getElementById('currentPlayers');
       if(playersEl) {
         const totalPlayers = game.playersCount || 0;
-        const botPlayers = game.botPlayers || 0;
-        const humanPlayers = totalPlayers - botPlayers;
-        playersEl.textContent = `${humanPlayers} Players | ${game.currentPool || 0} ETB`;
+        // Display total players so user sees the full room activity matching the pool amount
+        playersEl.textContent = `${totalPlayers} Players | ${game.currentPool || 0} ETB`;
       }
     }
 

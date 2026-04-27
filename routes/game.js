@@ -94,13 +94,18 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     Transaction.create({ userId: req.user._id, type: 'game_entry', amount: -roomAmount, status: 'completed', metadata: { roomAmount } }).catch(console.error);
 
     // Find or create game session and add bots first to calculate total pool contribution
-    // Always add bots - dynamic count between 8 and 15
-    const botCount = Math.floor(Math.random() * (15 - 8 + 1)) + 8;
+    // Target an even number of total players (e.g., 8, 10, 12, 14) for clean pool calculation
+    const possibleTotals = [8, 10, 12, 14];
+    const targetTotalPlayers = possibleTotals[Math.floor(Math.random() * possibleTotals.length)];
+    
+    // We have 1 human player, so we need (target - 1) bots
+    let botsNeeded = targetTotalPlayers - 1;
+    if (botsNeeded < 0) botsNeeded = 0;
     
     const availableBots = await Bot.find({ 
       isActive: true, 
       balance: { $gte: roomAmount } 
-    }).limit(botCount);
+    }).limit(botsNeeded);
     
     // Calculate total players (human + bots) for pool multiplication
     const totalPlayers = 1 + availableBots.length;

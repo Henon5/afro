@@ -1,4 +1,6 @@
 ```
 # Coverage reports
 coverage/
+*.xml
+*.html
 ```
