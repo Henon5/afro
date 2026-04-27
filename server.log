@@ -1,8 +1,19 @@
 nohup: ignoring input
 🚀 Server running on port 3000
-❌ Database connection error: connect ECONNREFUSED ::1:27017, connect ECONNREFUSED 127.0.0.1:27017
+❌ Database connection error: querySrv ENOTFOUND _mongodb._tcp.cluster0.mongodb.net
 💡 Make sure MongoDB is running or update MONGODB_URI in .env file
 MongooseError: Operation `roompools.findOneAndUpdate()` buffering timed out after 10000ms
     at Timeout.<anonymous> (/workspace/node_modules/mongoose/lib/drivers/node-mongodb-native/collection.js:185:23)
     at listOnTimeout (node:internal/timers:581:17)
     at process.processTimers (node:internal/timers:519:7)
+Error initializing bots: MongooseError: Operation `bots.countDocuments()` buffering timed out after 10000ms
+    at Timeout.<anonymous> (/workspace/node_modules/mongoose/lib/drivers/node-mongodb-native/collection.js:185:23)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+Signing admin token with secret exists: true
+🔑 Raw Authorization Header: null
+❌ No Token Received
+🔑 Raw Authorization Header: Bearer test
+🔑 Token Received: Bearer test...
+✂️ Stripped Bearer prefix, raw token: test...
+⚠️ Invalid token format
