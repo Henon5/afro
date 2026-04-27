@@ -311,23 +311,39 @@ exports.auth = async (req, res, next) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    // 🛡️ FINAL SAFEGUARD: Ensure regular Telegram users are NEVER flagged as admin
-    // EXCEPT: If their telegramId is in the ADMIN_IDS environment variable
+    // 🛡️ FINAL SAFEGUARD: Check admin status
+    // Admin access is granted if:
+    // 1. User is authenticated via admin credentials/token (isAdminAuth already true)
+    // 2. User's telegramId OR _id is in the ADMIN_IDS environment variable
     if (user.telegramId || (user._id && user._id !== 'admin')) {
-      // Check if this user's telegramId is in the admin list
+      // Check if this user's telegramId OR _id is in the admin list
       const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(id => id.trim()) : [];
-      const userIdToCheck = String(user.telegramId || user._id);
-      const isAdminByTelegramId = adminIds.includes(userIdToCheck);
+      const userIdToCheck = String(user._id);
+      const telegramIdToCheck = user.telegramId ? String(user.telegramId) : null;
       
-      if (isAdminByTelegramId) {
+      // Check both _id and telegramId against admin list
+      const isAdminById = adminIds.includes(userIdToCheck);
+      const isAdminByTelegramId = telegramIdToCheck && adminIds.includes(telegramIdToCheck);
+      
+      // DEBUG LOGGING
+      console.log('🔍 Admin Check Debug:', {
+        userId: userIdToCheck,
+        telegramId: telegramIdToCheck,
+        adminIds,
+        isAdminById,
+        isAdminByTelegramId,
+        currentIsAdmin: user.isAdmin
+      });
+      
+      if (isAdminById || isAdminByTelegramId) {
         // This user is an admin based on their Telegram ID or User ID
         isAdminAuth = true;
         user.isAdmin = true;
-        console.log('✅ Admin authenticated via ID:', user._id, 'telegramId:', user.telegramId, 'matched adminId:', userIdToCheck);
+        console.log('✅ Admin authenticated via ID:', user._id, 'telegramId:', user.telegramId, 'matched adminId:', isAdminById ? userIdToCheck : telegramIdToCheck);
       } else {
         // This is a regular player - explicitly set isAdminAuth to false
         isAdminAuth = false;
-        user.isAdmin = false;
+        // Keep existing isAdmin value from DB, don't override to false
         console.log('✅ Regular player authenticated:', user._id, 'telegramId:', user.telegramId, 'adminIds:', adminIds);
       }
     } else if (user._id === 'admin') {
