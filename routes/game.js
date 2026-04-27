@@ -86,8 +86,6 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       { upsert: true, new: true }
     );
 
-    const poolContribution = Math.floor(roomAmount * (1 - parseFloat(process.env.HOUSE_COMMISSION || '0.1')));
-    const houseContribution = roomAmount - poolContribution;
     const { cardGrid, markedState } = GameSession.generateCard();
 
     // Create transaction asynchronously (non-blocking)
@@ -113,14 +111,20 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Calculate pool using strict formula: (entryFee × totalPlayers) × 0.85
     // Human contributes: roomAmount × 0.85 (after 15% house cut)
     // Each bot contributes: roomAmount × 0.85 (after 15% house cut)
-    const poolContribution = Math.floor(roomAmount * 0.85); // Human's share after 15% cut
+    const humanPoolContribution = Math.floor(roomAmount * 0.85); // Human's share after 15% cut
     const botPoolContributions = availableBots.length * Math.floor(roomAmount * 0.85); // Bots' share after 15% cut
-    const totalPoolContribution = poolContribution + botPoolContributions;
+    const totalPoolContribution = humanPoolContribution + botPoolContributions;
     
     // House gets 15% from each player
-    const houseContribution = roomAmount - poolContribution;
+    const houseContribution = roomAmount - humanPoolContribution;
     const botHouseContributions = availableBots.length * (roomAmount - Math.floor(roomAmount * 0.85));
     const totalHouseContribution = houseContribution + botHouseContributions;
+    
+    // Total bot contributions to pool for atomic update
+    const botContributions = botPoolContributions;
+    
+    // Final pool contribution value for the human player
+    const poolContribution = humanPoolContribution;
     
     // Deduct bot balances and prepare player data
     const botPlayersData = [];
