@@ -94,29 +94,37 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     Transaction.create({ userId: req.user._id, type: 'game_entry', amount: -roomAmount, status: 'completed', metadata: { roomAmount } }).catch(console.error);
 
     // Find or create game session and add bots first to calculate total pool contribution
-    // Target an even number of total players (e.g., 8, 10, 12, 14) for clean pool calculation
-    const possibleTotals = [8, 10, 12, 14];
-    const targetTotalPlayers = possibleTotals[Math.floor(Math.random() * possibleTotals.length)];
+    // Support for large games: target between 8-100 total players based on availability
+    const minTotalPlayers = 8;
+    const maxTotalPlayers = 100;
+    
+    // Randomly determine target total players (human + bots)
+    const targetTotalPlayers = Math.floor(Math.random() * (maxTotalPlayers - minTotalPlayers + 1)) + minTotalPlayers;
     
     // We have 1 human player, so we need (target - 1) bots
     let botsNeeded = targetTotalPlayers - 1;
     if (botsNeeded < 0) botsNeeded = 0;
+    if (botsNeeded > maxTotalPlayers - 1) botsNeeded = maxTotalPlayers - 1;
     
+    // Fetch available bots in bulk - get more than needed to account for any issues
     const availableBots = await Bot.find({ 
       isActive: true, 
       balance: { $gte: roomAmount } 
-    }).limit(botsNeeded);
+    }).limit(botsNeeded * 2); // Fetch extra as buffer
+    
+    // Limit to exactly what we need
+    const selectedBots = availableBots.slice(0, botsNeeded);
     
     // Calculate total players (human + bots) for pool multiplication
-    const totalPlayers = 1 + availableBots.length;
+    const totalPlayers = 1 + selectedBots.length;
     
     // Calculate bot contributions to pool - each bot contributes full roomAmount to pool
-    const botContributions = availableBots.length * roomAmount;
-    const botHouseContributions = availableBots.length * houseContribution;
+    const botContributions = selectedBots.length * roomAmount;
+    const botHouseContributions = selectedBots.length * houseContribution;
     
     // Deduct bot balances and prepare player data
     const botPlayersData = [];
-    for (const bot of availableBots) {
+    for (const bot of selectedBots) {
       const botCard = GameSession.generateCard();
       botPlayersData.push({ 
         user: bot.telegramId, 
@@ -182,7 +190,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     }
 
     const updatedRoomPool = await RoomPool.findOne({ roomAmount });
-    const actualBotCount = availableBots.length;
+    const actualBotCount = selectedBots.length;
     res.json({ 
       success: true, 
       game: { 

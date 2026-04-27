@@ -1,26 +1,31 @@
 const Bot = require('../models/Bot');
 
 const botNames = [
-  'Abebe', 'Abel', 'Abdi', 'Alem', 'Amanuel',
-  'Amare', 'Amsalu', 'Andualem', 'Araya', 'Assefa',
-  'Bekele', 'Belay', 'Berhanu', 'Binyam', 'Biruk',
-  'Dagim', 'Daniel', 'Dawit', 'Desta', 'Elias',
-  'Ermias', 'Eyasu', 'Ezra', 'Fikru', 'Girma',
-  'Habtamu', 'Haile', 'Henok', 'Ibsa', 'Kaleab',
-  'Kebede', 'Lema', 'Melaku', 'Mekonnen', 'Meron',
-  'Mulugeta', 'Natnael', 'Negash', 'Robel', 'Samson',
-  'Sisay', 'Tadesse', 'Tamirat', 'Tewodros', 'Tolosa',
-  'Worku', 'Yakob', 'Yared', 'Yohannes', 'Zerihun'
+  'Abebe', 'Abel', 'Abdi', 'Alem', 'Amanuel', 'Amare', 'Amsalu', 'Andualem', 'Araya', 'Assefa',
+  'Bekele', 'Belay', 'Berhanu', 'Binyam', 'Biruk', 'Dagim', 'Daniel', 'Dawit', 'Desta', 'Elias',
+  'Ermias', 'Eyasu', 'Ezra', 'Fikru', 'Girma', 'Habtamu', 'Haile', 'Henok', 'Ibsa', 'Kaleab',
+  'Kebede', 'Lema', 'Melaku', 'Mekonnen', 'Meron', 'Mulugeta', 'Natnael', 'Negash', 'Robel', 'Samson',
+  'Sisay', 'Tadesse', 'Tamirat', 'Tewodros', 'Tolosa', 'Worku', 'Yakob', 'Yared', 'Yohannes', 'Zerihun',
+  'Addisu', 'Admassu', 'Afework', 'Arega', 'Ashenafi', 'Ayalew', 'Ayele', 'Azmeri', 'Bahiru', 'Bedilu',
+  'Behailu', 'Belihu', 'Berhe', 'Bikila', 'Chala', 'Chane', 'Charu', 'Chernet', 'Dagne', 'Dejene',
+  'Demissew', 'Deribe', 'Dessalegn', 'Diriba', 'Ejigu', 'Eshetu', 'Fasil', 'Feleke', 'Gadisa', 'Gebre',
+  'Getachew', 'Getaneh', 'Girmay', 'Gizaw', 'Gonfa', 'Gudeta', 'Guluma', 'Gutama', 'Habte', 'Hailu',
+  'Hirpha', 'Hundee', 'Jemal', 'Jira', 'Kaba', 'Kefyalew', 'Kelbessa', 'Keneni', 'Keno', 'Kifle',
+  'Kumaa', 'Kumsa', 'Legesse', 'Lemma', 'Lencho', 'Lemi', 'Madiga', 'Magarsa', 'Mahder', 'Maresha',
+  'Maru', 'Mengistu', 'Merida', 'Messay', 'Misganaw', 'Moges', 'Molla', 'Motuma', 'Negasa', 'Nekole',
+  'Obsaa', 'Olana', 'Qanqa', 'Rahel', 'Reba', 'Rikitu', 'Sadiq', 'Sahilu', 'Shambel', 'Sheferaw',
+  'Shiferaw', 'Shimeles', 'Simeneh', 'Sintayehu', 'Siraj', 'Sobed', 'Tafese', 'Taha', 'Takele', 'Teklu',
+  'Teshome', 'Tigist', 'Timotewos', 'Tiruset', 'Umeta', 'Wakuma', 'Woldu', 'Wondimu', 'Wossen', 'Yonas'
 ];
 
 /**
- * Initialize 50 bots with unique names and telegram IDs
+ * Initialize 150 bots with unique names and telegram IDs
  */
 async function initializeBots() {
   try {
     const existingBots = await Bot.countDocuments();
     
-    if (existingBots >= 50) {
+    if (existingBots >= botNames.length) {
       console.log(`Bots already initialized (${existingBots} bots found)`);
       return;
     }
@@ -39,7 +44,7 @@ async function initializeBots() {
           name,
           telegramId,
           balance: 1000,
-          difficulty: i < 15 ? 'easy' : (i < 35 ? 'medium' : 'hard')
+          difficulty: i < 30 ? 'easy' : (i < 100 ? 'medium' : 'hard')
         });
       }
     }
