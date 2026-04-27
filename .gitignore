@@ -1,1 +1,4 @@
-Nothing should be ignored in this case, as the changes only include source code files (.js files) without any build artifacts, dependencies, or temporary files that would warrant adding to .gitignore.
+```
+# Coverage reports
+coverage/
+```
