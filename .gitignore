@@ -1,8 +1,8 @@
 ```
 # Coverage reports
 coverage/
-*.lcov
-*.clover.xml
+*.xml
+*.html
 
 # Logs and temp files
 *.log
@@ -20,14 +20,19 @@ coverage/
 
 # Dependencies
 node_modules/
-.venv/
-venv/
 __pycache__/
-*.egg-info/
-dist/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+.env
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Build artifacts
 build/
-target/
-.gradle/
-.mypy_cache/
-.pytest_cache/
+dist/
+*.egg-info/
 ```

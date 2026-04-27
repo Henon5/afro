@@ -1887,7 +1887,8 @@
       if(playersEl) {
         const totalPlayers = game.playersCount || 0;
         const botPlayers = game.botPlayers || 0;
-        playersEl.textContent = `${totalPlayers} (${botPlayers} bots)`;
+        const humanPlayers = totalPlayers - botPlayers;
+        playersEl.textContent = `${humanPlayers} Players | ${game.currentPool || 0} ETB`;
       }
     }
 
