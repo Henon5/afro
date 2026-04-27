@@ -263,4 +263,111 @@ router.post('/create-user', auth, adminOnly, async (req, res) => {
   }
 });
 
+// 🚫 POST /admin/user/block - Block a user by phone number
+router.post('/user/block', auth, adminOnly, async (req, res) => {
+  try {
+    const { phone, reason } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+    
+    const user = await User.findOne({ phone: phone.trim() });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found with this phone number' });
+    }
+    
+    if (user.isBlocked) {
+      return res.status(400).json({ error: 'User is already blocked' });
+    }
+    
+    user.isBlocked = true;
+    if (reason) {
+      user.blockReason = reason;
+    }
+    user.blockedAt = new Date();
+    await user.save();
+    
+    console.log(`🚫 Admin blocked user: ${user._id} (phone: ${phone})`);
+    res.json({ 
+      success: true, 
+      message: 'User blocked successfully',
+      user: {
+        _id: user._id,
+        phone: user.phone,
+        username: user.username,
+        firstName: user.firstName,
+        isBlocked: true,
+        blockedAt: user.blockedAt
+      }
+    });
+  } catch (err) {
+    console.error('Block user error:', err);
+    res.status(500).json({ error: 'Failed to block user' });
+  }
+});
+
+// ✅ POST /admin/user/unblock - Unblock a user by phone number
+router.post('/user/unblock', auth, adminOnly, async (req, res) => {
+  try {
+    const { phone } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+    
+    const user = await User.findOne({ phone: phone.trim() });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found with this phone number' });
+    }
+    
+    if (!user.isBlocked) {
+      return res.status(400).json({ error: 'User is not blocked' });
+    }
+    
+    user.isBlocked = false;
+    user.blockReason = undefined;
+    user.blockedAt = undefined;
+    await user.save();
+    
+    console.log(`✅ Admin unblocked user: ${user._id} (phone: ${phone})`);
+    res.json({ 
+      success: true, 
+      message: 'User unblocked successfully',
+      user: {
+        _id: user._id,
+        phone: user.phone,
+        username: user.username,
+        firstName: user.firstName,
+        isBlocked: false
+      }
+    });
+  } catch (err) {
+    console.error('Unblock user error:', err);
+    res.status(500).json({ error: 'Failed to unblock user' });
+  }
+});
+
+// 📋 GET /admin/blocked-users - Get list of all blocked users
+router.get('/blocked-users', auth, adminOnly, async (req, res) => {
+  try {
+    const blockedUsers = await User.find({ isBlocked: true })
+      .select('_id username firstName phone telegramHandle balance isBlocked blockedAt blockReason registeredAt lastActive')
+      .sort({ blockedAt: -1 })
+      .limit(100)
+      .lean();
+    
+    res.json({ 
+      success: true, 
+      count: blockedUsers.length,
+      blockedUsers 
+    });
+  } catch (err) {
+    console.error('Fetch blocked users error:', err);
+    res.status(500).json({ error: 'Failed to fetch blocked users' });
+  }
+});
+
 module.exports = router; // 👈 Export at the end

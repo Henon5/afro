@@ -12,6 +12,8 @@ const userSchema = new mongoose.Schema({
   totalWinnings: { type: Number, default: 0 },
   gamesPlayed: { type: Number, default: 0 },
   isBlocked: { type: Boolean, default: false },
+  blockReason: { type: String },
+  blockedAt: { type: Date },
   lastActive: { type: Date, default: Date.now },
   registeredAt: { type: Date, default: Date.now }
 }, { 

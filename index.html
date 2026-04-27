@@ -1308,9 +1308,19 @@
         headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
       
-      toggleBlockUser: (data, token) => Api._request('/admin/user/block', {
+      blockUser: (data, token) => Api._request('/admin/user/block', {
         method: 'POST',
         body: JSON.stringify(data),
+        headers: { isAdminRequest: true, 'x-admin-token': token }
+      }),
+      
+      unblockUser: (data, token) => Api._request('/admin/user/unblock', {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: { isAdminRequest: true, 'x-admin-token': token }
+      }),
+      
+      getBlockedUsers: (token) => Api._request('/admin/blocked-users', {
         headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
       
@@ -2501,6 +2511,18 @@
             </div>
             
             <div style="margin:10px 0;">
+              <button class="btn btn-purple" id="blockUserBtn">🚫 Block User</button>
+            </div>
+            
+            <div style="margin:10px 0;">
+              <button class="btn btn-blue" id="unblockUserBtn">✅ Unblock User</button>
+            </div>
+            
+            <div style="margin:10px 0;">
+              <button class="btn btn-gold" id="viewBlockedBtn">📋 Blocked Users</button>
+            </div>
+            
+            <div style="margin:10px 0;">
               <button class="btn btn-blue" id="createPlayerBtn">👤 Create Player</button>
             </div>
             
@@ -2575,6 +2597,85 @@
           } catch (error) {
             console.error('Add funds error:', error);
             // Error already shown by API layer
+          }
+        });
+        
+        document.getElementById('blockUserBtn')?.addEventListener('click', async () => {
+          const phone = prompt("Enter user's phone number to block (e.g., +2519...):");
+          if(!phone || phone.trim() === '') {
+            showToast('❌ Phone number is required', 'error');
+            return;
+          }
+          
+          const reason = prompt("Enter reason for blocking (optional):") || '';
+          
+          try {
+            await Api.blockUser({ phone: phone.trim(), reason: reason || undefined }, AppState.admin.token);
+            showToast(`✅ User blocked successfully`, 'success');
+            modal.remove();
+            showFullAdminPanel();
+          } catch (error) {
+            console.error('Block user error:', error);
+            showToast('Failed to block user: ' + (error.message || 'Unknown error'), 'error');
+          }
+        });
+        
+        document.getElementById('unblockUserBtn')?.addEventListener('click', async () => {
+          const phone = prompt("Enter user's phone number to unblock (e.g., +2519...):");
+          if(!phone || phone.trim() === '') {
+            showToast('❌ Phone number is required', 'error');
+            return;
+          }
+          
+          try {
+            await Api.unblockUser({ phone: phone.trim() }, AppState.admin.token);
+            showToast(`✅ User unblocked successfully`, 'success');
+            modal.remove();
+            showFullAdminPanel();
+          } catch (error) {
+            console.error('Unblock user error:', error);
+            showToast('Failed to unblock user: ' + (error.message || 'Unknown error'), 'error');
+          }
+        });
+        
+        document.getElementById('viewBlockedBtn')?.addEventListener('click', async () => {
+          try {
+            const response = await Api.getBlockedUsers(AppState.admin.token);
+            const blockedUsers = response.blockedUsers || [];
+            
+            let blockedHtml = '<div style="max-height:400px; overflow-y:auto;">';
+            if(blockedUsers.length === 0) {
+              blockedHtml += '<p style="text-align:center; color:var(--gray); padding:20px;">No blocked users</p>';
+            } else {
+              blockedHtml += blockedUsers.map(user => `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; margin:8px 0; background:white; border-radius:8px; border:1px solid #e0e0e0; box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+                  <div style="flex:1;">
+                    <div style="font-weight:700; color:var(--dark);">${user.username || user.firstName || 'Unknown'}</div>
+                    <div style="font-size:0.85rem; color:var(--gray); margin-top:4px;">
+                      📱 ${user.phone || 'N/A'}<br>
+                      ${user.blockReason ? `<span style="color:var(--red);">Reason: ${user.blockReason}</span><br>` : ''}
+                      <small>Blocked: ${new Date(user.blockedAt).toLocaleString()}</small>
+                    </div>
+                  </div>
+                  <button class="btn btn-green btn-sm" onclick="quickUnblock('${user.phone}')">Unblock</button>
+                </div>
+              `).join('');
+            }
+            blockedHtml += '</div>';
+            
+            const blockedModal = document.createElement('div');
+            blockedModal.className = 'modal-overlay';
+            blockedModal.innerHTML = `
+              <div class="modal-content" style="max-width:500px;">
+                <h3 style="color:var(--red);">🚫 Blocked Users (${blockedUsers.length})</h3>
+                ${blockedHtml}
+                <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()" style="margin-top:15px;">Close</button>
+              </div>
+            `;
+            document.body.appendChild(blockedModal);
+          } catch (error) {
+            console.error('Get blocked users error:', error);
+            showToast('Failed to load blocked users', 'error');
           }
         });
         
@@ -2754,6 +2855,21 @@
     window.checkForBingo = checkForBingo;
     window.requestDeposit = requestDeposit;
     window.showAdminLogin = showAdminLogin;
+    
+    // Global function for quick unblock from blocked users list
+    window.quickUnblock = async (phone) => {
+      if(!phone || !AppState.admin.token) return;
+      
+      try {
+        await Api.unblockUser({ phone }, AppState.admin.token);
+        showToast(`✅ User ${phone} unblocked successfully`, 'success');
+        // Close all modals and refresh admin panel
+        document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+        showFullAdminPanel();
+      } catch (error) {
+        showToast('Failed to unblock user: ' + (error.message || 'Unknown error'), 'error');
+      }
+    };
     window.updateBingoDisplay = updateBingoDisplay;
     
     window.AppState = AppState;
