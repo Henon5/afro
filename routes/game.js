@@ -105,8 +105,14 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Calculate total players (human + bots) for pool multiplication
     const totalPlayers = 1 + availableBots.length;
     
-    // Calculate bot contributions to pool - each bot contributes full roomAmount to pool
-    const botContributions = availableBots.length * roomAmount;
+    // FIXED: Both human and bots contribute equally with house commission
+    // Each player (human or bot) contributes: roomAmount * (1 - houseCommission) to pool
+    // Each player (human or bot) contributes: roomAmount * houseCommission to house
+    const poolContribution = Math.floor(roomAmount * (1 - parseFloat(process.env.HOUSE_COMMISSION || '0.1')));
+    const houseContribution = roomAmount - poolContribution;
+    
+    // Calculate bot contributions to pool - each bot contributes same as human (after house cut)
+    const botPoolContributions = availableBots.length * poolContribution;
     const botHouseContributions = availableBots.length * houseContribution;
     
     // Deduct bot balances and prepare player data
@@ -121,7 +127,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         cardGrid: botCard.cardGrid, 
         markedState: botCard.markedState 
       });
-      // Deduct bot balance - bot contributes entry fee to pool
+      // Deduct bot balance - bot contributes full roomAmount (pool + house)
       await Bot.findByIdAndUpdate(bot._id, { 
         $inc: { balance: -roomAmount, gamesPlayed: 1 } 
       });
@@ -130,12 +136,14 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // SECURITY FIX: Atomic updates for room pool with $addToSet to prevent duplicate players
     // Include human + all bot contributions to the pool
     // Human contributes: poolContribution (after house cut)
-    // Each bot contributes: full roomAmount to pool (multiplication system)
+    // Each bot contributes: poolContribution (after house cut) - SAME AS HUMAN
+    // Total pool addition: (1 human + N bots) * poolContribution
+    // Total house addition: (1 human + N bots) * houseContribution
     await RoomPool.findByIdAndUpdate(
       roomPool._id,
       { 
         $inc: { 
-          currentPool: poolContribution + botContributions, 
+          currentPool: poolContribution + botPoolContributions, 
           houseTotal: houseContribution + botHouseContributions 
         },
         $addToSet: { players: { telegramId: updatedUser.telegramId } }
