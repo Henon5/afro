@@ -102,8 +102,11 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       balance: { $gte: roomAmount } 
     }).limit(botCount);
     
-    // Calculate bot contributions to pool
-    const botContributions = availableBots.length * poolContribution;
+    // Calculate total players (human + bots) for pool multiplication
+    const totalPlayers = 1 + availableBots.length;
+    
+    // Calculate bot contributions to pool - each bot contributes full roomAmount to pool
+    const botContributions = availableBots.length * roomAmount;
     const botHouseContributions = availableBots.length * houseContribution;
     
     // Deduct bot balances and prepare player data
@@ -126,6 +129,8 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
 
     // SECURITY FIX: Atomic updates for room pool with $addToSet to prevent duplicate players
     // Include human + all bot contributions to the pool
+    // Human contributes: poolContribution (after house cut)
+    // Each bot contributes: full roomAmount to pool (multiplication system)
     await RoomPool.findByIdAndUpdate(
       roomPool._id,
       { 
