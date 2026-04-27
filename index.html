@@ -1584,7 +1584,7 @@
           <button class="btn btn-outline btn-sm" onclick="showPage('profile')">✏️ Edit</button>
         </div>
         
-        <div class="room-card high" onclick="tryJoinRoom(100)">
+        <div class="room-card high" onclick="console.log('Clicked 100 ETB room'); tryJoinRoom(100)">
           <div class="room-info">
             <div>
               <div class="room-name">🔥 100 ETB Room</div>
@@ -1597,7 +1597,7 @@
           </div>
         </div>
         
-        <div class="room-card medium" onclick="tryJoinRoom(50)">
+        <div class="room-card medium" onclick="console.log('Clicked 50 ETB room'); tryJoinRoom(50)">
           <div class="room-info">
             <div>
               <div class="room-name">🎯 50 ETB Room</div>
@@ -1610,7 +1610,7 @@
           </div>
         </div>
         
-        <div class="room-card" onclick="tryJoinRoom(20)">
+        <div class="room-card" onclick="console.log('Clicked 20 ETB room'); tryJoinRoom(20)">
           <div class="room-info">
             <div>
               <div class="room-name">⭐ 20 ETB Room</div>
@@ -1623,7 +1623,7 @@
           </div>
         </div>
         
-        <div class="room-card low" onclick="tryJoinRoom(10)">
+        <div class="room-card low" onclick="console.log('Clicked 10 ETB room'); tryJoinRoom(10)">
           <div class="room-info">
             <div>
               <div class="room-name">🎲 10 ETB Room</div>
@@ -1636,7 +1636,7 @@
           </div>
         </div>
         
-        <div class="room-card lowest" onclick="tryJoinRoom(5)">
+        <div class="room-card lowest" onclick="console.log('Clicked 5 ETB room'); tryJoinRoom(5)">
           <div class="room-info">
             <div>
               <div class="room-name">🍀 5 ETB Room</div>
@@ -1672,6 +1672,7 @@
     async function loadRooms() {
       try {
         const response = await Api.getRooms();
+        console.log('📊 Loaded rooms data:', response.rooms);
         if (response.rooms) {
           const rooms = response.rooms;
           
@@ -2636,9 +2637,12 @@
     // 🎯 ROOM JOINING
     // ============================================
     async function tryJoinRoom(amount) {
+      console.log('🎯 tryJoinRoom called with amount:', amount);
+      
       // FIX: Set selectedRoom before any other logic
       if(AppState.user) {
         AppState.user.selectedRoom = amount;
+        console.log('✅ Set selectedRoom to:', amount);
       }
       
       if(!AppState.user) {
@@ -2646,6 +2650,7 @@
           const response = await Api.syncUser();
           AppState.user = response.user || response;
           AppState.user.selectedRoom = amount; // Set after loading user too
+          console.log('✅ Loaded user and set selectedRoom to:', amount);
         } catch (error) {
           showToast('Please restart the app', 'error');
           return;
@@ -2667,15 +2672,20 @@
         return;
       }
       
+      console.log('🚀 Calling joinRoom with amount:', amount);
       await joinRoom(amount);
     }
 
     async function joinRoom(amount) {
       try {
+        console.log('🎮 joinRoom: Joining room with amount:', amount);
         const response = await Api.joinRoom(amount, true); // Always join with bots
+        
+        console.log('✅ joinRoom response:', response);
         
         AppState.user.balance = response.game ? (response.game.currentPool > 0 ? AppState.user.balance - amount : AppState.user.balance) : AppState.user.balance;
         AppState.game.roomAmount = amount;
+        console.log('✅ Set AppState.game.roomAmount to:', amount);
         
         if (response.game) {
           AppState.game.cardGrid = response.game.cardGrid;
