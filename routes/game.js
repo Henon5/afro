@@ -63,7 +63,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       return res.status(403).json({ error: 'Admin accounts cannot join game rooms' });
     }
     
-    const { roomAmount, withBots } = req.body;
+    const { roomAmount } = req.body;
     
     // SECURITY FIX: Use atomic update with condition to prevent race conditions and double-spending
     const updatedUser = await User.findOneAndUpdate(
@@ -93,11 +93,46 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Create transaction asynchronously (non-blocking)
     Transaction.create({ userId: req.user._id, type: 'game_entry', amount: -roomAmount, status: 'completed', metadata: { roomAmount } }).catch(console.error);
 
+    // Find or create game session and add bots first to calculate total pool contribution
+    // Always add bots - dynamic count between 8 and 15
+    const botCount = Math.floor(Math.random() * (15 - 8 + 1)) + 8;
+    
+    const availableBots = await Bot.find({ 
+      isActive: true, 
+      balance: { $gte: roomAmount } 
+    }).limit(botCount);
+    
+    // Calculate bot contributions to pool
+    const botContributions = availableBots.length * poolContribution;
+    const botHouseContributions = availableBots.length * houseContribution;
+    
+    // Deduct bot balances and prepare player data
+    const botPlayersData = [];
+    for (const bot of availableBots) {
+      const botCard = GameSession.generateCard();
+      botPlayersData.push({ 
+        user: bot.telegramId, 
+        telegramId: bot.telegramId,
+        name: bot.name,
+        isBot: true,
+        cardGrid: botCard.cardGrid, 
+        markedState: botCard.markedState 
+      });
+      // Deduct bot balance - bot contributes entry fee to pool
+      await Bot.findByIdAndUpdate(bot._id, { 
+        $inc: { balance: -roomAmount, gamesPlayed: 1 } 
+      });
+    }
+
     // SECURITY FIX: Atomic updates for room pool with $addToSet to prevent duplicate players
+    // Include human + all bot contributions to the pool
     await RoomPool.findByIdAndUpdate(
       roomPool._id,
       { 
-        $inc: { currentPool: poolContribution, houseTotal: houseContribution },
+        $inc: { 
+          currentPool: poolContribution + botContributions, 
+          houseTotal: houseContribution + botHouseContributions 
+        },
         $addToSet: { players: { telegramId: updatedUser.telegramId } }
       }
     );
@@ -114,35 +149,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       cardGrid, 
       markedState 
     };
-    const playersArray = [humanPlayer];
-    
-    // Add bots if requested - dynamic count between 8 and 15
-    let botCount = 0;
-    if (withBots) {
-      // Random bot count between 8 and 15 (inclusive)
-      botCount = Math.floor(Math.random() * (15 - 8 + 1)) + 8;
-      
-      const availableBots = await Bot.find({ 
-        isActive: true, 
-        balance: { $gte: roomAmount } 
-      }).limit(botCount);
-      
-      for (const bot of availableBots) {
-        const botCard = GameSession.generateCard();
-        playersArray.push({ 
-          user: bot.telegramId, 
-          telegramId: bot.telegramId,
-          name: bot.name,
-          isBot: true,
-          cardGrid: botCard.cardGrid, 
-          markedState: botCard.markedState 
-        });
-        // Deduct bot balance
-        await Bot.findByIdAndUpdate(bot._id, { 
-          $inc: { balance: -roomAmount, gamesPlayed: 1 } 
-        });
-      }
-    }
+    const playersArray = [humanPlayer, ...botPlayersData];
     
     if (!gameSession) {
       gameSession = await GameSession.create({ 
@@ -165,7 +172,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     }
 
     const updatedRoomPool = await RoomPool.findOne({ roomAmount });
-    const totalPlayers = updatedRoomPool.players.length + (withBots ? botCount : 0);
+    const actualBotCount = availableBots.length;
     res.json({ 
       success: true, 
       game: { 
@@ -174,11 +181,11 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         currentPool: updatedRoomPool.currentPool, 
         playersCount: gameSession.players.length,
         humanPlayers: gameSession.players.filter(p => !p.isBot).length,
-        botPlayers: botCount,
+        botPlayers: actualBotCount,
         cardGrid, 
         markedState, 
         calledNumbers: gameSession.calledNumbers, 
-        botsAdded: botCount 
+        botsAdded: actualBotCount 
       } 
     });
   } catch (err) {
