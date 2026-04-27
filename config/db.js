@@ -14,6 +14,21 @@ const connectDB = async () => {
       socketTimeoutMS: 45000,
     });
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    
+    // Set up connection event handlers for better error handling
+    mongoose.connection.on('error', (err) => {
+      console.error(`❌ MongoDB connection error: ${err.message}`);
+    });
+    
+    mongoose.connection.on('disconnected', () => {
+      console.warn('⚠️  MongoDB disconnected. Attempting to reconnect...');
+    });
+    
+    mongoose.connection.on('reconnected', () => {
+      console.log('✅ MongoDB reconnected successfully');
+    });
+    
+    return conn;
   } catch (error) {
     console.error(`❌ Database connection error: ${error.message}`);
     console.error('💡 Make sure MongoDB is running or update MONGODB_URI in .env file');
@@ -21,6 +36,7 @@ const connectDB = async () => {
     if (process.env.NODE_ENV === 'production') {
       process.exit(1);
     }
+    throw error; // Re-throw to prevent further initialization
   }
 };
 
