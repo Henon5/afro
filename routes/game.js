@@ -45,13 +45,13 @@ router.get('/rooms', auth, async (req, res) => {
     for (const r of rooms) {
       const entryFee = r.roomAmount;
       
-      // Get active game session for this room to count total players (humans + bots)
+      // Get active game session for this room to count total players
       const gameSession = await GameSession.findOne({ 
         roomAmount: entryFee, 
         gameStatus: { $in: ['waiting', 'active'] } 
       }).select('players');
       
-      // RULE: Count actual players array length (humans + bots)
+      // Count actual players array length from game session
       const totalPlayers = gameSession ? gameSession.players.length : r.players.length;
       const prizePool = calculateRoomPrize(entryFee, totalPlayers);
       
@@ -143,46 +143,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Create transaction asynchronously (non-blocking)
     Transaction.create({ userId: req.user._id, type: 'game_entry', amount: -roomAmount, status: 'completed', metadata: { roomAmount } }).catch(console.error);
 
-    // Find or create game session and add bots first to calculate total pool contribution
-    // Target an even number of total players (e.g., 8, 10, 12, 14) for clean pool calculation
-    const possibleTotals = [8, 10, 12, 14];
-    const targetTotalPlayers = possibleTotals[Math.floor(Math.random() * possibleTotals.length)];
-    
-    // Get current player count from database (Single Source of Truth)
-    const currentHumanPlayers = roomPool.players.length;
-    
-    // Calculate how many bots we need, respecting room capacity
-    let botsNeeded = targetTotalPlayers - 1 - currentHumanPlayers;
-    if (botsNeeded < 0) botsNeeded = 0;
-    
-    // Limit injection: Ensure we don't exceed room capacity
-    const maxCapacity = 14; // Maximum room capacity
-    const availableSlots = maxCapacity - currentHumanPlayers - 1; // -1 for the joining human
-    if (botsNeeded > availableSlots) botsNeeded = availableSlots;
-    if (botsNeeded < 0) botsNeeded = 0;
-    
-    const availableBots = await Bot.find({ 
-      isActive: true, 
-      balance: { $gte: roomAmount } 
-    }).limit(botsNeeded);
-    
-    // Deduct bot balances using deductBalance pattern and prepare player data
-    const botPlayersData = [];
-    for (const bot of availableBots) {
-      const botCard = GameSession.generateCard();
-      botPlayersData.push({ 
-        user: bot.telegramId, 
-        telegramId: bot.telegramId,
-        name: bot.name,
-        isBot: true,
-        cardGrid: botCard.cardGrid, 
-        markedState: botCard.markedState 
-      });
-      // BOT WALLET: Keep deductBotBalance logic so bots pay from their own balance
-      await deductBotBalance(bot._id, roomAmount);
-    }
-
-    // Build initial players array with human player first
+    // Build human player data
     const humanPlayer = { 
       user: req.user._id.toString(),
       telegramId: updatedUser.telegramId,
@@ -191,9 +152,8 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       cardGrid, 
       markedState 
     };
-    const playersArray = [humanPlayer, ...botPlayersData];
     
-    // Find or create game session
+    // Find or create game session with only the human player (no bots)
     let gameSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
     
     if (!gameSession) {
@@ -201,13 +161,13 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         roomAmount, 
         gameStatus: 'active',
         startedAt: new Date(),
-        players: playersArray
+        players: [humanPlayer]
       });
     } else {
       // SECURITY FIX: Check if player already in this session to prevent duplicates
       const existingPlayer = gameSession.players.find(p => p.user.toString() === req.user._id.toString());
       if (!existingPlayer) {
-        gameSession.players.push(...playersArray);
+        gameSession.players.push(humanPlayer);
         if (gameSession.gameStatus === 'waiting') { 
           gameSession.gameStatus = 'active'; 
           gameSession.startedAt = new Date(); 
@@ -216,21 +176,15 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       }
     }
 
-    // RULE 1: ZERO-OUT FIRST - Initialize calculatedPrizePool at 0 before any calculation
-    let calculatedPrizePool = 0;
-    
-    // RULE 2: ATOMIC LOGIC - Calculate prize ONLY ONCE after game session is finalized
-    // RULE 3: Count actual players array length (humans + bots) from the game session
+    // Calculate basic prize: Entry Fee * 0.85 for just the human player
     const totalPlayers = gameSession.players.length;
-    
-    // THE CORRECT FORMULA: Math.floor((roomAmount * totalPlayers) * 0.85)
-    calculatedPrizePool = calculateRoomPrize(roomAmount, totalPlayers);
+    const calculatedPrizePool = calculateRoomPrize(roomAmount, totalPlayers);
     
     // House gets 15% of total collected
     const totalCollected = roomAmount * totalPlayers;
     const houseCut = totalCollected - calculatedPrizePool;
     
-    // RULE 4: DATABASE SYNC - Use $set instead of $inc for currentPool to prevent doubling on refresh
+    // DATABASE SYNC: Use $set instead of $inc for currentPool to prevent doubling on refresh
     await RoomPool.findByIdAndUpdate(
       roomPool._id,
       { 
@@ -243,10 +197,6 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     );
 
     const updatedRoomPool = await RoomPool.findOne({ roomAmount });
-    const actualBotCount = availableBots.length;
-    
-    // Send the calculatedPrizePool (calculated once, set with $set) as totalPrize
-    const finalTotalPrize = calculatedPrizePool;
     
     res.json({ 
       success: true, 
@@ -254,14 +204,14 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         sessionId: gameSession._id, 
         roomAmount, 
         currentPool: updatedRoomPool.currentPool, 
-        totalPrize: finalTotalPrize,
+        totalPrize: calculatedPrizePool,
         playersCount: gameSession.players.length,
         humanPlayers: gameSession.players.filter(p => !p.isBot).length,
-        botPlayers: actualBotCount,
+        botPlayers: 0,
         cardGrid, 
         markedState, 
         calledNumbers: gameSession.calledNumbers, 
-        botsAdded: actualBotCount 
+        botsAdded: 0 
       } 
     });
   } catch (err) {
