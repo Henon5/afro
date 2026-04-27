@@ -108,23 +108,24 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Calculate total players (human + bots) for pool multiplication
     const totalPlayers = 1 + availableBots.length;
     
-    // Calculate pool using strict formula: (entryFee × totalPlayers) × 0.85
-    // Human contributes: roomAmount × 0.85 (after 15% house cut)
-    // Each bot contributes: roomAmount × 0.85 (after 15% house cut)
-    const humanPoolContribution = Math.floor(roomAmount * 0.85); // Human's share after 15% cut
-    const botPoolContributions = availableBots.length * Math.floor(roomAmount * 0.85); // Bots' share after 15% cut
-    const totalPoolContribution = humanPoolContribution + botPoolContributions;
+    // STRICT PRIZE FORMULA: (entryFee × totalPlayers) × 0.85
+    // Rule 1: Zero-out first - start fresh, no accumulation
+    // Rule 2: Use database values - roomAmount from req.body, totalPlayers from actual count
+    // Rule 3: Round down only at the very end
+    let calculatedPrizePool = 0; // Zero-out first
+    const entryFee = roomAmount; // Pull entryFee directly from room object
+    const playerCount = totalPlayers; // Pull playerCount directly from room object
     
-    // House gets 15% from each player
-    const houseContribution = roomAmount - humanPoolContribution;
-    const botHouseContributions = availableBots.length * (roomAmount - Math.floor(roomAmount * 0.85));
-    const totalHouseContribution = houseContribution + botHouseContributions;
+    // Apply strict formula: (Entry Fee * Total Players) * 0.85
+    calculatedPrizePool = (entryFee * playerCount) * 0.85;
+    calculatedPrizePool = Math.floor(calculatedPrizePool); // Round down at the very end
+    
+    // House gets 15% of total collected
+    const totalCollected = entryFee * playerCount;
+    const houseCut = totalCollected - calculatedPrizePool;
     
     // Total bot contributions to pool for atomic update
-    const botContributions = botPoolContributions;
-    
-    // Final pool contribution value for the human player
-    const poolContribution = humanPoolContribution;
+    const botContributions = calculatedPrizePool - Math.floor(roomAmount * 0.85);
     
     // Deduct bot balances and prepare player data
     const botPlayersData = [];
@@ -145,15 +146,15 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     }
 
     // SECURITY FIX: Atomic updates for room pool with $addToSet to prevent duplicate players
-    // Include human + all bot contributions to the pool
-    // Human contributes: poolContribution (after house cut)
-    // Each bot contributes: full roomAmount to pool (multiplication system)
+    // Human contributes: entryFee * 0.85 (after house cut)
+    // Bots contribute: remaining prize pool amount
+    const humanContribution = Math.floor(roomAmount * 0.85);
     await RoomPool.findByIdAndUpdate(
       roomPool._id,
       { 
         $inc: { 
-          currentPool: poolContribution + botContributions, 
-          houseTotal: houseContribution + botHouseContributions 
+          currentPool: calculatedPrizePool, 
+          houseTotal: houseCut 
         },
         $addToSet: { players: { telegramId: updatedUser.telegramId } }
       }
