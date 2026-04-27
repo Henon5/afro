@@ -52,15 +52,15 @@ router.get('/rooms', auth, async (req, res) => {
         gameStatus: { $in: ['waiting', 'active'] } 
       }).select('players').lean();
       
-      // Count actual players array length from game session
+      // Count actual players array length from game session (includes humans + bots)
       const totalPlayers = gameSession ? gameSession.players.length : r.players.length;
       
-      // Use milestone prize calculation for consistency
+      // Use milestone prize calculation for consistency - MUST match (fee * players) * 0.85
       const prizePool = getMilestonePrize(entryFee, totalPlayers);
       
       roomsData[entryFee] = { 
         pool: r.currentPool,  // Keep for reference
-        players: totalPlayers,
+        players: totalPlayers, // Total includes humans AND injected bots
         prizePool: prizePool  // Single Source of Truth for display
       };
     }
@@ -80,17 +80,22 @@ function calculateRoomPrize(entryFee, totalPlayers) {
   return Math.floor((safeFee * safePlayers) * 0.85);
 }
 
-// Milestone Prize Lookup Table - ensures atomic prizes with no decimals
+// MILESTONE SYSTEM - CONTROLLED BOT INJECTION
+// Master sheet for controlled bot injection to ensure atomic prize calculations
 const MILESTONES = [8, 14, 20, 28];
+
+// Bot injection tracking sheet - tracks which bots are in which rooms
+const botInjectionSheet = new Map(); // Key: roomAmount, Value: Set of bot telegramIds
 
 /**
  * Get the milestone prize for a given entry fee and player count
- * Returns the exact prize from the master sheet
+ * Returns the exact prize from the master sheet: (fee * players) * 0.85
  */
 function getMilestonePrize(entryFee, totalPlayers) {
   const safeFee = Number(entryFee) || 0;
-  // Calculate prize using the milestone formula: (fee * players) * 0.85
-  return Math.floor((safeFee * totalPlayers) * 0.85);
+  const safePlayers = Number(totalPlayers) || 0;
+  // Formula: (entryFee * totalPlayers) * 0.85, rounded down
+  return Math.floor((safeFee * safePlayers) * 0.85);
 }
 
 /**
@@ -105,6 +110,56 @@ function getNextMilestone(currentCount) {
   }
   // If already at or above max milestone, return current count (no bots needed)
   return currentCount;
+}
+
+/**
+ * Initialize bot injection tracking for a room
+ */
+function initBotInjectionTracking(roomAmount) {
+  if (!botInjectionSheet.has(roomAmount)) {
+    botInjectionSheet.set(roomAmount, new Set());
+  }
+  return botInjectionSheet.get(roomAmount);
+}
+
+/**
+ * Get all bots currently injected in a room
+ */
+function getInjectedBotsInRoom(roomAmount) {
+  return botInjectionSheet.get(roomAmount) || new Set();
+}
+
+/**
+ * Add a bot to the injection tracking sheet
+ */
+function trackBotInjection(roomAmount, botTelegramId) {
+  initBotInjectionTracking(roomAmount);
+  botInjectionSheet.get(roomAmount).add(botTelegramId);
+}
+
+/**
+ * Remove a bot from the injection tracking sheet (when game completes)
+ */
+function untrackBotInjection(roomAmount, botTelegramId) {
+  const trackedBots = botInjectionSheet.get(roomAmount);
+  if (trackedBots) {
+    trackedBots.delete(botTelegramId);
+  }
+}
+
+/**
+ * Clear all bot injections for a room (when game completes)
+ */
+function clearBotInjectionForRoom(roomAmount) {
+  botInjectionSheet.set(roomAmount, new Set());
+}
+
+/**
+ * Get count of injected bots in a room
+ */
+function getInjectedBotsCount(roomAmount) {
+  const trackedBots = botInjectionSheet.get(roomAmount);
+  return trackedBots ? trackedBots.size : 0;
 }
 
 // Initialize bots endpoint (admin only)
@@ -214,12 +269,17 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     let injectedBots = [];
     let totalPlayers = currentHumanCount;
     
+    // Get already tracked bots for this room from the injection sheet
+    const trackedBotsInRoom = getInjectedBotsInRoom(roomAmount);
+    
     // Inject bots if needed to reach the milestone
     if (botsNeeded > 0) {
-      // Get available bots from database (exclude bots already in this session)
+      // Get available bots from database (exclude bots already in this session AND already tracked)
       const existingBotIds = gameSession.players.filter(p => p.isBot).map(p => p.user);
+      const allExcludedBotIds = new Set([...existingBotIds, ...trackedBotsInRoom]);
+      
       const availableBots = await Bot.find({ 
-        telegramId: { $nin: existingBotIds },
+        telegramId: { $nin: Array.from(allExcludedBotIds) },
         balance: { $gte: roomAmount }
       }).limit(botsNeeded);
       
@@ -240,15 +300,22 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         
         gameSession.players.push(botPlayer);
         injectedBots.push(bot);
+        
+        // Track this bot injection in the sheet
+        trackBotInjection(roomAmount, bot.telegramId);
       }
       
       // Save game session with all players (humans + bots)
       await gameSession.save();
       
       totalPlayers = gameSession.players.length;
+    } else {
+      // No bots needed, but still count tracked bots as part of total players
+      totalPlayers = currentHumanCount + trackedBotsInRoom.size;
     }
     
     // MILESTONE PRIZE: Calculate prize using the milestone formula (atomic, no random math)
+    // Prize pool MUST equal (entryFee * totalPlayers) * 0.85 where totalPlayers includes humans + injected bots
     const calculatedPrizePool = getMilestonePrize(roomAmount, totalPlayers);
     
     // House gets 15% of total collected
@@ -384,6 +451,8 @@ async function processBotMoves(gameSession) {
  * Handle bot winning the game
  */
 async function handleBotWin(gameSession, bot, playerIndex, winResult) {
+  const roomAmount = gameSession.roomAmount;
+  
   const roomPool = await RoomPool.findOneAndUpdate(
     { roomAmount: gameSession.roomAmount },
     { $set: { currentPool: 0, players: [] } },
@@ -405,6 +474,9 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   gameSession.winnerName = bot.name;
   gameSession.winningPattern = winResult.pattern;
   gameSession.isBotWin = true;
+  
+  // Clear bot injection tracking for this room when game completes
+  clearBotInjectionForRoom(roomAmount);
   
   // Update win tracking
   consecutiveBotWins++;
@@ -471,6 +543,9 @@ router.post('/claim', auth, async (req, res) => {
     gameSession.winningPattern = winResult.pattern;
     gameSession.isBotWin = false;
     await gameSession.save();
+    
+    // Clear bot injection tracking for this room when game completes (human win)
+    clearBotInjectionForRoom(gameSession.roomAmount);
     
     // Reset bot win tracking after human win
     consecutiveBotWins = 0;
