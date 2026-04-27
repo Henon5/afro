@@ -636,6 +636,22 @@
       background: var(--gold);
     }
     
+    .room-card.low {
+      border-left-color: #28a745;
+    }
+    
+    .room-card.low::before {
+      background: #28a745;
+    }
+    
+    .room-card.lowest {
+      border-left-color: #17a2b8;
+    }
+    
+    .room-card.lowest::before {
+      background: #17a2b8;
+    }
+    
     .room-info {
       display: flex;
       justify-content: space-between;
@@ -1607,6 +1623,32 @@
           </div>
         </div>
         
+        <div class="room-card low" onclick="tryJoinRoom(10)">
+          <div class="room-info">
+            <div>
+              <div class="room-name">🎲 10 ETB Room</div>
+              <div class="room-entry">Entry: 10 ETB</div>
+            </div>
+            <div class="room-pool">
+              <div class="pool-amount" id="pool10">Loading...</div>
+              <div class="players-count">👥 <span id="players10">0</span></div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="room-card lowest" onclick="tryJoinRoom(5)">
+          <div class="room-info">
+            <div>
+              <div class="room-name">🍀 5 ETB Room</div>
+              <div class="room-entry">Entry: 5 ETB</div>
+            </div>
+            <div class="room-pool">
+              <div class="pool-amount" id="pool5">Loading...</div>
+              <div class="players-count">👥 <span id="players5">0</span></div>
+            </div>
+          </div>
+        </div>
+        
         <button class="btn btn-green" onclick="showPage('deposit')">💰 DEPOSIT FUNDS</button>
         <button class="btn btn-gold" onclick="showWithdrawModal()">📤 WITHDRAW</button>
         <button class="btn" onclick="showSupport()" style="background:#17a2b8;">👥 Support Team</button>
@@ -1658,6 +1700,24 @@
           } else {
             document.getElementById('pool20').textContent = '0 ETB';
             document.getElementById('players20').textContent = '0';
+          }
+          
+          // Update 10 ETB room
+          if (rooms[10]) {
+            document.getElementById('pool10').textContent = `${rooms[10].pool} ETB`;
+            document.getElementById('players10').textContent = rooms[10].players;
+          } else {
+            document.getElementById('pool10').textContent = '0 ETB';
+            document.getElementById('players10').textContent = '0';
+          }
+          
+          // Update 5 ETB room
+          if (rooms[5]) {
+            document.getElementById('pool5').textContent = `${rooms[5].pool} ETB`;
+            document.getElementById('players5').textContent = rooms[5].players;
+          } else {
+            document.getElementById('pool5').textContent = '0 ETB';
+            document.getElementById('players5').textContent = '0';
           }
         }
       } catch (error) {

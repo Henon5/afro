@@ -1,38 +1,4 @@
 ```
 # Coverage reports
 coverage/
-*.xml
-*.html
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Environment
-.env
-.env.local
-.env.*
-
-# Editors
-.vscode/
-.idea/
-
-# Dependencies
-node_modules/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-venv/
-.venv/
-.env
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Build artifacts
-build/
-dist/
-*.egg-info/
 ```
