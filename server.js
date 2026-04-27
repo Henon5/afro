@@ -28,12 +28,18 @@ app.use(compression({
   }
 }));
 
-// Connect DB and initialize rooms and bots in parallel
-const initPromise = Promise.all([
-  connectDB(),
-  RoomPool.initializeRooms().catch(console.error),
-  initializeBots().catch(console.error)
-]).catch(console.error);
+// Connect DB first, then initialize rooms and bots only if DB succeeds
+const initPromise = connectDB()
+  .then(() => Promise.all([
+    RoomPool.initializeRooms().catch(console.error),
+    initializeBots().catch(console.error)
+  ]))
+  .catch((error) => {
+    console.error('❌ Failed to initialize server:', error.message);
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+  });
 
 app.use(helmet({
   contentSecurityPolicy: {

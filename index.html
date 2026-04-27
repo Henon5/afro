@@ -1735,7 +1735,7 @@
         return;
       }
 
-      const roomAmount = AppState.user?.selectedRoom || 20;
+      const roomAmount = AppState.game.roomAmount || 20;
       AppState.game.roomAmount = roomAmount;
 
       container.innerHTML = `
