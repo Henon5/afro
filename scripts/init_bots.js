@@ -6,8 +6,7 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-const Bot = require('./models/Bot');
-const GameSession = require('./models/GameSession');
+const Bot = require('../models/Bot');
 
 const botNames = [
   'Abebe', 'Abel', 'Abdi', 'Alem', 'Amanuel',
@@ -35,12 +34,11 @@ async function initializeAllBots() {
       const name = botNames[i];
       const telegramId = `bot_${1000000000 + i}`;
       
-      // Generate a unique bingo card for each bot
-      const { cardGrid, markedState } = GameSession.generateCard();
+      // Find or create bot
+      let bot = await Bot.findOne({ $or: [{ name }, { telegramId }] });
       
-      const bot = await Bot.findOneAndUpdate(
-        { $or: [{ name }, { telegramId }] },
-        {
+      if (!bot) {
+        bot = new Bot({
           name,
           telegramId,
           balance: 1000,
@@ -48,18 +46,28 @@ async function initializeAllBots() {
           totalWinnings: 0,
           gamesPlayed: 0,
           isActive: true,
-          difficulty: i < 15 ? 'easy' : (i < 35 ? 'medium' : 'hard'),
-          lastPlayed: null,
-          // Store the bot's bingo card in custom fields
-          cardGrid: cardGrid,
-          markedState: markedState
-        },
-        { upsert: true, new: true }
-      );
+          difficulty: i < 15 ? 'easy' : (i < 35 ? 'medium' : 'hard')
+        });
+      } else {
+        // Update existing bot
+        bot.balance = 1000;
+        bot.totalWins = 0;
+        bot.totalWinnings = 0;
+        bot.gamesPlayed = 0;
+        bot.isActive = true;
+        bot.difficulty = i < 15 ? 'easy' : (i < 35 ? 'medium' : 'hard');
+        bot.lastPlayed = null;
+      }
+      
+      // Generate a unique bingo card using the model method
+      bot.generateCard();
+      
+      await bot.save();
       
       console.log(`Bot ${i + 1}/${botNames.length}: ${name} (${telegramId})`);
       console.log(`   Balance: ${bot.balance} birr`);
-      console.log(`   Card generated: ${cardGrid[0][0]}...${cardGrid[4][4]}`);
+      console.log(`   Difficulty: ${bot.difficulty}`);
+      console.log(`   Card generated: [${bot.cardGrid[0][0]}, ${bot.cardGrid[0][1]}, ..., ${bot.cardGrid[4][4]}]`);
     }
 
     // Verify final count
