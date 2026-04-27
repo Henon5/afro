@@ -1569,35 +1569,35 @@
           <button class="btn btn-outline btn-sm" onclick="showPage('profile')">✏️ Edit</button>
         </div>
         
-        <div class="room-card high" onclick="tryJoinRoom(100)">
+        <div class="room-card high" onclick="console.log('Clicked 100 ETB room'); tryJoinRoom(100)">
           <div class="room-info">
             <div class="room-name">🔥 100 ETB Room</div>
             <div class="room-entry">100 ETB 🔥</div>
           </div>
         </div>
         
-        <div class="room-card medium" onclick="tryJoinRoom(50)">
+        <div class="room-card medium" onclick="console.log('Clicked 50 ETB room'); tryJoinRoom(50)">
           <div class="room-info">
             <div class="room-name">🎯 50 ETB Room</div>
             <div class="room-entry">50 ETB 🎯</div>
           </div>
         </div>
         
-        <div class="room-card" onclick="tryJoinRoom(20)">
+        <div class="room-card" onclick="console.log('Clicked 20 ETB room'); tryJoinRoom(20)">
           <div class="room-info">
             <div class="room-name">⭐ 20 ETB Room</div>
             <div class="room-entry">20 ETB ⭐</div>
           </div>
         </div>
         
-        <div class="room-card low" onclick="tryJoinRoom(10)">
+        <div class="room-card low" onclick="console.log('Clicked 10 ETB room'); tryJoinRoom(10)">
           <div class="room-info">
             <div class="room-name">🎲 10 ETB Room</div>
             <div class="room-entry">10 ETB 🎲</div>
           </div>
         </div>
         
-        <div class="room-card lowest" onclick="tryJoinRoom(5)">
+        <div class="room-card lowest" onclick="console.log('Clicked 5 ETB room'); tryJoinRoom(5)">
           <div class="room-info">
             <div class="room-name">🍀 5 ETB Room</div>
             <div class="room-entry">5 ETB 🍀</div>
@@ -1626,8 +1626,60 @@
     // Load room pools from database and update UI
     // Deprecated: Room cards no longer display prize pool values
     async function loadRooms() {
-      // No longer needed - room cards simplified to show only entry fee with emoji
-      console.log('Room pools loaded (not displayed in simplified UI)');
+      try {
+        const response = await Api.getRooms();
+        console.log('📊 Loaded rooms data:', response.rooms);
+        if (response.rooms) {
+          const rooms = response.rooms;
+          
+          // Update 100 ETB room
+          if (rooms[100]) {
+            document.getElementById('pool100').textContent = `${rooms[100].pool} ETB`;
+            document.getElementById('players100').textContent = rooms[100].players;
+          } else {
+            document.getElementById('pool100').textContent = '0 ETB';
+            document.getElementById('players100').textContent = '0';
+          }
+          
+          // Update 50 ETB room
+          if (rooms[50]) {
+            document.getElementById('pool50').textContent = `${rooms[50].pool} ETB`;
+            document.getElementById('players50').textContent = rooms[50].players;
+          } else {
+            document.getElementById('pool50').textContent = '0 ETB';
+            document.getElementById('players50').textContent = '0';
+          }
+          
+          // Update 20 ETB room
+          if (rooms[20]) {
+            document.getElementById('pool20').textContent = `${rooms[20].pool} ETB`;
+            document.getElementById('players20').textContent = rooms[20].players;
+          } else {
+            document.getElementById('pool20').textContent = '0 ETB';
+            document.getElementById('players20').textContent = '0';
+          }
+          
+          // Update 10 ETB room
+          if (rooms[10]) {
+            document.getElementById('pool10').textContent = `${rooms[10].pool} ETB`;
+            document.getElementById('players10').textContent = rooms[10].players;
+          } else {
+            document.getElementById('pool10').textContent = '0 ETB';
+            document.getElementById('players10').textContent = '0';
+          }
+          
+          // Update 5 ETB room
+          if (rooms[5]) {
+            document.getElementById('pool5').textContent = `${rooms[5].pool} ETB`;
+            document.getElementById('players5').textContent = rooms[5].players;
+          } else {
+            document.getElementById('pool5').textContent = '0 ETB';
+            document.getElementById('players5').textContent = '0';
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load rooms:', error);
+      }
     }
 
     // ============================================
@@ -2541,9 +2593,12 @@
     // 🎯 ROOM JOINING
     // ============================================
     async function tryJoinRoom(amount) {
+      console.log('🎯 tryJoinRoom called with amount:', amount);
+      
       // FIX: Set selectedRoom before any other logic
       if(AppState.user) {
         AppState.user.selectedRoom = amount;
+        console.log('✅ Set selectedRoom to:', amount);
       }
       
       if(!AppState.user) {
@@ -2551,6 +2606,7 @@
           const response = await Api.syncUser();
           AppState.user = response.user || response;
           AppState.user.selectedRoom = amount; // Set after loading user too
+          console.log('✅ Loaded user and set selectedRoom to:', amount);
         } catch (error) {
           showToast('Please restart the app', 'error');
           return;
@@ -2572,15 +2628,20 @@
         return;
       }
       
+      console.log('🚀 Calling joinRoom with amount:', amount);
       await joinRoom(amount);
     }
 
     async function joinRoom(amount) {
       try {
+        console.log('🎮 joinRoom: Joining room with amount:', amount);
         const response = await Api.joinRoom(amount, true); // Always join with bots
+        
+        console.log('✅ joinRoom response:', response);
         
         AppState.user.balance = response.game ? (response.game.currentPool > 0 ? AppState.user.balance - amount : AppState.user.balance) : AppState.user.balance;
         AppState.game.roomAmount = amount;
+        console.log('✅ Set AppState.game.roomAmount to:', amount);
         
         if (response.game) {
           AppState.game.cardGrid = response.game.cardGrid;
