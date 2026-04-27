@@ -42,17 +42,25 @@ router.get('/rooms', auth, async (req, res) => {
     
     // Single Source of Truth: Calculate prize pool fresh from entry fee and player count
     const roomsData = {};
-    rooms.forEach(r => {
+    for (const r of rooms) {
       const entryFee = r.roomAmount;
-      const totalPlayers = r.players.length;
+      
+      // Get active game session for this room to count total players (humans + bots)
+      const gameSession = await GameSession.findOne({ 
+        roomAmount: entryFee, 
+        gameStatus: { $in: ['waiting', 'active'] } 
+      }).select('players');
+      
+      // RULE: Count actual players array length (humans + bots)
+      const totalPlayers = gameSession ? gameSession.players.length : r.players.length;
       const prizePool = calculateRoomPrize(entryFee, totalPlayers);
       
-      roomsData[r.roomAmount] = { 
+      roomsData[entryFee] = { 
         pool: r.currentPool,  // Keep for reference
         players: totalPlayers,
         prizePool: prizePool  // Single Source of Truth for display
       };
-    });
+    }
     
     res.json({ success: true, rooms: roomsData });
   } catch (err) {
@@ -158,20 +166,6 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       balance: { $gte: roomAmount } 
     }).limit(botsNeeded);
     
-    // RULE 1: ZERO-OUT FIRST - Initialize calculatedPrizePool at 0 before any calculation
-    let calculatedPrizePool = 0;
-    
-    // RULE 2: ATOMIC LOGIC - Calculate prize ONLY ONCE after all availableBots have been found
-    // Calculate total players (existing humans + joining human + new bots)
-    const totalPlayers = currentHumanPlayers + 1 + availableBots.length;
-    
-    // RULE 3: THE CORRECT FORMULA - Math.floor((roomAmount * totalPlayers) * 0.85)
-    calculatedPrizePool = Math.floor((roomAmount * totalPlayers) * 0.85);
-    
-    // House gets 15% of total collected
-    const totalCollected = roomAmount * totalPlayers;
-    const houseCut = totalCollected - calculatedPrizePool;
-    
     // Deduct bot balances using deductBalance pattern and prepare player data
     const botPlayersData = [];
     for (const bot of availableBots) {
@@ -188,21 +182,6 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       await deductBotBalance(bot._id, roomAmount);
     }
 
-    // RULE 4: DATABASE SYNC - Use $set instead of $inc for currentPool to prevent doubling on refresh
-    await RoomPool.findByIdAndUpdate(
-      roomPool._id,
-      { 
-        $set: { 
-          currentPool: calculatedPrizePool,
-          houseTotal: houseCut 
-        },
-        $addToSet: { players: { telegramId: updatedUser.telegramId } }
-      }
-    );
-
-    // Find or create game session
-    let gameSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
-    
     // Build initial players array with human player first
     const humanPlayer = { 
       user: req.user._id.toString(),
@@ -213,6 +192,9 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       markedState 
     };
     const playersArray = [humanPlayer, ...botPlayersData];
+    
+    // Find or create game session
+    let gameSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
     
     if (!gameSession) {
       gameSession = await GameSession.create({ 
@@ -233,6 +215,32 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         await gameSession.save();
       }
     }
+
+    // RULE 1: ZERO-OUT FIRST - Initialize calculatedPrizePool at 0 before any calculation
+    let calculatedPrizePool = 0;
+    
+    // RULE 2: ATOMIC LOGIC - Calculate prize ONLY ONCE after game session is finalized
+    // RULE 3: Count actual players array length (humans + bots) from the game session
+    const totalPlayers = gameSession.players.length;
+    
+    // THE CORRECT FORMULA: Math.floor((roomAmount * totalPlayers) * 0.85)
+    calculatedPrizePool = calculateRoomPrize(roomAmount, totalPlayers);
+    
+    // House gets 15% of total collected
+    const totalCollected = roomAmount * totalPlayers;
+    const houseCut = totalCollected - calculatedPrizePool;
+    
+    // RULE 4: DATABASE SYNC - Use $set instead of $inc for currentPool to prevent doubling on refresh
+    await RoomPool.findByIdAndUpdate(
+      roomPool._id,
+      { 
+        $set: { 
+          currentPool: calculatedPrizePool,
+          houseTotal: houseCut 
+        },
+        $addToSet: { players: { telegramId: updatedUser.telegramId } }
+      }
+    );
 
     const updatedRoomPool = await RoomPool.findOne({ roomAmount });
     const actualBotCount = availableBots.length;

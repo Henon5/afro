@@ -1,3 +1,1 @@
-# Examples 1:
-
-# Example 2 (Project with artifacts):
+Nothing should be ignored based on the provided file changes. The only modified file is 'routes/game.js', which is a source code file and should not be added to .gitignore.
