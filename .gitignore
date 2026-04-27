@@ -1,10 +1,4 @@
 ```
 # Coverage reports
 coverage/
-
-# Environment files
-.env.local
-
-# Logs
-*.log
 ```
