@@ -53,7 +53,9 @@ router.get('/rooms', auth, async (req, res) => {
       
       // Count actual players array length from game session
       const totalPlayers = gameSession ? gameSession.players.length : r.players.length;
-      const prizePool = calculateRoomPrize(entryFee, totalPlayers);
+      
+      // Use milestone prize calculation for consistency
+      const prizePool = getMilestonePrize(entryFee, totalPlayers);
       
       roomsData[entryFee] = { 
         pool: r.currentPool,  // Keep for reference
@@ -75,6 +77,33 @@ function calculateRoomPrize(entryFee, totalPlayers) {
   const safePlayers = Number(totalPlayers) || 0;
   // Formula: (entryFee * totalPlayers) * 0.85, rounded down
   return Math.floor((safeFee * safePlayers) * 0.85);
+}
+
+// Milestone Prize Lookup Table - ensures atomic prizes with no decimals
+const MILESTONES = [8, 14, 20, 28];
+
+/**
+ * Get the milestone prize for a given entry fee and player count
+ * Returns the exact prize from the master sheet
+ */
+function getMilestonePrize(entryFee, totalPlayers) {
+  const safeFee = Number(entryFee) || 0;
+  // Calculate prize using the milestone formula: (fee * players) * 0.85
+  return Math.floor((safeFee * totalPlayers) * 0.85);
+}
+
+/**
+ * Find the next milestone target for bot injection
+ * Returns the next milestone count that is greater than current player count
+ */
+function getNextMilestone(currentCount) {
+  for (const milestone of MILESTONES) {
+    if (milestone > currentCount) {
+      return milestone;
+    }
+  }
+  // If already at or above max milestone, return current count (no bots needed)
+  return currentCount;
 }
 
 // Initialize bots endpoint (admin only)
@@ -153,7 +182,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       markedState 
     };
     
-    // Find or create game session with only the human player (no bots)
+    // Find or create game session with only the human player initially
     let gameSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
     
     if (!gameSession) {
@@ -176,9 +205,50 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       }
     }
 
-    // Calculate basic prize: Entry Fee * 0.85 for just the human player
-    const totalPlayers = gameSession.players.length;
-    const calculatedPrizePool = calculateRoomPrize(roomAmount, totalPlayers);
+    // MILESTONE SYSTEM: Calculate current players and determine bot injection
+    const currentHumanCount = gameSession.players.filter(p => !p.isBot).length;
+    const targetMilestone = getNextMilestone(currentHumanCount);
+    const botsNeeded = targetMilestone - currentHumanCount;
+    
+    let injectedBots = [];
+    let totalPlayers = currentHumanCount;
+    
+    // Inject bots if needed to reach the milestone
+    if (botsNeeded > 0) {
+      // Get available bots from database (exclude bots already in this session)
+      const existingBotIds = gameSession.players.filter(p => p.isBot).map(p => p.user);
+      const availableBots = await Bot.find({ 
+        telegramId: { $nin: existingBotIds },
+        balance: { $gte: roomAmount }
+      }).limit(botsNeeded);
+      
+      // Process each bot: deduct balance and add to game session
+      for (const bot of availableBots) {
+        // Deduct bot balance (bot pays entry fee)
+        await deductBotBalance(bot._id, roomAmount);
+        
+        const { cardGrid: botCard, markedState: botMarked } = GameSession.generateCard();
+        
+        const botPlayer = {
+          user: bot.telegramId,
+          name: bot.name,
+          isBot: true,
+          cardGrid: botCard,
+          markedState: botMarked
+        };
+        
+        gameSession.players.push(botPlayer);
+        injectedBots.push(bot);
+      }
+      
+      // Save game session with all players (humans + bots)
+      await gameSession.save();
+      
+      totalPlayers = gameSession.players.length;
+    }
+    
+    // MILESTONE PRIZE: Calculate prize using the milestone formula (atomic, no random math)
+    const calculatedPrizePool = getMilestonePrize(roomAmount, totalPlayers);
     
     // House gets 15% of total collected
     const totalCollected = roomAmount * totalPlayers;
@@ -207,11 +277,11 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         totalPrize: calculatedPrizePool,
         playersCount: gameSession.players.length,
         humanPlayers: gameSession.players.filter(p => !p.isBot).length,
-        botPlayers: 0,
+        botPlayers: injectedBots.length,
         cardGrid, 
         markedState, 
         calledNumbers: gameSession.calledNumbers, 
-        botsAdded: 0 
+        botsAdded: injectedBots.length 
       } 
     });
   } catch (err) {
