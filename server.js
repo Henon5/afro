@@ -1,3 +1,6 @@
+// Log immediately as the first line of code
+console.log('Server is starting...');
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -28,18 +31,26 @@ app.use(compression({
   }
 }));
 
-// Connect DB first, then initialize rooms and bots only if DB succeeds
-const initPromise = connectDB()
-  .then(() => Promise.all([
-    RoomPool.initializeRooms().catch(console.error),
-    initializeBots().catch(console.error)
-  ]))
-  .catch((error) => {
-    console.error('❌ Failed to initialize server:', error.message);
-    if (process.env.NODE_ENV === 'production') {
-      process.exit(1);
-    }
-  });
+// Connect DB and initialize rooms and bots in parallel with proper error handling
+const initPromise = Promise.all([
+  connectDB().catch(err => {
+    console.error('❌ Database connection failed:', err.message);
+    throw err;
+  }),
+  RoomPool.initializeRooms().catch(err => {
+    console.error('❌ Room initialization failed:', err.message);
+    // Non-critical, continue
+  }),
+  initializeBots().catch(err => {
+    console.error('❌ Bot initialization failed:', err.message);
+    // Non-critical, continue
+  })
+]).catch(err => {
+  console.error('❌ Initialization failed:', err.message);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -130,3 +141,12 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+// Helper function for prize calculation with 15% house cut
+function getCalculatedPrize(fee, players) {
+  const safeFee = Number(fee) || 0;
+  const safePlayers = Number(players) || 0;
+  const totalCollected = safeFee * safePlayers;
+  const prizePool = Math.floor(totalCollected * 0.85);
+  return prizePool;
+}
