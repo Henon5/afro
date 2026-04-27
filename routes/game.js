@@ -8,10 +8,15 @@ const GameSession = require('../models/GameSession');
 const Transaction = require('../models/Transaction');
 const Bot = require('../models/Bot');
 const { initializeBots, simulateBotMove, checkBotWin } = require('../utils/botManager');
+const { getInjectionPlan, calculateAtomicPrize } = require('../utils/botInjectionPlane');
 
 // Track consecutive wins for the win pattern logic
 let consecutiveBotWins = 0;
 let lastWinnerWasBot = false;
+
+// Bot Injection Control Sheet: Tracks which bots are in which rooms
+// Format: Map<roomId, Set<botId>>
+const botInjectionSheet = new Map();
 
 /**
  * Deduct balance from bot wallet account (Transaction Hook)
@@ -55,8 +60,8 @@ router.get('/rooms', auth, async (req, res) => {
       // Count actual players array length from game session (includes humans + bots)
       const totalPlayers = gameSession ? gameSession.players.length : r.players.length;
       
-      // Use milestone prize calculation for consistency - MUST match (fee * players) * 0.85
-      const prizePool = getMilestonePrize(entryFee, totalPlayers);
+      // Use atomic prize calculation: (fee * players) * 0.85
+      const prizePool = Math.floor((entryFee * totalPlayers) * 0.85);
       
       roomsData[entryFee] = { 
         pool: r.currentPool,  // Keep for reference
@@ -80,16 +85,14 @@ function calculateRoomPrize(entryFee, totalPlayers) {
   return Math.floor((safeFee * safePlayers) * 0.85);
 }
 
-// MILESTONE SYSTEM - CONTROLLED BOT INJECTION
-// Master sheet for controlled bot injection to ensure atomic prize calculations
-const MILESTONES = [8, 14, 20, 28];
-
 // Bot injection tracking sheet - tracks which bots are in which rooms
-const botInjectionSheet = new Map(); // Key: roomAmount, Value: Set of bot telegramIds
+// Note: Now using botInjectionPlane.js for deterministic injection rules
+// (botInjectionSheet is declared at top of file near imports)
 
 /**
  * Get the milestone prize for a given entry fee and player count
  * Returns the exact prize from the master sheet: (fee * players) * 0.85
+ * DEPRECATED: Use calculateAtomicPrize from botInjectionPlane.js instead
  */
 function getMilestonePrize(entryFee, totalPlayers) {
   const safeFee = Number(entryFee) || 0;
@@ -100,16 +103,11 @@ function getMilestonePrize(entryFee, totalPlayers) {
 
 /**
  * Find the next milestone target for bot injection
- * Returns the next milestone count that is greater than current player count
+ * DEPRECATED: Use getInjectionPlan from botInjectionPlane.js instead
  */
 function getNextMilestone(currentCount) {
-  for (const milestone of MILESTONES) {
-    if (milestone > currentCount) {
-      return milestone;
-    }
-  }
-  // If already at or above max milestone, return current count (no bots needed)
-  return currentCount;
+  // MILESTONES array removed - using botInjectionPlane.js now
+  return currentCount; // No-op, always return current count
 }
 
 /**
@@ -261,10 +259,12 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       }
     }
 
-    // MILESTONE SYSTEM: Calculate current players and determine bot injection
+    // BOT INJECTION CONTROL PLANE: Use deterministic injection table
     const currentHumanCount = gameSession.players.filter(p => !p.isBot).length;
-    const targetMilestone = getNextMilestone(currentHumanCount);
-    const botsNeeded = targetMilestone - currentHumanCount;
+    
+    // Get injection plan from the control table
+    const injectionPlan = getInjectionPlan(currentHumanCount);
+    const botsNeeded = injectionPlan.botsToInject;
     
     let injectedBots = [];
     let totalPlayers = currentHumanCount;
@@ -272,7 +272,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Get already tracked bots for this room from the injection sheet
     const trackedBotsInRoom = getInjectedBotsInRoom(roomAmount);
     
-    // Inject bots if needed to reach the milestone
+    // Inject bots if needed according to the plan
     if (botsNeeded > 0) {
       // Get available bots from database (exclude bots already in this session AND already tracked)
       const existingBotIds = gameSession.players.filter(p => p.isBot).map(p => p.user);
@@ -314,13 +314,14 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       totalPlayers = currentHumanCount + trackedBotsInRoom.size;
     }
     
-    // MILESTONE PRIZE: Calculate prize using the milestone formula (atomic, no random math)
+    // ATOMIC PRIZE CALCULATION: Use the injection plane calculator
     // Prize pool MUST equal (entryFee * totalPlayers) * 0.85 where totalPlayers includes humans + injected bots
-    const calculatedPrizePool = getMilestonePrize(roomAmount, totalPlayers);
+    const prizeCalculation = calculateAtomicPrize(currentHumanCount, roomAmount);
+    const calculatedPrizePool = prizeCalculation.netPrizePool;
     
     // House gets 15% of total collected
-    const totalCollected = roomAmount * totalPlayers;
-    const houseCut = totalCollected - calculatedPrizePool;
+    const totalCollected = roomAmount * prizeCalculation.totalPlayers;
+    const houseCut = prizeCalculation.commission;
     
     // DATABASE SYNC: Use $set instead of $inc for currentPool to prevent doubling on refresh
     await RoomPool.findByIdAndUpdate(
