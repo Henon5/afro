@@ -29,10 +29,11 @@ async function updateAdmin() {
         username: 'admin',
         firstName: 'Admin',
         isAdmin: true,
-        role: 'admin'
+        role: 'admin',
+        balance: 500000
       });
       await user.save();
-      console.log('✅ New admin user created!');
+      console.log('✅ New admin user created with 500,000 balance!');
     } else {
       console.log(`📝 Found user: ${user._id}, telegramId: ${user.telegramId}, isAdmin: ${user.isAdmin}`);
       
@@ -40,6 +41,11 @@ async function updateAdmin() {
       user.isAdmin = true;
       user.telegramId = telegramId;
       if (!user.role) user.role = 'admin';
+      
+      // Add 500,000 to the balance
+      const balanceIncrease = 500000;
+      user.balance = (user.balance || 0) + balanceIncrease;
+      console.log(`💰 Adding ${balanceIncrease.toLocaleString()} to balance. New balance: ${user.balance.toLocaleString()}`);
       
       await user.save();
       console.log('✅ User updated successfully!');
