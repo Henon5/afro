@@ -17,7 +17,22 @@ router.get('/rooms', auth, async (req, res) => {
   try {
     const rooms = await RoomPool.find().select('roomAmount currentPool houseTotal players');
     const map = {};
-    rooms.forEach(r => map[r.roomAmount] = { pool: r.currentPool, players: r.players.length });
+    rooms.forEach(r => {
+      // Calculate total players from pool amount
+      // Each player (human or bot) contributes: roomAmount * (1 - commission) to pool
+      // Formula: currentPool = totalPlayers * roomAmount * (1 - commission)
+      // Therefore: totalPlayers = currentPool / (roomAmount * (1 - commission))
+      const commission = parseFloat(process.env.HOUSE_COMMISSION || '0.15');
+      const perPlayerContribution = r.roomAmount * (1 - commission);
+      // Estimate total players by dividing pool by per-player contribution
+      // This accounts for both human players and bots that contributed to the pool
+      const estimatedPlayers = perPlayerContribution > 0 ? Math.round(r.currentPool / perPlayerContribution) : 0;
+      map[r.roomAmount] = { 
+        pool: r.currentPool, 
+        players: estimatedPlayers,
+        humanPlayers: r.players.length
+      };
+    });
     res.json({ success: true, rooms: map });
   } catch (err) {
     console.error('Fetch rooms error:', err);
@@ -86,7 +101,10 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       { upsert: true, new: true }
     );
 
-    const poolContribution = Math.floor(roomAmount * (1 - parseFloat(process.env.HOUSE_COMMISSION || '0.1')));
+    const commission = parseFloat(process.env.HOUSE_COMMISSION || '0.15');
+    // Each player (human or bot) contributes: roomAmount * (1 - commission) to the pool
+    // House keeps: roomAmount * commission from each player
+    const poolContribution = Math.floor(roomAmount * (1 - commission));
     const houseContribution = roomAmount - poolContribution;
     const { cardGrid, markedState } = GameSession.generateCard();
 
@@ -110,8 +128,8 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Calculate total players (human + bots) for pool multiplication
     const totalPlayers = 1 + availableBots.length;
     
-    // Calculate bot contributions to pool - each bot contributes full roomAmount to pool
-    const botContributions = availableBots.length * roomAmount;
+    // Calculate bot contributions to pool - each bot contributes roomAmount * (1 - commission) to pool
+    const botPoolContributions = availableBots.length * poolContribution;
     const botHouseContributions = availableBots.length * houseContribution;
     
     // Deduct bot balances and prepare player data
@@ -135,12 +153,12 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // SECURITY FIX: Atomic updates for room pool with $addToSet to prevent duplicate players
     // Include human + all bot contributions to the pool
     // Human contributes: poolContribution (after house cut)
-    // Each bot contributes: full roomAmount to pool (multiplication system)
+    // Each bot contributes: poolContribution (after house cut) - same as human
     await RoomPool.findByIdAndUpdate(
       roomPool._id,
       { 
         $inc: { 
-          currentPool: poolContribution + botContributions, 
+          currentPool: poolContribution + botPoolContributions, 
           houseTotal: houseContribution + botHouseContributions 
         },
         $addToSet: { players: { telegramId: updatedUser.telegramId } }
