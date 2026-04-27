@@ -1624,7 +1624,7 @@
     }
     
     // Load room pools from database and update UI
-    // Deprecated: Room cards no longer display prize pool values
+    // Uses prizePool from server (Single Source of Truth) - no math on frontend
     async function loadRooms() {
       try {
         const response = await Api.getRooms();
@@ -1632,45 +1632,45 @@
         if (response.rooms) {
           const rooms = response.rooms;
           
-          // Update 100 ETB room
+          // Update 100 ETB room - use prizePool from server
           if (rooms[100]) {
-            document.getElementById('pool100').textContent = `${rooms[100].pool} ETB`;
+            document.getElementById('pool100').textContent = `${rooms[100].prizePool} ETB`;
             document.getElementById('players100').textContent = rooms[100].players;
           } else {
             document.getElementById('pool100').textContent = '0 ETB';
             document.getElementById('players100').textContent = '0';
           }
           
-          // Update 50 ETB room
+          // Update 50 ETB room - use prizePool from server
           if (rooms[50]) {
-            document.getElementById('pool50').textContent = `${rooms[50].pool} ETB`;
+            document.getElementById('pool50').textContent = `${rooms[50].prizePool} ETB`;
             document.getElementById('players50').textContent = rooms[50].players;
           } else {
             document.getElementById('pool50').textContent = '0 ETB';
             document.getElementById('players50').textContent = '0';
           }
           
-          // Update 20 ETB room
+          // Update 20 ETB room - use prizePool from server
           if (rooms[20]) {
-            document.getElementById('pool20').textContent = `${rooms[20].pool} ETB`;
+            document.getElementById('pool20').textContent = `${rooms[20].prizePool} ETB`;
             document.getElementById('players20').textContent = rooms[20].players;
           } else {
             document.getElementById('pool20').textContent = '0 ETB';
             document.getElementById('players20').textContent = '0';
           }
           
-          // Update 10 ETB room
+          // Update 10 ETB room - use prizePool from server
           if (rooms[10]) {
-            document.getElementById('pool10').textContent = `${rooms[10].pool} ETB`;
+            document.getElementById('pool10').textContent = `${rooms[10].prizePool} ETB`;
             document.getElementById('players10').textContent = rooms[10].players;
           } else {
             document.getElementById('pool10').textContent = '0 ETB';
             document.getElementById('players10').textContent = '0';
           }
           
-          // Update 5 ETB room
+          // Update 5 ETB room - use prizePool from server
           if (rooms[5]) {
-            document.getElementById('pool5').textContent = `${rooms[5].pool} ETB`;
+            document.getElementById('pool5').textContent = `${rooms[5].prizePool} ETB`;
             document.getElementById('players5').textContent = rooms[5].players;
           } else {
             document.getElementById('pool5').textContent = '0 ETB';

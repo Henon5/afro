@@ -16,14 +16,35 @@ let lastWinnerWasBot = false;
 router.get('/rooms', auth, async (req, res) => {
   try {
     const rooms = await RoomPool.find().select('roomAmount currentPool houseTotal players');
-    const map = {};
-    rooms.forEach(r => map[r.roomAmount] = { pool: r.currentPool, players: r.players.length });
-    res.json({ success: true, rooms: map });
+    
+    // Single Source of Truth: Calculate prize pool fresh from entry fee and player count
+    const roomsData = {};
+    rooms.forEach(r => {
+      const entryFee = r.roomAmount;
+      const totalPlayers = r.players.length;
+      const prizePool = calculateRoomPrize(entryFee, totalPlayers);
+      
+      roomsData[r.roomAmount] = { 
+        pool: r.currentPool,  // Keep for reference
+        players: totalPlayers,
+        prizePool: prizePool  // Single Source of Truth for display
+      };
+    });
+    
+    res.json({ success: true, rooms: roomsData });
   } catch (err) {
     console.error('Fetch rooms error:', err);
     res.status(500).json({ error: 'Failed to fetch rooms' });
   }
 });
+
+// Single Source of Truth: Calculate room prize with 15% house cut
+function calculateRoomPrize(entryFee, totalPlayers) {
+  const safeFee = Number(entryFee) || 0;
+  const safePlayers = Number(totalPlayers) || 0;
+  // Formula: (entryFee * totalPlayers) * 0.85, rounded down
+  return Math.floor((safeFee * safePlayers) * 0.85);
+}
 
 // Initialize bots endpoint (admin only)
 router.post('/bots/init', auth, async (req, res) => {
