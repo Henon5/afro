@@ -1,3 +1,6 @@
+// Log immediately as the first line of code
+console.log('Server is starting...');
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -28,12 +31,26 @@ app.use(compression({
   }
 }));
 
-// Connect DB and initialize rooms and bots in parallel
+// Connect DB and initialize rooms and bots in parallel with proper error handling
 const initPromise = Promise.all([
-  connectDB(),
-  RoomPool.initializeRooms().catch(console.error),
-  initializeBots().catch(console.error)
-]).catch(console.error);
+  connectDB().catch(err => {
+    console.error('❌ Database connection failed:', err.message);
+    throw err;
+  }),
+  RoomPool.initializeRooms().catch(err => {
+    console.error('❌ Room initialization failed:', err.message);
+    // Non-critical, continue
+  }),
+  initializeBots().catch(err => {
+    console.error('❌ Bot initialization failed:', err.message);
+    // Non-critical, continue
+  })
+]).catch(err => {
+  console.error('❌ Initialization failed:', err.message);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
 
 app.use(helmet({
   contentSecurityPolicy: {
