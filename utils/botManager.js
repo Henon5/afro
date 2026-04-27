@@ -74,7 +74,7 @@ async function getRandomBot() {
 /**
  * Simulate bot playing bingo
  * @param {Object} gameSession - The game session
- * @param {Object} bot - The bot player
+ * @param {Object} bot - The bot player (from database with cardGrid and markedState)
  */
 function simulateBotMove(gameSession, bot) {
   const playerIndex = gameSession.players.findIndex(p => p.user === bot.telegramId);
@@ -90,7 +90,7 @@ function simulateBotMove(gameSession, bot) {
     for (let col = 0; col < 5; col++) {
       if (row === 2 && col === 2) continue; // Skip free space
       const num = cardGrid[row][col];
-      if (calledSet.has(num) && !markedState[row][col]) {
+      if (num !== 0 && calledSet.has(num) && !markedState[row][col]) {
         validMarks.push({ row, col, num });
       }
     }
