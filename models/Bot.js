@@ -10,7 +10,24 @@ const botSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true, index: true },
   difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium', index: true },
   lastPlayed: { type: Date, index: true },
-  createdAt: { type: Date, default: Date.now, index: true }
+  createdAt: { type: Date, default: Date.now, index: true },
+  // Bingo card fields for game participation
+  cardGrid: { 
+    type: [[Number]], 
+    default: () => {
+      // Default empty 5x5 grid
+      return Array(5).fill(null).map(() => Array(5).fill(0));
+    }
+  },
+  markedState: { 
+    type: [[Boolean]], 
+    default: () => {
+      // Default all false except center (free space)
+      const marked = Array(5).fill(null).map(() => Array(5).fill(false));
+      marked[2][2] = true;
+      return marked;
+    }
+  }
 });
 
 // Compound indexes for common query patterns

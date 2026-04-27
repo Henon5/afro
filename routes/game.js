@@ -288,7 +288,19 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         // Deduct bot balance (bot pays entry fee)
         await deductBotBalance(bot._id, roomAmount);
         
-        const { cardGrid: botCard, markedState: botMarked } = GameSession.generateCard();
+        // Use the bot's pre-generated card from database if available, otherwise generate new one
+        let botCard, botMarked;
+        if (bot.cardGrid && bot.cardGrid.length > 0 && bot.cardGrid[0].length > 0) {
+          // Use existing card from bot's profile
+          botCard = bot.cardGrid;
+          botMarked = bot.markedState || Array(5).fill(null).map(() => Array(5).fill(false));
+          botMarked[2][2] = true; // Ensure center is marked (free space)
+        } else {
+          // Generate new card if none exists
+          const newCard = GameSession.generateCard();
+          botCard = newCard.cardGrid;
+          botMarked = newCard.markedState;
+        }
         
         const botPlayer = {
           user: bot.telegramId,
