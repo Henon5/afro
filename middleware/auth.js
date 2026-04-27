@@ -315,19 +315,20 @@ exports.auth = async (req, res, next) => {
     // EXCEPT: If their telegramId is in the ADMIN_IDS environment variable
     if (user.telegramId || (user._id && user._id !== 'admin')) {
       // Check if this user's telegramId is in the admin list
-      const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [];
-      const isAdminByTelegramId = adminIds.includes(String(user.telegramId));
+      const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(id => id.trim()) : [];
+      const userIdToCheck = String(user.telegramId || user._id);
+      const isAdminByTelegramId = adminIds.includes(userIdToCheck);
       
       if (isAdminByTelegramId) {
-        // This user is an admin based on their Telegram ID
+        // This user is an admin based on their Telegram ID or User ID
         isAdminAuth = true;
         user.isAdmin = true;
-        console.log('✅ Admin authenticated via Telegram ID:', user._id, 'telegramId:', user.telegramId);
+        console.log('✅ Admin authenticated via ID:', user._id, 'telegramId:', user.telegramId, 'matched adminId:', userIdToCheck);
       } else {
         // This is a regular player - explicitly set isAdminAuth to false
         isAdminAuth = false;
         user.isAdmin = false;
-        console.log('✅ Regular player authenticated:', user._id, 'telegramId:', user.telegramId);
+        console.log('✅ Regular player authenticated:', user._id, 'telegramId:', user.telegramId, 'adminIds:', adminIds);
       }
     } else if (user._id === 'admin') {
       console.log('👮 Admin authenticated via credentials');
