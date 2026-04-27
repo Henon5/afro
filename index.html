@@ -1735,7 +1735,8 @@
         return;
       }
 
-      const roomAmount = AppState.user?.selectedRoom || 20;
+      // FIX: Use AppState.game.roomAmount first, then user.selectedRoom, then default
+      const roomAmount = AppState.game.roomAmount || AppState.user?.selectedRoom || 20;
       AppState.game.roomAmount = roomAmount;
 
       container.innerHTML = `
@@ -2048,7 +2049,7 @@
         colors: ['#009b3a', '#fed105', '#ef3340']
       });
       
-      const roomAmount = game.roomAmount || 20;
+      const roomAmount = AppState.game.roomAmount || AppState.user?.selectedRoom || 20;
       const winnings = Math.floor(roomAmount * 0.85 * 5);
       
       showWinnerAnnouncement(AppState.user?.name || 'Player', winnings);
@@ -2635,10 +2636,16 @@
     // 🎯 ROOM JOINING
     // ============================================
     async function tryJoinRoom(amount) {
+      // FIX: Set selectedRoom before any other logic
+      if(AppState.user) {
+        AppState.user.selectedRoom = amount;
+      }
+      
       if(!AppState.user) {
         try {
           const response = await Api.syncUser();
           AppState.user = response.user || response;
+          AppState.user.selectedRoom = amount; // Set after loading user too
         } catch (error) {
           showToast('Please restart the app', 'error');
           return;
