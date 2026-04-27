@@ -15,6 +15,13 @@ describe('validate middleware', () => {
   describe('joinRoom validation', () => {
     const validator = validate('joinRoom');
 
+    test('should pass with valid roomAmount (10)', () => {
+      req.body = { roomAmount: 10 };
+      validator(req, res, next);
+      expect(next).toHaveBeenCalled();
+      expect(res.status).not.toHaveBeenCalled();
+    });
+
     test('should pass with valid roomAmount (20)', () => {
       req.body = { roomAmount: 20 };
       validator(req, res, next);
