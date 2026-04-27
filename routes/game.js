@@ -110,9 +110,17 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Calculate total players (human + bots) for pool multiplication
     const totalPlayers = 1 + availableBots.length;
     
-    // Calculate bot contributions to pool - each bot contributes full roomAmount to pool
-    const botContributions = availableBots.length * roomAmount;
-    const botHouseContributions = availableBots.length * houseContribution;
+    // Calculate pool using strict formula: (entryFee × totalPlayers) × 0.85
+    // Human contributes: roomAmount × 0.85 (after 15% house cut)
+    // Each bot contributes: roomAmount × 0.85 (after 15% house cut)
+    const poolContribution = Math.floor(roomAmount * 0.85); // Human's share after 15% cut
+    const botPoolContributions = availableBots.length * Math.floor(roomAmount * 0.85); // Bots' share after 15% cut
+    const totalPoolContribution = poolContribution + botPoolContributions;
+    
+    // House gets 15% from each player
+    const houseContribution = roomAmount - poolContribution;
+    const botHouseContributions = availableBots.length * (roomAmount - Math.floor(roomAmount * 0.85));
+    const totalHouseContribution = houseContribution + botHouseContributions;
     
     // Deduct bot balances and prepare player data
     const botPlayersData = [];
