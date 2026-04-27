@@ -592,7 +592,7 @@
       background: white;
       border: 2.5px solid #e0e0e0;
       border-radius: var(--radius-sm);
-      padding: 16px;
+      padding: 20px 16px;
       margin: 12px 0;
       cursor: pointer;
       box-shadow: 0 3px 12px rgba(0,0,0,0.08);
@@ -653,37 +653,22 @@
     }
     
     .room-info {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      display: block;
+      text-align: center;
     }
     
     .room-name {
       font-weight: 700;
-      font-size: 1.1rem;
+      font-size: 1rem;
       color: var(--dark);
+      margin-bottom: 4px;
     }
     
     .room-entry {
-      font-size: 0.9rem;
-      color: var(--gray);
-      margin-top: 3px;
-    }
-    
-    .room-pool {
-      text-align: right;
-    }
-    
-    .pool-amount {
-      font-weight: 800;
+      font-size: 1.5rem;
       color: var(--green);
-      font-size: 1.1rem;
-    }
-    
-    .players-count {
-      font-size: 0.85rem;
-      color: var(--gray);
-      margin-top: 2px;
+      margin-top: 0;
+      font-weight: 800;
     }
     
     /* ========== POOL BOX ========== */
@@ -1586,66 +1571,36 @@
         
         <div class="room-card high" onclick="console.log('Clicked 100 ETB room'); tryJoinRoom(100)">
           <div class="room-info">
-            <div>
-              <div class="room-name">🔥 100 ETB Room</div>
-              <div class="room-entry">Entry: 100 ETB</div>
-            </div>
-            <div class="room-pool">
-              <div class="pool-amount" id="pool100">Loading...</div>
-              <div class="players-count">👥 <span id="players100">0</span></div>
-            </div>
+            <div class="room-name">🔥 100 ETB Room</div>
+            <div class="room-entry">100 ETB 🔥</div>
           </div>
         </div>
         
         <div class="room-card medium" onclick="console.log('Clicked 50 ETB room'); tryJoinRoom(50)">
           <div class="room-info">
-            <div>
-              <div class="room-name">🎯 50 ETB Room</div>
-              <div class="room-entry">Entry: 50 ETB</div>
-            </div>
-            <div class="room-pool">
-              <div class="pool-amount" id="pool50">Loading...</div>
-              <div class="players-count">👥 <span id="players50">0</span></div>
-            </div>
+            <div class="room-name">🎯 50 ETB Room</div>
+            <div class="room-entry">50 ETB 🎯</div>
           </div>
         </div>
         
         <div class="room-card" onclick="console.log('Clicked 20 ETB room'); tryJoinRoom(20)">
           <div class="room-info">
-            <div>
-              <div class="room-name">⭐ 20 ETB Room</div>
-              <div class="room-entry">Entry: 20 ETB</div>
-            </div>
-            <div class="room-pool">
-              <div class="pool-amount" id="pool20">Loading...</div>
-              <div class="players-count">👥 <span id="players20">0</span></div>
-            </div>
+            <div class="room-name">⭐ 20 ETB Room</div>
+            <div class="room-entry">20 ETB ⭐</div>
           </div>
         </div>
         
         <div class="room-card low" onclick="console.log('Clicked 10 ETB room'); tryJoinRoom(10)">
           <div class="room-info">
-            <div>
-              <div class="room-name">🎲 10 ETB Room</div>
-              <div class="room-entry">Entry: 10 ETB</div>
-            </div>
-            <div class="room-pool">
-              <div class="pool-amount" id="pool10">Loading...</div>
-              <div class="players-count">👥 <span id="players10">0</span></div>
-            </div>
+            <div class="room-name">🎲 10 ETB Room</div>
+            <div class="room-entry">10 ETB 🎲</div>
           </div>
         </div>
         
         <div class="room-card lowest" onclick="console.log('Clicked 5 ETB room'); tryJoinRoom(5)">
           <div class="room-info">
-            <div>
-              <div class="room-name">🍀 5 ETB Room</div>
-              <div class="room-entry">Entry: 5 ETB</div>
-            </div>
-            <div class="room-pool">
-              <div class="pool-amount" id="pool5">Loading...</div>
-              <div class="players-count">👥 <span id="players5">0</span></div>
-            </div>
+            <div class="room-name">🍀 5 ETB Room</div>
+            <div class="room-entry">5 ETB 🍀</div>
           </div>
         </div>
         
@@ -1665,10 +1620,11 @@
       });
       
       // Load room pools from database
-      loadRooms();
+      // Room cards now show simple entry fee with emoji - no pool display needed
     }
     
     // Load room pools from database and update UI
+    // Deprecated: Room cards no longer display prize pool values
     async function loadRooms() {
       try {
         const response = await Api.getRooms();
