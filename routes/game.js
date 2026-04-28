@@ -7,7 +7,7 @@ const RoomPool = require('../models/RoomPool');
 const GameSession = require('../models/GameSession');
 const Transaction = require('../models/Transaction');
 const Bot = require('../models/Bot');
-const { initializeBots, simulateBotMove, checkBotWin } = require('../utils/botManager');
+const { initializeBots, simulateBotMove, checkBotWin, ensureAllBotsHaveCards } = require('../utils/botManager');
 const { getInjectionPlan, calculateAtomicPrize } = require('../utils/botInjectionPlane');
 
 // Track consecutive wins for the win pattern logic
@@ -160,19 +160,57 @@ function getInjectedBotsCount(roomAmount) {
   return trackedBots ? trackedBots.size : 0;
 }
 
-// Initialize bots endpoint (admin only)
+// Initialize/reset bots endpoint (admin only) - Forces card generation
 router.post('/bots/init', auth, async (req, res) => {
   try {
     if (!req.isAdminAuth) {
       return res.status(403).json({ error: 'Admin access required' });
     }
     
+    // Force re-initialization with cards
     await initializeBots();
+    await ensureAllBotsHaveCards();
+    
     const botCount = await Bot.countDocuments();
-    res.json({ success: true, message: 'Bots initialized', count: botCount });
+    const botsWithCards = await Bot.countDocuments({ 
+      cardGrid: { $ne: [[0]], $exists: true, $size: { $gte: 5 } } 
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Bots initialized with bingo cards', 
+      count: botCount,
+      botsWithCards 
+    });
   } catch (err) {
-    console.error('Init bots error:', err);
-    res.status(500).json({ error: 'Failed to initialize bots' });
+    console.error('Init bots error:', err.message);
+    res.status(500).json({ error: `Failed to initialize bots: ${err.message}` });
+  }
+});
+
+// Endpoint to regenerate cards for all bots (admin only)
+router.post('/bots/regenerate-cards', auth, async (req, res) => {
+  try {
+    if (!req.isAdminAuth) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    await ensureAllBotsHaveCards();
+    
+    const botCount = await Bot.countDocuments();
+    const botsWithCards = await Bot.countDocuments({ 
+      cardGrid: { $ne: [[0]], $exists: true, $size: { $gte: 5 } } 
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Bot cards regenerated', 
+      totalBots: botCount,
+      botsWithValidCards: botsWithCards 
+    });
+  } catch (err) {
+    console.error('Regenerate cards error:', err.message);
+    res.status(500).json({ error: `Failed to regenerate cards: ${err.message}` });
   }
 });
 
@@ -422,7 +460,7 @@ router.post('/mark', auth, async (req, res) => {
 });
 
 /**
- * Process bot moves in the game session
+ * Process bot moves in the game session with improved error handling and card validation
  */
 async function processBotMoves(gameSession) {
   const botPlayers = gameSession.players.filter(p => p.isBot);
@@ -430,6 +468,19 @@ async function processBotMoves(gameSession) {
   for (const botPlayer of botPlayers) {
     const bot = await Bot.findOne({ telegramId: botPlayer.user });
     if (!bot) continue;
+
+    // Validate bot has a valid card before playing
+    if (!bot.cardGrid || !bot.cardGrid.length || bot.cardGrid[0].length === 0) {
+      console.warn(`⚠️ Bot ${bot.name} has no valid card, generating one...`);
+      bot.generateCard();
+      await bot.save();
+      // Update player's card in session
+      const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId);
+      if (botIndex !== -1) {
+        gameSession.players[botIndex].cardGrid = bot.cardGrid;
+        gameSession.players[botIndex].markedState = bot.markedState;
+      }
+    }
 
     // Check win pattern logic: bots win 2 times in a row, then user wins 1 time
     // If consecutiveBotWins >= 2, skip bot winning to allow human to win
@@ -455,7 +506,7 @@ async function processBotMoves(gameSession) {
     }
   }
   
-  if (gameSession.isModified()) {
+  if (gameSession.isModified && gameSession.isModified()) {
     await gameSession.save();
   }
 }

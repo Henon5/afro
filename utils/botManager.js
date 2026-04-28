@@ -14,14 +14,16 @@ const botNames = [
 ];
 
 /**
- * Initialize 50 bots with unique names and telegram IDs
+ * Initialize 50 bots with unique names, telegram IDs, and pre-generated bingo cards
  */
 async function initializeBots() {
   try {
     const existingBots = await Bot.countDocuments();
     
     if (existingBots >= 50) {
-      console.log(`Bots already initialized (${existingBots} bots found)`);
+      console.log(`✅ Bots already initialized (${existingBots} bots found)`);
+      // Ensure all existing bots have cards generated
+      await ensureAllBotsHaveCards();
       return;
     }
 
@@ -35,23 +37,63 @@ async function initializeBots() {
       const existingBot = await Bot.findOne({ $or: [{ name }, { telegramId }] });
       
       if (!existingBot) {
-        botsToCreate.push({
+        const botData = {
           name,
           telegramId,
           balance: 1000,
-          difficulty: i < 15 ? 'easy' : (i < 35 ? 'medium' : 'hard')
+          difficulty: i < 15 ? 'easy' : (i < 35 ? 'medium' : 'hard'),
+          isActive: true
+        };
+        
+        // Create temporary bot instance to generate card
+        const tempBot = new Bot(botData);
+        tempBot.generateCard();
+        
+        botsToCreate.push({
+          ...botData,
+          cardGrid: tempBot.cardGrid,
+          markedState: tempBot.markedState
         });
       }
     }
 
     if (botsToCreate.length > 0) {
       await Bot.insertMany(botsToCreate);
-      console.log(`Created ${botsToCreate.length} bots successfully`);
+      console.log(`✅ Created ${botsToCreate.length} bots with pre-generated bingo cards`);
     } else {
-      console.log('All bots already exist');
+      console.log('✅ All bots already exist');
     }
   } catch (error) {
-    console.error('Error initializing bots:', error);
+    console.error('❌ Error initializing bots:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Ensure all existing bots have bingo cards generated
+ */
+async function ensureAllBotsHaveCards() {
+  try {
+    const botsWithoutCards = await Bot.find({
+      $or: [
+        { cardGrid: { $exists: false } },
+        { cardGrid: { $size: 0 } },
+        { cardGrid: [[0]] } // Check for empty/default grid
+      ]
+    }).limit(10);
+    
+    if (botsWithoutCards.length > 0) {
+      console.log(`🔄 Generating cards for ${botsWithoutCards.length} bots...`);
+      
+      for (const bot of botsWithoutCards) {
+        bot.generateCard();
+        await bot.save();
+      }
+      
+      console.log(`✅ Generated cards for ${botsWithoutCards.length} bots`);
+    }
+  } catch (error) {
+    console.error('❌ Error ensuring bot cards:', error.message);
   }
 }
 
@@ -185,5 +227,6 @@ module.exports = {
   getActiveBots,
   getRandomBot,
   simulateBotMove,
-  checkBotWin
+  checkBotWin,
+  ensureAllBotsHaveCards
 };
