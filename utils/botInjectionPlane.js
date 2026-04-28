@@ -6,94 +6,159 @@
  * Prize = (HumanCount + BotCount) * EntryFee * 0.85
  * 
  * CONFIGURATION:
- * Adjust the `INJECTION_PLAN` below to control bot density.
+ * Master Milestone & Escalation Sheet - "In a Row" Play
+ * Streak-based bot injection with prize calculation for all room types
  */
 
-const INJECTION_PLAN = [
-  // { minHumans, maxHumans, botsToInject, strategy }
-  // If humans = 1, inject 3 bots (Total 4 players)
-  { minHumans: 1, maxHumans: 1, botsToInject: 3, strategy: 'fill_small_room' },
-  
-  // If humans = 2, inject 2 bots (Total 4 players)
-  { minHumans: 2, maxHumans: 2, botsToInject: 2, strategy: 'fill_small_room' },
-  
-  // If humans = 3, inject 1 bot (Total 4 players)
-  { minHumans: 3, maxHumans: 3, botsToInject: 1, strategy: 'fill_small_room' },
-  
-  // If humans = 4, inject 0 bots (Total 4 players - Full Room)
-  { minHumans: 4, maxHumans: 4, botsToInject: 0, strategy: 'no_bots_needed' },
-  
-  // If humans = 5, inject 3 bots (Total 8 players - Jump to next tier)
-  { minHumans: 5, maxHumans: 5, botsToInject: 3, strategy: 'fill_medium_room' },
-  
-  // If humans = 6, inject 2 bots (Total 8 players)
-  { minHumans: 6, maxHumans: 6, botsToInject: 2, strategy: 'fill_medium_room' },
-  
-  // If humans = 7, inject 1 bot (Total 8 players)
-  { minHumans: 7, maxHumans: 7, botsToInject: 1, strategy: 'fill_medium_room' },
-  
-  // If humans = 8, inject 0 bots (Total 8 players - Full Room)
-  { minHumans: 8, maxHumans: 8, botsToInject: 0, strategy: 'no_bots_needed' },
-  
-  // Default fallback for larger rooms (e.g., 10 humans -> 10 bots for 20 total)
-  { minHumans: 9, maxHumans: 100, botsToInject: 0, strategy: 'manual_override' } 
-];
+// STREAK_MAP: Maps streak (1-8) to bots to inject based on Master Sheet
+const STREAK_MAP = {
+  1: 6,   // Row 1: +6 bots → 7 total players
+  2: 8,   // Row 2: +8 bots → 9 total players
+  3: 7,   // Row 3: +7 bots → 8 total players
+  4: 9,   // Row 4: +9 bots → 10 total players
+  5: 10,  // Row 5: +10 bots → 11 total players
+  6: 12,  // Row 6: +12 bots → 13 total players
+  7: 9,   // Row 7: +9 bots → 10 total players
+  8: 13   // Row 8: +13 bots → 14 total players
+};
+
+// Room amounts supported by the escalation system
+const SUPPORTED_ROOMS = [100, 50, 20, 10, 5];
+
+// Streak reset threshold: 10 minutes in milliseconds
+const STREAK_RESET_THRESHOLD = 10 * 60 * 1000;
 
 /**
- * Calculate the exact number of bots to inject for a given human count.
- * @param {number} humanCount - The number of real humans joining.
- * @returns {Object} - { botsToInject, totalPlayers, ruleApplied }
+ * Get the number of bots to inject based on user's current streak
+ * @param {number} streak - User's current game streak (1-8, resets if >8)
+ * @returns {number} - Number of bots to inject
  */
-function getInjectionPlan(humanCount) {
-  const rule = INJECTION_PLAN.find(
-    plan => humanCount >= plan.minHumans && humanCount <= plan.maxHumans
-  );
+function getBotsForStreak(streak) {
+  // Reset to Row 1 if streak exceeds 8
+  const effectiveStreak = streak > 8 || streak < 1 ? 1 : streak;
+  return STREAK_MAP[effectiveStreak] || STREAK_MAP[1];
+}
 
-  if (!rule) {
-    // Fallback: No bots if no rule matches (safety)
-    return {
-      botsToInject: 0,
-      totalPlayers: humanCount,
-      ruleApplied: 'NO_RULE_FOUND',
-      warning: 'Human count exceeds defined injection plan.'
-    };
-  }
+/**
+ * Calculate the total prize pool based on room amount and total players
+ * Formula: Math.floor((RoomAmount * TotalPlayers) * 0.85)
+ * House keeps 15%, player sees clean rounded number
+ * @param {number} roomAmount - Entry fee (100, 50, 20, 10, or 5 ETB)
+ * @param {number} totalPlayers - Total players (1 human + injected bots)
+ * @returns {number} - Prize pool amount
+ */
+function calculatePrizeForRoom(roomAmount, totalPlayers) {
+  return Math.floor((roomAmount * totalPlayers) * 0.85);
+}
 
+/**
+ * Get the prize pool for a specific room and streak combination
+ * Based on Master Milestone Sheet values
+ * @param {number} roomAmount - Entry fee
+ * @param {number} streak - Current streak (1-8)
+ * @returns {Object} - { botsToInject, totalPlayers, prizePool, houseCut, grossPool }
+ */
+function getPrizeForStreakAndRoom(roomAmount, streak) {
+  const botsToInject = getBotsForStreak(streak);
+  const totalPlayers = 1 + botsToInject; // 1 human + bots
+  const grossPool = roomAmount * totalPlayers;
+  const prizePool = calculatePrizeForRoom(roomAmount, totalPlayers);
+  const houseCut = grossPool - prizePool; // 15% house edge
+  
   return {
-    botsToInject: rule.botsToInject,
-    totalPlayers: humanCount + rule.botsToInject,
-    ruleApplied: rule.strategy,
-    details: `Humans: ${humanCount}, Bots: ${rule.botsToInject}, Total: ${humanCount + rule.botsToInject}`
+    streak,
+    roomAmount,
+    botsToInject,
+    totalPlayers,
+    grossPool,
+    prizePool,
+    houseCut,
+    calculation: `${totalPlayers} players × ${roomAmount}birr × 0.85`
   };
 }
 
 /**
- * Calculate the guaranteed atomic prize pool.
- * @param {number} humanCount 
- * @param {number} entryFee 
- * @returns {Object} - { totalPlayers, botsNeeded, grossPool, netPrizePool, commission }
+ * Calculate user's current streak based on last game time
+ * If within 10 minutes of last game, increment streak
+ * If more than 10 minutes passed, reset to 1
+ * @param {Date} lastGameTime - User's last game time
+ * @param {number} currentStreak - User's current streak count
+ * @returns {Object} - { newStreak, shouldReset }
+ */
+function calculateStreak(lastGameTime, currentStreak) {
+  const now = new Date();
+  
+  // If no previous game time, start at streak 1
+  if (!lastGameTime) {
+    return { newStreak: 1, shouldReset: false };
+  }
+  
+  const timeDiff = now.getTime() - lastGameTime.getTime();
+  
+  // If more than 10 minutes passed, reset streak to 1
+  if (timeDiff > STREAK_RESET_THRESHOLD) {
+    return { newStreak: 1, shouldReset: true };
+  }
+  
+  // If streak exceeds 8, reset to 1
+  if (currentStreak >= 8) {
+    return { newStreak: 1, shouldReset: true };
+  }
+  
+  // Otherwise, increment streak
+  return { newStreak: currentStreak + 1, shouldReset: false };
+}
+
+/**
+ * Legacy function for backward compatibility - uses streak-based injection
+ * @param {number} humanCount - Number of human players (assumes 1 for streak system)
+ * @returns {Object} - { botsToInject, totalPlayers, ruleApplied, details }
+ */
+function getInjectionPlan(humanCount) {
+  // For streak-based system, we assume 1 human player per game
+  // The actual streak is passed via user context in joinRoom
+  const defaultStreak = 1;
+  const botsToInject = getBotsForStreak(defaultStreak);
+  
+  return {
+    botsToInject,
+    totalPlayers: humanCount + botsToInject,
+    ruleApplied: 'streak_based_injection',
+    details: `Humans: ${humanCount}, Bots: ${botsToInject} (streak ${defaultStreak}), Total: ${humanCount + botsToInject}`
+  };
+}
+
+/**
+ * Legacy function for backward compatibility - calculates prize using streak system
+ * @param {number} humanCount - Number of human players
+ * @param {number} entryFee - Room entry fee
+ * @returns {Object} - Prize calculation details
  */
 function calculateAtomicPrize(humanCount, entryFee) {
-  const plan = getInjectionPlan(humanCount);
-  const grossPool = plan.totalPlayers * entryFee;
-  const commissionRate = 0.15; // 15% house edge
-  const netPrizePool = grossPool * (1 - commissionRate); // 85% to winner
-
+  // Default to streak 1 for legacy calls
+  const result = getPrizeForStreakAndRoom(entryFee, 1);
+  
   return {
     humanCount,
-    botsToInject: plan.botsToInject,
-    totalPlayers: plan.totalPlayers,
+    botsToInject: result.botsToInject,
+    totalPlayers: result.totalPlayers,
     entryFee,
-    grossPool,
-    netPrizePool,
-    commission: grossPool * commissionRate,
-    calculationLogic: `${plan.totalPlayers} players × ${entryFee}birr × 0.85`,
-    ruleApplied: plan.ruleApplied
+    grossPool: result.grossPool,
+    netPrizePool: result.prizePool,
+    commission: result.houseCut,
+    calculationLogic: result.calculation,
+    ruleApplied: 'streak_based_injection'
   };
 }
 
 module.exports = {
   getInjectionPlan,
   calculateAtomicPrize,
-  INJECTION_PLAN // Export raw plan for debugging/admin endpoints if needed
+  getBotsForStreak,
+  calculateStreak,
+  getPrizeForStreakAndRoom,
+  calculatePrizeForRoom,
+  STREAK_MAP,
+  SUPPORTED_ROOMS,
+  STREAK_RESET_THRESHOLD
 };

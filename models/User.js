@@ -14,7 +14,10 @@ const userSchema = new mongoose.Schema({
   isAdmin: { type: Boolean, default: false, index: true },
   isBlocked: { type: Boolean, default: false, index: true },
   lastActive: { type: Date, default: Date.now, index: true },
-  registeredAt: { type: Date, default: Date.now }
+  registeredAt: { type: Date, default: Date.now },
+  // Injection Escalation System fields
+  currentStreak: { type: Number, default: 0 },
+  lastGameTime: { type: Date }
 }, { 
   timestamps: true,
   toJSON: { virtuals: true },
