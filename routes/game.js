@@ -420,10 +420,15 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       adjustedBotsToInject = Math.max(0, maxPlayersAllowed - currentTotalPlayers);
     }
     
-    // Calculate total players and prize based on adjusted bot count
+    // Calculate total players after injection (humans already in room + bots we're about to add)
     const totalPlayersAfterInjection = currentHumans + adjustedBotsToInject;
+    
+    // MASTER SHEET MATH: Calculate prize pool strictly as (entryFee * totalPlayers) * 0.85
+    const entryFee = roomAmount;
+    const finalPrize = Math.floor((entryFee * totalPlayersAfterInjection) * 0.85);
+    
     const prizeCalculation = {
-      prizePool: calculatePrizeForRoom(roomAmount, totalPlayersAfterInjection),
+      prizePool: finalPrize,
       totalPlayers: totalPlayersAfterInjection,
       botsToInject: adjustedBotsToInject
     };
@@ -512,9 +517,9 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Clear processing flag after completion
     roomProcessingState.delete(processingKey);
     
-    // ATOMIC PRIZE CALCULATION: Use streak-based prize calculation
+    // ATOMIC PRIZE CALCULATION: Use Master Sheet Math
     // Prize pool MUST equal (entryFee * totalPlayers) * 0.85 where totalPlayers includes humans + injected bots
-    const calculatedPrizePool = prizeCalculation.prizePool;
+    const calculatedPrizePool = finalPrize;
     const totalCollected = roomAmount * prizeCalculation.totalPlayers;
     const houseCut = totalCollected - calculatedPrizePool; // 15% house edge
     
@@ -538,7 +543,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         sessionId: gameSession._id, 
         roomAmount, 
         currentPool: updatedRoomPool.currentPool, 
-        totalPrize: calculatedPrizePool,
+        totalPrize: finalPrize,
         playersCount: gameSession.players.length,
         humanPlayers: gameSession.players.filter(p => !p.isBot).length,
         botPlayers: injectedBots.length,
@@ -550,7 +555,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         prizeBreakdown: {
           grossPool: totalCollected,
           houseCut: houseCut,
-          netPrize: calculatedPrizePool,
+          netPrize: finalPrize,
           calculation: `${prizeCalculation.totalPlayers} players × ${roomAmount}birr × 0.85`
         }
       } 
