@@ -277,9 +277,9 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Create transaction asynchronously (non-blocking)
     Transaction.create({ userId: req.user._id, type: 'game_entry', amount: -amount, status: 'completed', metadata: { roomAmount: amount } }).catch(console.error);
 
-    // Build human player data
+    // Build human player data - Store user ID as STRING to match schema
     const humanPlayer = { 
-      user: req.user._id.toString(),
+      user: req.user._id.toString(), // Convert ObjectId to String
       telegramId: updatedUser.telegramId,
       name: updatedUser.firstName || updatedUser.username || 'Player',
       isBot: false,
@@ -299,7 +299,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       });
     } else {
       // SECURITY FIX: Check if player already in this session to prevent duplicates
-      const existingPlayer = gameSession.players.find(p => p.user.toString() === req.user._id.toString());
+      const existingPlayer = gameSession.players.find(p => p.user === req.user._id.toString());
       if (!existingPlayer) {
         gameSession.players.push(humanPlayer);
         if (gameSession.gameStatus === 'waiting') { 
@@ -509,7 +509,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         }
         
         const botPlayer = {
-          user: bot.telegramId,
+          user: bot.telegramId.toString(), // Ensure bot ID is stored as STRING
           name: bot.name,
           isBot: true,
           cardGrid: botCard,
@@ -655,8 +655,8 @@ async function processBotMoves(gameSession) {
       console.warn(`⚠️ Bot ${bot.name} has no valid card, generating one...`);
       bot.generateCard();
       await bot.save();
-      // Update player's card in session
-      const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId);
+      // Update player's card in session - Compare as strings
+      const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
       if (botIndex !== -1) {
         gameSession.players[botIndex].cardGrid = bot.cardGrid;
         gameSession.players[botIndex].markedState = bot.markedState;
@@ -670,7 +670,7 @@ async function processBotMoves(gameSession) {
     // THE TRIGGER: Call simulateBotMove() for this bot
     const move = simulateBotMove(gameSession, bot);
     if (move) {
-      const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId);
+      const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
       if (botIndex !== -1) {
         // THE MARK: Update marked state in game session
         gameSession.players[botIndex].markedState[move.row][move.col] = true;
@@ -729,7 +729,7 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   
   gameSession.gameStatus = 'completed';
   gameSession.completedAt = new Date();
-  gameSession.winner = bot.telegramId;
+  gameSession.winner = bot.telegramId.toString(); // Store as string to match schema
   gameSession.winnerName = bot.name;
   gameSession.winningPattern = winResult.pattern;
   gameSession.isBotWin = true;
