@@ -628,14 +628,20 @@ router.post('/claim', auth, async (req, res) => {
   }
 });
 
-router.get('/number/:sessionId', auth, async (req, res) => {
+router.post('/number/:sessionId', auth, async (req, res) => {
   try {
-    const gameSession = await GameSession.findOne({ _id: req.params.sessionId, gameStatus: 'active' }).select('calledNumbers gameStatus');
-    if (!gameSession) return res.status(404).json({ error: 'Game not found' });
+    // Admin users cannot play games (no real DB record)
+    if (req.isAdminAuth) {
+      return res.status(403).json({ error: 'Admin accounts cannot play games' });
+    }
+    
+    const gameSession = await GameSession.findOne({ _id: req.params.sessionId, gameStatus: 'active' })
+      .select('players calledNumbers gameStatus currentNumber');
+    if (!gameSession) return res.status(404).json({ error: 'Game not found or not active' });
     
     // Fast path: check if all numbers called
     if (gameSession.calledNumbers.length >= 75) {
-      return res.json({ success: true, number: null, complete: true });
+      return res.json({ success: true, number: null, complete: true, callCount: 75 });
     }
     
     // Generate available numbers efficiently using Set for O(1) lookup
@@ -645,7 +651,7 @@ router.get('/number/:sessionId', auth, async (req, res) => {
       if (!calledSet.has(i)) available.push(i);
     }
     
-    if (available.length === 0) return res.json({ success: true, number: null, complete: true });
+    if (available.length === 0) return res.json({ success: true, number: null, complete: true, callCount: 75 });
     
     const nextNumber = available[Math.floor(Math.random() * available.length)];
     gameSession.calledNumbers.push(nextNumber);
@@ -653,6 +659,65 @@ router.get('/number/:sessionId', auth, async (req, res) => {
     await gameSession.save();
     
     const letter = ['B','I','N','G','O'][Math.floor((nextNumber - 1) / 15)];
+    const display = `${letter}-${nextNumber}`;
+    
+    // TRIGGER BOT MOVES: After calling a number, all bots check for matches and mark
+    await processBotMoves(gameSession);
+    
+    // Reload game session to get updated bot states
+    const updatedSession = await GameSession.findById(gameSession._id).select('players calledNumbers');
+    
+    // Build botMarks array to send to frontend
+    const botMarks = [];
+    for (const player of updatedSession.players) {
+      if (player.isBot) {
+        // Count how many marks this bot has
+        const markedCount = player.markedState.flat().filter(Boolean).length;
+        botMarks.push({
+          name: player.name,
+          markedCount: markedCount,
+          isBot: true
+        });
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      number: nextNumber, 
+      display: display, 
+      callCount: gameSession.calledNumbers.length, 
+      complete: available.length <= 1,
+      botMarks: botMarks
+    });
+  } catch (err) {
+    console.error('Call number error:', err);
+    res.status(500).json({ error: 'Failed to call number' });
+  }
+});
+
+// Legacy GET endpoint - redirects to POST for compatibility
+router.get('/number/:sessionId', auth, async (req, res) => {
+  try {
+    const gameSession = await GameSession.findOne({ _id: req.params.sessionId, gameStatus: 'active' }).select('calledNumbers gameStatus currentNumber');
+    if (!gameSession) return res.status(404).json({ error: 'Game not found' });
+    
+    // Fast path: check if all numbers called
+    if (gameSession.calledNumbers.length >= 75) {
+      return res.json({ success: true, number: null, complete: true, callCount: 75 });
+    }
+    
+    // Generate available numbers efficiently using Set for O(1) lookup
+    const calledSet = new Set(gameSession.calledNumbers);
+    const available = [];
+    for (let i = 1; i <= 75; i++) {
+      if (!calledSet.has(i)) available.push(i);
+    }
+    
+    if (available.length === 0) return res.json({ success: true, number: null, complete: true, callCount: 75 });
+    
+    const nextNumber = available[Math.floor(Math.random() * available.length)];
+    const letter = ['B','I','N','G','O'][Math.floor((nextNumber - 1) / 15)];
+    
     res.json({ success: true, number: nextNumber, display: `${letter}-${nextNumber}`, callCount: gameSession.calledNumbers.length, complete: available.length <= 1 });
   } catch (err) {
     console.error('Get number error:', err);
