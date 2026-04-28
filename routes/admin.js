@@ -37,14 +37,13 @@ router.post('/login', (req, res) => {
       secureCode === process.env.ADMIN_SECURE_CODE &&
       securityKey === process.env.ADMIN_SECURITY_KEY
     ) {
-      // Safe Check: Prevent crash if environment variable has typo
-      const secret = process.env.JWT_SECRET || process.env.JWT_SSECRET;
+      // Safe Check: Use proper JWT secret - fail securely if not configured
+      const secret = process.env.JWT_SECRET;
       
       if (!secret) {
         console.error('❌ CRITICAL: No JWT Secret found in environment variables for signing!');
+        return res.status(500).json({ error: 'Server configuration error' });
       }
-      
-      console.log('Signing admin token with secret exists:', !!secret);
       
       // SECURITY FIX: Use proper JWT signing instead of weak Base64 encoding
       const token = jwt.sign(
@@ -53,7 +52,7 @@ router.post('/login', (req, res) => {
           role: 'admin',
           isAdmin: true
         },
-        secret || 'fallback-secret-change-in-production',
+        secret,
         { expiresIn: '24h' }
       );
       
@@ -244,7 +243,6 @@ router.post('/create-user', auth, adminOnly, async (req, res) => {
       totalWins: 0
     });
     
-    console.log('✅ Admin created new player:', newUser._id);
     res.json({ 
       success: true, 
       message: 'Player created successfully',
