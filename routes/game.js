@@ -63,22 +63,29 @@ async function deductBotBalance(botId, amount) {
 
 router.get('/rooms', auth, async (req, res) => {
   try {
-    // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
-    const rooms = await RoomPool.find().select('roomAmount currentPool houseTotal players').lean();
+    // OPTIMIZATION: Fetch all data in parallel using Promise.all instead of sequential loop
+    const [rooms, activeSessions] = await Promise.all([
+      RoomPool.find().select('roomAmount currentPool houseTotal players').lean(),
+      GameSession.find({ 
+        gameStatus: { $in: ['waiting', 'active'] } 
+      }).select('roomAmount players').lean()
+    ]);
+    
+    // Create a map of roomAmount -> player count for O(1) lookup
+    const sessionPlayerCounts = new Map();
+    activeSessions.forEach(session => {
+      sessionPlayerCounts.set(session.roomAmount, session.players.length);
+    });
     
     // Single Source of Truth: Calculate prize pool fresh from entry fee and player count
     const roomsData = {};
     for (const r of rooms) {
       const entryFee = r.roomAmount;
       
-      // Get active game session for this room to count total players
-      const gameSession = await GameSession.findOne({ 
-        roomAmount: entryFee, 
-        gameStatus: { $in: ['waiting', 'active'] } 
-      }).select('players').lean();
-      
-      // Count actual players array length from game session (includes humans + bots)
-      const totalPlayers = gameSession ? gameSession.players.length : r.players.length;
+      // Get player count from pre-fetched sessions (O(1) lookup)
+      const totalPlayers = sessionPlayerCounts.has(entryFee) 
+        ? sessionPlayerCounts.get(entryFee) 
+        : r.players.length;
       
       // Use atomic prize calculation: (fee * players) * 0.85
       const prizePool = Math.floor((entryFee * totalPlayers) * 0.85);
@@ -497,22 +504,36 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       
       console.log(`🤖 Bot Injection Plan: Streak ${userStreak} → injecting ${availableBots.length} bots (requested: ${adjustedBotsToInject})`);
       
-      // Process each bot: deduct balance and add to game session
+      // OPTIMIZATION: Batch process bot updates using bulkWrite for better performance
+      const botUpdates = [];
+      
+      // Process each bot: collect updates for batch operation
       for (const bot of availableBots) {
         // 🔄 FRESH CARD: Regenerate bot's card for this new game
         // This ensures bots have different cards in each game they play
         bot.generateCard();
-        await bot.save();
         
         // BOT WALLET CHECK: If bot's balance is below entry fee after refill, reset it to 1,000 ETB
         if (bot.balance < amount) {
           console.log(`💰 Bot ${bot.name} balance too low (${bot.balance}), resetting to 1000 ETB`);
-          await Bot.findByIdAndUpdate(bot._id, { balance: 1000 });
           bot.balance = 1000;
         }
         
-        // Deduct bot balance (bot pays entry fee)
-        await deductBotBalance(bot._id, amount);
+        // Collect update operations for batch execution
+        botUpdates.push({
+          updateOne: {
+            filter: { _id: bot._id },
+            update: {
+              $set: {
+                cardGrid: bot.cardGrid,
+                markedState: bot.markedState,
+                balance: bot.balance - amount,
+                lastPlayed: new Date()
+              },
+              $inc: { gamesPlayed: 1 }
+            }
+          }
+        });
         
         // Use the bot's freshly generated card
         const botCard = bot.cardGrid;
@@ -531,6 +552,12 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         
         // Track this bot injection in the sheet
         trackBotInjection(amount, bot.telegramId);
+      }
+      
+      // OPTIMIZATION: Execute all bot updates in a single batch operation
+      if (botUpdates.length > 0) {
+        await Bot.bulkWrite(botUpdates);
+        console.log(`✅ Batch updated ${botUpdates.length} bots in single DB operation`);
       }
       
       // Save game session with all players (humans + bots)
@@ -676,7 +703,11 @@ async function processBotMovesLocal(gameSession, calledNumber) {
     if (!bot.cardGrid || !bot.cardGrid.length || bot.cardGrid[0].length === 0) {
       console.warn(`⚠️ Bot ${bot.name} has no valid card, generating one...`);
       bot.generateCard();
-      await bot.save();
+      // OPTIMIZATION: Use updateOne instead of save() for better performance
+      await Bot.updateOne(
+        { _id: bot._id },
+        { $set: { cardGrid: bot.cardGrid, markedState: bot.markedState } }
+      );
       // Update player's card in session - Compare as strings
       const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
       if (botIndex !== -1) {
