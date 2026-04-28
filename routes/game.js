@@ -534,15 +534,24 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     const totalCollected = amount * prizeCalculation.totalPlayers;
     const houseCut = totalCollected - calculatedPrizePool; // 15% house edge
     
-    // DATABASE SYNC: Use $set instead of $inc for currentPool to prevent doubling on refresh
+    // DATABASE SYNC: Update RoomPool with correct player count from GameSession
+    // Get ALL player IDs (humans + bots) as strings for the RoomPool.players array
+    const allPlayerIds = gameSession.players.map(p => {
+      if (p.isBot) {
+        return p.user.toString(); // Bot ID as string
+      } else {
+        return p.user.toString(); // Human ID as string
+      }
+    });
+    
     await RoomPool.findByIdAndUpdate(
       roomPool._id,
       { 
         $set: { 
           currentPool: calculatedPrizePool,
-          houseTotal: houseCut 
-        },
-        $addToSet: { players: { telegramId: updatedUser.telegramId } }
+          houseTotal: houseCut,
+          players: allPlayerIds // Replace entire players array with all participants
+        }
       }
     );
 
