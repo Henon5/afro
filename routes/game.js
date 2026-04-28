@@ -18,6 +18,15 @@ let lastWinnerWasBot = false;
 // Format: Map<roomId, Set<botId>>
 const botInjectionSheet = new Map();
 
+// Anti-Flood Protection: Track processing state per room to prevent duplicate injections
+const roomProcessingState = new Map();
+
+// Milestone caps for bot injection
+const MILESTONE_CAPS = [8, 14, 20, 28];
+
+// Resource Guard: Maximum bots to inject in a single request
+const MAX_BOTS_PER_REQUEST = 13;
+
 /**
  * Deduct balance from bot wallet account (Transaction Hook)
  * Atomic update with validation to prevent negative balances
@@ -297,12 +306,84 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       }
     }
 
-    // BOT INJECTION CONTROL PLANE: Use deterministic injection table
+    // BOT INJECTION CONTROL PLANE: Use deterministic injection table with strict limits
     const currentHumanCount = gameSession.players.filter(p => !p.isBot).length;
     
+    // ANTI-FLOOD: Check if this room is already being processed
+    const processingKey = `${roomAmount}_${req.user._id}`;
+    if (roomProcessingState.get(processingKey)) {
+      console.log(`⚠️ Anti-flood: User ${req.user._id} already processing join for room ${roomAmount}`);
+      // Player already added, just return success without re-injecting bots
+      const existingSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
+      return res.json({ 
+        success: true, 
+        game: { 
+          sessionId: existingSession._id, 
+          roomAmount, 
+          currentPool: updatedRoomPool ? updatedRoomPool.currentPool : 0, 
+          totalPrize: 0,
+          playersCount: existingSession.players.length,
+          humanPlayers: existingSession.players.filter(p => !p.isBot).length,
+          botPlayers: existingSession.players.filter(p => p.isBot).length,
+          cardGrid, 
+          markedState, 
+          calledNumbers: existingSession.calledNumbers, 
+          botsAdded: 0,
+          message: 'Already joined - no duplicate bot injection'
+        } 
+      });
+    }
+    
+    // Set processing flag
+    roomProcessingState.set(processingKey, true);
+    
+    // MILESTONE CAP: Calculate next milestone and enforce hard limit
+    const currentTotalPlayers = gameSession.players.length;
+    const nextMilestone = MILESTONE_CAPS.find(cap => cap > currentTotalPlayers) || MILESTONE_CAPS[MILESTONE_CAPS.length - 1];
+    const maxPlayersAllowed = nextMilestone;
+    
+    // If room already at or beyond max milestone (28), stop all injection
+    if (currentTotalPlayers >= 28) {
+      console.log(`🛑 Milestone Cap: Room ${roomAmount} at maximum capacity (${currentTotalPlayers}/28). Stopping bot injection.`);
+      roomProcessingState.delete(processingKey);
+      const prizeCalculation = calculateAtomicPrize(currentHumanCount, roomAmount);
+      return res.json({ 
+        success: true, 
+        game: { 
+          sessionId: gameSession._id, 
+          roomAmount, 
+          currentPool: updatedRoomPool ? updatedRoomPool.currentPool : 0, 
+          totalPrize: prizeCalculation.netPrizePool,
+          playersCount: currentTotalPlayers,
+          humanPlayers: currentHumanCount,
+          botPlayers: gameSession.players.filter(p => p.isBot).length,
+          cardGrid, 
+          markedState, 
+          calledNumbers: gameSession.calledNumbers, 
+          botsAdded: 0,
+          message: 'Room at maximum milestone capacity (28 players)'
+        } 
+      });
+    }
+    
     // Get injection plan from the control table
-    const injectionPlan = getInjectionPlan(currentHumanCount);
-    const botsNeeded = injectionPlan.botsToInject;
+    let injectionPlan = getInjectionPlan(currentHumanCount);
+    let botsNeeded = injectionPlan.botsToInject;
+    
+    // RESOURCE GUARD: Limit bots injected in single request to MAX_BOTS_PER_REQUEST
+    if (botsNeeded > MAX_BOTS_PER_REQUEST) {
+      console.log(`⚠️ Resource Guard: Capping bot injection from ${botsNeeded} to ${MAX_BOTS_PER_REQUEST}`);
+      botsNeeded = MAX_BOTS_PER_REQUEST;
+      injectionPlan.botsToInject = botsNeeded;
+    }
+    
+    // MILESTONE ADJUSTMENT: Ensure we don't exceed the next milestone cap
+    const maxBotsForMilestone = maxPlayersAllowed - currentTotalPlayers;
+    if (botsNeeded > maxBotsForMilestone) {
+      console.log(`⚠️ Milestone Cap: Reducing bot injection from ${botsNeeded} to ${maxBotsForMilestone} to stay under ${nextMilestone}`);
+      botsNeeded = Math.max(0, maxBotsForMilestone);
+      injectionPlan.botsToInject = botsNeeded;
+    }
     
     let injectedBots = [];
     let totalPlayers = currentHumanCount;
@@ -312,14 +393,28 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     
     // Inject bots if needed according to the plan
     if (botsNeeded > 0) {
-      // Get available bots from database (exclude bots already in this session AND already tracked)
+      // UNIQUE PARTICIPATION: Get available bots (exclude bots already in session AND already tracked AND in any active game)
       const existingBotIds = gameSession.players.filter(p => p.isBot).map(p => p.user);
       const allExcludedBotIds = new Set([...existingBotIds, ...trackedBotsInRoom]);
       
+      // Find all active game sessions to exclude bots currently playing elsewhere
+      const activeSessions = await GameSession.find({ gameStatus: 'active' }).select('players');
+      const botsInActiveGames = new Set();
+      activeSessions.forEach(session => {
+        session.players.filter(p => p.isBot).forEach(botPlayer => {
+          botsInActiveGames.add(botPlayer.user);
+        });
+      });
+      
+      // Query for available bots: not in this session, not tracked, not in other active games, isActive=true, has sufficient balance
       const availableBots = await Bot.find({ 
         telegramId: { $nin: Array.from(allExcludedBotIds) },
+        _id: { $nin: Array.from(botsInActiveGames) },
+        isActive: true,
         balance: { $gte: roomAmount }
       }).limit(botsNeeded);
+      
+      console.log(`🤖 Bot Injection Plan: ${currentHumanCount} humans → injecting ${availableBots.length} bots (requested: ${botsNeeded})`);
       
       // Process each bot: deduct balance and add to game session
       for (const bot of availableBots) {
@@ -363,6 +458,9 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       // No bots needed, but still count tracked bots as part of total players
       totalPlayers = currentHumanCount + trackedBotsInRoom.size;
     }
+    
+    // Clear processing flag after completion
+    roomProcessingState.delete(processingKey);
     
     // ATOMIC PRIZE CALCULATION: Use the injection plane calculator
     // Prize pool MUST equal (entryFee * totalPlayers) * 0.85 where totalPlayers includes humans + injected bots
@@ -461,13 +559,21 @@ router.post('/mark', auth, async (req, res) => {
 
 /**
  * Process bot moves in the game session with improved error handling and card validation
+ * This function is called after every callNumber() execution to activate bot play logic
  */
 async function processBotMoves(gameSession) {
   const botPlayers = gameSession.players.filter(p => p.isBot);
   
+  if (botPlayers.length === 0) return; // No bots to process
+  
+  console.log(`🤖 Processing ${botPlayers.length} bot moves...`);
+  
   for (const botPlayer of botPlayers) {
     const bot = await Bot.findOne({ telegramId: botPlayer.user });
-    if (!bot) continue;
+    if (!bot) {
+      console.warn(`⚠️ Bot not found in DB: ${botPlayer.user}`);
+      continue;
+    }
 
     // Validate bot has a valid card before playing
     if (!bot.cardGrid || !bot.cardGrid.length || bot.cardGrid[0].length === 0) {
@@ -486,28 +592,36 @@ async function processBotMoves(gameSession) {
     // If consecutiveBotWins >= 2, skip bot winning to allow human to win
     const shouldLetBotWin = consecutiveBotWins < 2;
     
+    // THE TRIGGER: Call simulateBotMove() for this bot
     const move = simulateBotMove(gameSession, bot);
     if (move) {
       const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId);
       if (botIndex !== -1) {
+        // THE MARK: Update marked state in game session
         gameSession.players[botIndex].markedState[move.row][move.col] = true;
         
-        // Check if bot wins
+        console.log(`✅ Bot ${bot.name} marked position [${move.row},${move.col}] = ${move.num}`);
+        
+        // THE WIN CHECK: Run checkBotWin() after every mark
         const botWinResult = gameSession.checkWin(botIndex);
         if (botWinResult.win && shouldLetBotWin) {
-          // Bot wins - handle payout
+          // Bot wins - handle payout sequence
+          console.log(`🎉 Bot ${bot.name} WINS with pattern: ${botWinResult.pattern}!`);
           await handleBotWin(gameSession, bot, botIndex, botWinResult);
           return; // Exit after a bot wins
         } else if (botWinResult.win && !shouldLetBotWin) {
           // Bot would win but we need to let human win - unmark this move
+          console.log(`⏸️ Bot ${bot.name} would win but human turn - unmarking move`);
           gameSession.players[botIndex].markedState[move.row][move.col] = false;
         }
       }
     }
   }
   
+  // Save all bot marks to database
   if (gameSession.isModified && gameSession.isModified()) {
     await gameSession.save();
+    console.log(`💾 Saved bot moves to database`);
   }
 }
 
