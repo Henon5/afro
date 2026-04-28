@@ -447,14 +447,12 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Inject bots if needed according to the plan
     if (adjustedBotsToInject > 0) {
       // UNIQUE PARTICIPATION: Get available bots (exclude bots already in session AND already tracked AND in any active game)
-      // Use mongoose.Types.ObjectId for proper deduplication
+      // FIXED: Use simple string comparison instead of ObjectId conversion
       const existingBotIds = gameSession.players
         .filter(p => p.isBot)
-        .map(p => mongoose.Types.ObjectId.isValid(p.user) ? new mongoose.Types.ObjectId(p.user) : p.user);
+        .map(p => String(p.user));
       
-      const trackedBotIds = Array.from(trackedBotsInRoom).map(id => 
-        mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id
-      );
+      const trackedBotIds = Array.from(trackedBotsInRoom).map(id => String(id));
       
       const allExcludedBotIds = new Set([...existingBotIds, ...trackedBotIds]);
       
@@ -463,19 +461,19 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       const botsInActiveGames = new Set();
       activeSessions.forEach(session => {
         session.players.filter(p => p.isBot).forEach(botPlayer => {
-          if (mongoose.Types.ObjectId.isValid(botPlayer.user)) {
-            botsInActiveGames.add(new mongoose.Types.ObjectId(botPlayer.user));
-          } else {
-            botsInActiveGames.add(botPlayer.user);
-          }
+          botsInActiveGames.add(String(botPlayer.user));
         });
       });
       
       console.log(`🔍 Bot Deduplication: Excluding ${allExcludedBotIds.size} tracked bots + ${botsInActiveGames.size} active bots`);
       
       // Query for available bots: not in this session, not tracked, not in other active games, isActive=true, has sufficient balance
+      // Convert string IDs to ObjectId only for the database query filter
+      const excludedObjectIds = Array.from(allExcludedBotIds).filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => new mongoose.Types.ObjectId(id));
+      const activeGameObjectIds = Array.from(botsInActiveGames).filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => new mongoose.Types.ObjectId(id));
+      
       const availableBots = await Bot.find({ 
-        _id: { $nin: Array.from(allExcludedBotIds), $nin: Array.from(botsInActiveGames) },
+        _id: { $nin: [...excludedObjectIds, ...activeGameObjectIds] },
         isActive: true,
         balance: { $gte: amount }
       }).limit(adjustedBotsToInject);
