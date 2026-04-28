@@ -1,5 +1,9 @@
 const Bot = require('../models/Bot');
 
+// BOT SPEED CONFIGURATION: 2 second reaction time
+// Bots automatically mark their cards when a number is called
+const BOT_REACTION_TIME_MS = 2000; // 2 seconds
+
 const botNames = [
   'Abebe', 'Abel', 'Abdi', 'Alem', 'Amanuel',
   'Amare', 'Amsalu', 'Andualem', 'Araya', 'Assefa',
@@ -159,7 +163,17 @@ function simulateBotMove(gameSession, bot) {
     selectedMark = validMarks[Math.floor(Math.random() * validMarks.length)];
   }
 
+  // THE THREAT: Bots react within 2 seconds and automatically mark
+  console.log(`⚡ Bot ${bot.name} reacting in ${BOT_REACTION_TIME_MS}ms...`);
+
   return selectedMark;
+}
+
+/**
+ * Get bot reaction time in milliseconds
+ */
+function getBotReactionTime() {
+  return BOT_REACTION_TIME_MS;
 }
 
 /**
@@ -228,5 +242,6 @@ module.exports = {
   getRandomBot,
   simulateBotMove,
   checkBotWin,
-  ensureAllBotsHaveCards
+  ensureAllBotsHaveCards,
+  getBotReactionTime
 };

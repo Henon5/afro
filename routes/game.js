@@ -685,25 +685,31 @@ async function processBotMoves(gameSession) {
 }
 
 /**
- * Handle bot winning the game
+ * Handle bot winning the game - THE PAYOUT
+ * Awards currentPool to the winning bot and stops the game
  */
 async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   const roomAmount = gameSession.roomAmount;
   
-  const roomPool = await RoomPool.findOneAndUpdate(
-    { roomAmount: gameSession.roomAmount },
-    { $set: { currentPool: 0, players: [] } },
-    { new: true }
-  );
+  // Get the room pool with current prize value BEFORE resetting
+  const roomPool = await RoomPool.findOne({ roomAmount: gameSession.roomAmount });
   
   if (!roomPool) return;
   
   const winnings = roomPool.currentPool + (roomPool.houseTotal || 0);
   
-  // Award winnings to bot
+  // THE PAYOUT: Add currentPool to the winning bot's balance
   await Bot.findByIdAndUpdate(bot._id, { 
     $inc: { balance: winnings, totalWins: 1, totalWinnings: winnings } 
   });
+  
+  console.log(`💰 Bot ${bot.name} awarded ${winnings} ETB (new balance will be updated)`);
+  
+  // Reset room pool
+  await RoomPool.findOneAndUpdate(
+    { roomAmount: gameSession.roomAmount },
+    { $set: { currentPool: 0, players: [] } }
+  );
   
   gameSession.gameStatus = 'completed';
   gameSession.completedAt = new Date();
@@ -711,6 +717,7 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   gameSession.winnerName = bot.name;
   gameSession.winningPattern = winResult.pattern;
   gameSession.isBotWin = true;
+  await gameSession.save();
   
   // Clear bot injection tracking for this room when game completes
   clearBotInjectionForRoom(roomAmount);
@@ -722,6 +729,20 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   // Reset after 2 bot wins to allow human win next
   if (consecutiveBotWins >= 2) {
     consecutiveBotWins = 0;
+  }
+  
+  // BROADCAST GAME_OVER: Send Socket.io event to frontend
+  const io = require('../server').io;
+  if (io) {
+    io.emit('GAME_OVER', {
+      sessionId: gameSession._id,
+      winner: bot.name,
+      winnerName: bot.name,
+      isBot: true,
+      pattern: winResult.pattern,
+      winnings: winnings,
+      roomAmount: roomAmount
+    });
   }
 }
 
