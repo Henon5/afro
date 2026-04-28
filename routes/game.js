@@ -790,17 +790,33 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   
   const winnings = roomPool.currentPool + (roomPool.houseTotal || 0);
   
+  // HOUSE CUT SEPARATION: Transfer 15% house cut to Admin Wallet BEFORE bot payout
+  const houseCut = roomPool.houseTotal || 0;
+  if (houseCut > 0) {
+    const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [];
+    if (adminIds.length > 0) {
+      await User.findByIdAndUpdate(
+        adminIds[0],
+        { $inc: { balance: houseCut } },
+        { upsert: true }
+      );
+      console.log(`🏦 House Cut: ${houseCut} ETB transferred to Admin Wallet`);
+    }
+  }
+  
   // THE PAYOUT: Add currentPool to the winning bot's balance
   await Bot.findByIdAndUpdate(bot._id, { 
     $inc: { balance: winnings, totalWins: 1, totalWinnings: winnings, gamesPlayed: 1 } 
   });
   
   console.log(`💰 Bot ${bot.name} awarded ${winnings} ETB (new balance will be updated)`);
+  // AUDIT LOG: Track successful payout
+  console.log(`[PAYOUT] Successfully moved ${winnings} ETB to Bot: ${bot.telegramId}`);
   
-  // Reset room pool
+  // Reset room pool (including houseTotal since it's been transferred to admin)
   await RoomPool.findOneAndUpdate(
     { roomAmount: gameSession.roomAmount },
-    { $set: { currentPool: 0, players: [] } }
+    { $set: { currentPool: 0, houseTotal: 0, players: [] } }
   );
   
   gameSession.gameStatus = 'completed';
@@ -855,10 +871,10 @@ router.post('/claim', auth, async (req, res) => {
     const winResult = gameSession.checkWin(playerIndex);
     if (!winResult.win) return res.status(400).json({ error: 'No bingo pattern detected' });
 
-    // Atomic update to reset pool and get current value
+    // Atomic update to reset pool and get current value (including houseTotal)
     const roomPool = await RoomPool.findOneAndUpdate(
       { roomAmount: gameSession.roomAmount },
-      { $set: { currentPool: 0, players: [] } },
+      { $set: { currentPool: 0, houseTotal: 0, players: [] } },
       { new: true }
     );
     
@@ -868,6 +884,21 @@ router.post('/claim', auth, async (req, res) => {
 
     // Get user info for name display
     const userInfo = await User.findById(req.user._id).select('firstName username telegramId');
+    
+    // HOUSE CUT SEPARATION: Calculate and transfer 15% house cut to Admin Wallet BEFORE player payout
+    const houseCut = roomPool.houseTotal || 0;
+    if (houseCut > 0) {
+      // Transfer house cut to admin wallet (using first admin ID from env)
+      const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [];
+      if (adminIds.length > 0) {
+        await User.findByIdAndUpdate(
+          adminIds[0],
+          { $inc: { balance: houseCut } },
+          { upsert: true }
+        );
+        console.log(`🏦 House Cut: ${houseCut} ETB transferred to Admin Wallet`);
+      }
+    }
     
     // Atomic balance update with projection
     const updatedUser = await User.findByIdAndUpdate(
@@ -900,6 +931,9 @@ router.post('/claim', auth, async (req, res) => {
     // Reset bot win tracking after human win
     consecutiveBotWins = 0;
     lastWinnerWasBot = false;
+
+    // AUDIT LOG: Track successful payout
+    console.log(`[PAYOUT] Successfully moved ${winnings} ETB to User: ${req.user._id}`);
 
     res.json({ 
       success: true, 
