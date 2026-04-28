@@ -88,6 +88,9 @@ exports.auth = async (req, res, next) => {
     let user = null;
     let isAdminAuth = false;
     
+    // Get authorization header
+    const authHeader = req.headers['authorization'];
+    
     // Log auth attempts without exposing sensitive data
     if (!authHeader || authHeader === 'null' || authHeader === 'undefined') {
       // No token provided
