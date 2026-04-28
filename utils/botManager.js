@@ -245,7 +245,7 @@ function checkBotWin(gameSession, bot) {
 async function processBotMoves(gameSession, calledNumber) {
   const botPlayers = gameSession.players.filter(p => p.isBot);
   
-  if (botPlayers.length === 0) return; // No bots to process
+  if (botPlayers.length === 0) return null; // No bots to process
   
   console.log(`🤖 Processing ${botPlayers.length} bots for number ${calledNumber}...`);
   
@@ -282,6 +282,9 @@ async function processBotMoves(gameSession, calledNumber) {
         gameSession.players[botIndex].markedState[move.row][move.col] = true;
         
         console.log(`✅ Bot ${bot.name} marked position [${move.row},${move.col}] = ${move.num}`);
+        
+        // CRITICAL FIX: Save the game session to persist the marked state
+        await gameSession.save();
         
         // THE WIN CHECK: Run checkBotWin() after every mark
         const botWinResult = checkBotWin(gameSession, bot);
