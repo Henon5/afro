@@ -245,31 +245,37 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     
     const { roomAmount } = req.body;
     
+    // DATA SAFETY: Convert roomAmount to Number explicitly
+    const amount = Number(roomAmount);
+    if (isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid room amount' });
+    }
+    
     // SECURITY FIX: Use atomic update with condition to prevent race conditions and double-spending
     const updatedUser = await User.findOneAndUpdate(
       { 
         _id: req.user._id,
-        balance: { $gte: roomAmount } // Condition: must have sufficient balance
+        balance: { $gte: amount } // Condition: must have sufficient balance
       },
-      { $inc: { balance: -roomAmount } },
+      { $inc: { balance: -amount } },
       { new: true, select: 'balance telegramId firstName username' }
     );
     
     if (!updatedUser) {
-      return res.status(400).json({ error: 'Insufficient balance' });
+      return res.status(400).json({ error: 'Insufficient Money' });
     }
 
     // Atomic upsert for room pool
     let roomPool = await RoomPool.findOneAndUpdate(
-      { roomAmount },
-      { $setOnInsert: { roomAmount, currentPool: 0, houseTotal: 0, players: [] } },
+      { roomAmount: amount },
+      { $setOnInsert: { roomAmount: amount, currentPool: 0, houseTotal: 0, players: [] } },
       { upsert: true, new: true }
     );
 
     const { cardGrid, markedState } = GameSession.generateCard();
 
     // Create transaction asynchronously (non-blocking)
-    Transaction.create({ userId: req.user._id, type: 'game_entry', amount: -roomAmount, status: 'completed', metadata: { roomAmount } }).catch(console.error);
+    Transaction.create({ userId: req.user._id, type: 'game_entry', amount: -amount, status: 'completed', metadata: { roomAmount: amount } }).catch(console.error);
 
     // Build human player data
     const humanPlayer = { 
@@ -282,11 +288,11 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     };
     
     // Find or create game session with only the human player initially
-    let gameSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
+    let gameSession = await GameSession.findOne({ roomAmount: amount, gameStatus: { $in: ['waiting', 'active'] } });
     
     if (!gameSession) {
       gameSession = await GameSession.create({ 
-        roomAmount, 
+        roomAmount: amount, 
         gameStatus: 'active',
         startedAt: new Date(),
         players: [humanPlayer]
@@ -318,19 +324,19 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     console.log(`📈 User ${req.user._id} streak: ${updatedUser.currentStreak || 0} → ${userStreak} (reset: ${streakResult.shouldReset})`);
     
     // ANTI-FLOOD: Check if this room is already being processed
-    const processingKey = `${roomAmount}_${req.user._id}`;
+    const processingKey = `${amount}_${req.user._id}`;
     if (roomProcessingState.get(processingKey)) {
-      console.log(`⚠️ Anti-flood: User ${req.user._id} already processing join for room ${roomAmount}`);
+      console.log(`⚠️ Anti-flood: User ${req.user._id} already processing join for room ${amount}`);
       // Player already added, just return success without re-injecting bots
-      const existingSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
+      const existingSession = await GameSession.findOne({ roomAmount: amount, gameStatus: { $in: ['waiting', 'active'] } });
       const currentHumanCount = existingSession.players.filter(p => !p.isBot).length;
-      const prizeCalculation = getPrizeForStreakAndRoom(roomAmount, userStreak);
+      const prizeCalculation = getPrizeForStreakAndRoom(amount, userStreak);
       return res.json({ 
         success: true, 
         game: { 
           sessionId: existingSession._id, 
-          roomAmount, 
-          currentPool: updatedRoomPool ? updatedRoomPool.currentPool : 0, 
+          roomAmount: amount, 
+          currentPool: roomPool.currentPool, 
           totalPrize: prizeCalculation.prizePool,
           playersCount: existingSession.players.length,
           humanPlayers: currentHumanCount,
@@ -349,11 +355,11 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     roomProcessingState.set(processingKey, true);
     
     // Refresh game session to get latest player count after potential concurrent joins
-    gameSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
+    gameSession = await GameSession.findOne({ roomAmount: amount, gameStatus: { $in: ['waiting', 'active'] } });
     if (!gameSession) {
       // Session was deleted or completed, create new one with just this human
       gameSession = await GameSession.create({ 
-        roomAmount, 
+        roomAmount: amount, 
         gameStatus: 'active',
         startedAt: new Date(),
         players: [humanPlayer]
@@ -368,19 +374,19 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     const currentHumans = gameSession.players.filter(p => !p.isBot).length;
     const currentBots = gameSession.players.filter(p => p.isBot).length;
     
-    console.log(`📊 Room ${roomAmount}: ${currentHumans} humans + ${currentBots} bots = ${currentTotalPlayers} total`);
+    console.log(`📊 Room ${amount}: ${currentHumans} humans + ${currentBots} bots = ${currentTotalPlayers} total`);
     
     // If room already at maximum capacity, stop all injection - DO NOT ADD BOTS
     if (currentTotalPlayers >= maxPlayersAllowed) {
-      console.log(`🛑 Milestone Cap: Room ${roomAmount} at maximum capacity (${currentTotalPlayers}/28). Stopping bot injection.`);
+      console.log(`🛑 Milestone Cap: Room ${amount} at maximum capacity (${currentTotalPlayers}/28). Stopping bot injection.`);
       roomProcessingState.delete(processingKey);
-      const prizeCalculation = getPrizeForStreakAndRoom(roomAmount, userStreak);
+      const prizeCalculation = getPrizeForStreakAndRoom(amount, userStreak);
       return res.json({ 
         success: true, 
         game: { 
           sessionId: gameSession._id, 
-          roomAmount, 
-          currentPool: updatedRoomPool ? updatedRoomPool.currentPool : 0, 
+          roomAmount: amount, 
+          currentPool: roomPool.currentPool, 
           totalPrize: prizeCalculation.prizePool,
           playersCount: currentTotalPlayers,
           humanPlayers: currentHumans,
@@ -424,7 +430,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     const totalPlayersAfterInjection = currentHumans + adjustedBotsToInject;
     
     // MASTER SHEET MATH: Calculate prize pool strictly as (entryFee * totalPlayers) * 0.85
-    const entryFee = roomAmount;
+    const entryFee = amount;
     const finalPrize = Math.floor((entryFee * totalPlayersAfterInjection) * 0.85);
     
     const prizeCalculation = {
@@ -434,7 +440,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     };
     
     // Get already tracked bots for this room from the injection sheet
-    const trackedBotsInRoom = getInjectedBotsInRoom(roomAmount);
+    const trackedBotsInRoom = getInjectedBotsInRoom(amount);
     
     let injectedBots = [];
     
@@ -471,15 +477,22 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       const availableBots = await Bot.find({ 
         _id: { $nin: Array.from(allExcludedBotIds), $nin: Array.from(botsInActiveGames) },
         isActive: true,
-        balance: { $gte: roomAmount }
+        balance: { $gte: amount }
       }).limit(adjustedBotsToInject);
       
       console.log(`🤖 Bot Injection Plan: Streak ${userStreak} → injecting ${availableBots.length} bots (requested: ${adjustedBotsToInject})`);
       
       // Process each bot: deduct balance and add to game session
       for (const bot of availableBots) {
+        // BOT WALLET CHECK: If bot's balance is below entry fee, reset it to 1,000 ETB
+        if (bot.balance < amount) {
+          console.log(`💰 Bot ${bot.name} balance too low (${bot.balance}), resetting to 1000 ETB`);
+          await Bot.findByIdAndUpdate(bot._id, { balance: 1000 });
+          bot.balance = 1000;
+        }
+        
         // Deduct bot balance (bot pays entry fee)
-        await deductBotBalance(bot._id, roomAmount);
+        await deductBotBalance(bot._id, amount);
         
         // Use the bot's pre-generated card from database if available, otherwise generate new one
         let botCard, botMarked;
@@ -507,7 +520,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         injectedBots.push(bot);
         
         // Track this bot injection in the sheet
-        trackBotInjection(roomAmount, bot.telegramId);
+        trackBotInjection(amount, bot.telegramId);
       }
       
       // Save game session with all players (humans + bots)
@@ -520,7 +533,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // ATOMIC PRIZE CALCULATION: Use Master Sheet Math
     // Prize pool MUST equal (entryFee * totalPlayers) * 0.85 where totalPlayers includes humans + injected bots
     const calculatedPrizePool = finalPrize;
-    const totalCollected = roomAmount * prizeCalculation.totalPlayers;
+    const totalCollected = amount * prizeCalculation.totalPlayers;
     const houseCut = totalCollected - calculatedPrizePool; // 15% house edge
     
     // DATABASE SYNC: Use $set instead of $inc for currentPool to prevent doubling on refresh
@@ -535,13 +548,13 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       }
     );
 
-    const updatedRoomPool = await RoomPool.findOne({ roomAmount });
+    const updatedRoomPool = await RoomPool.findOne({ roomAmount: amount });
     
     res.json({ 
       success: true, 
       game: { 
         sessionId: gameSession._id, 
-        roomAmount, 
+        roomAmount: amount, 
         currentPool: updatedRoomPool.currentPool, 
         totalPrize: finalPrize,
         playersCount: gameSession.players.length,
@@ -552,17 +565,20 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         calledNumbers: gameSession.calledNumbers, 
         botsAdded: injectedBots.length,
         streak: userStreak,
+        newBalance: updatedUser.balance,
+        totalPlayers: gameSession.players.length,
+        currentPool: updatedRoomPool.currentPool,
         prizeBreakdown: {
           grossPool: totalCollected,
           houseCut: houseCut,
           netPrize: finalPrize,
-          calculation: `${prizeCalculation.totalPlayers} players × ${roomAmount}birr × 0.85`
+          calculation: `${prizeCalculation.totalPlayers} players × ${amount}birr × 0.85`
         }
       } 
     });
   } catch (err) {
     console.error('Join room error:', err);
-    res.status(500).json({ error: 'Failed to join room' });
+    res.status(500).json({ error: err.message || 'Failed to join room' });
   }
 });
 
