@@ -690,8 +690,33 @@ async function processBotMovesLocal(gameSession, calledNumber) {
       await new Promise(resolve => setTimeout(resolve, BOT_REACTION_TIME_MS));
     }
     
-    // THE TRIGGER: Call simulateBotMove() for this bot
-    const move = simulateBotMove(gameSession, bot);
+    // THE TRIGGER: Find if the CALLED NUMBER exists on bot's card (DIRECT SCAN)
+    let move = null;
+    if (calledNumber) {
+      // Directly scan the bot's card in the game session for the called number
+      const playerIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
+      if (playerIndex !== -1) {
+        const playerData = gameSession.players[playerIndex];
+        const { cardGrid, markedState } = playerData;
+        
+        // Scan all 25 positions on the card
+        for (let row = 0; row < 5; row++) {
+          for (let col = 0; col < 5; col++) {
+            // If this position has the called number AND is not yet marked
+            if (cardGrid[row][col] === calledNumber && !markedState[row][col]) {
+              move = { row, col, num: calledNumber };
+              console.log(`🎯 Bot ${bot.name} FOUND number ${calledNumber} at [${row},${col}]`);
+              break;
+            }
+          }
+          if (move) break;
+        }
+      }
+    } else {
+      // Fallback to simulateBotMove for other cases (e.g., initial mark endpoint)
+      move = simulateBotMove(gameSession, bot);
+    }
+    
     if (move) {
       const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
       if (botIndex !== -1) {
@@ -706,7 +731,7 @@ async function processBotMovesLocal(gameSession, calledNumber) {
         // Reload the game session to ensure we have the latest state
         const freshSession = await GameSession.findById(gameSession._id).select('players calledNumbers gameStatus');
         
-        // THE WIN CHECK: Run checkBotWin() after every mark using fresh session data
+        // THE WIN CHECK: Run checkWin() after every mark using fresh session data
         const botWinResult = freshSession.checkWin(botIndex);
         if (botWinResult.win) {
           // Bot wins - handle payout sequence
