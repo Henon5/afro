@@ -8,7 +8,19 @@ const RoomPool = require('../models/RoomPool');
 const GameSession = require('../models/GameSession');
 const Transaction = require('../models/Transaction');
 const Bot = require('../models/Bot');
-const { initializeBots, simulateBotMove, checkBotWin, ensureAllBotsHaveCards } = require('../utils/botManager');
+const { initializeBots, simulateBotMove, checkBotWin, ensureAllBotsHaveCards, processBotMoves: processBotMovesFromManager, handleBotWin: handleBotWinFromManager, getBotReactionTime } = require('../utils/botManager');
+
+// BOT SPEED CONFIGURATION: 2 second reaction time (imported from botManager)
+const BOT_REACTION_TIME_MS = getBotReactionTime();
+
+// Re-export wrapper functions for local use with game session context
+async function processBotMoves(gameSession, calledNumber) {
+  return await processBotMovesLocal(gameSession, calledNumber);
+}
+
+async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
+  return await handleBotWinFromManager(gameSession, winningBot, playerIndex, winResult);
+}
 const { getInjectionPlan, calculateAtomicPrize, getBotsForStreak, calculateStreak, getPrizeForStreakAndRoom } = require('../utils/botInjectionPlane');
 
 // Track consecutive wins for the win pattern logic
@@ -629,8 +641,8 @@ router.post('/mark', auth, async (req, res) => {
     const playerIndex = gameSession.players.indexOf(player);
     const winResult = gameSession.checkWin(playerIndex);
     
-    // Process bot moves after human player marks
-    await processBotMoves(gameSession);
+    // Process bot moves after human player marks (pass null since no new number was called)
+    await processBotMoves(gameSession, null);
 
     res.json({ success: true, marked: player.markedState[row][col], matches: player.markedState.flat().filter(Boolean).length - 1, win: winResult.win, pattern: winResult.pattern });
   } catch (err) {
@@ -640,17 +652,20 @@ router.post('/mark', auth, async (req, res) => {
 });
 
 /**
- * Process bot moves in the game session with improved error handling and card validation
+ * Local bot move processor for game.js - wraps the imported function
  * This function is called after every callNumber() execution to activate bot play logic
+ * @param {Object} gameSession - The game session
+ * @param {number|null} calledNumber - The number that was just called (null if from mark endpoint)
  */
-async function processBotMoves(gameSession) {
+async function processBotMovesLocal(gameSession, calledNumber) {
   const botPlayers = gameSession.players.filter(p => p.isBot);
   
-  if (botPlayers.length === 0) return; // No bots to process
+  if (botPlayers.length === 0) return null; // No bots to process
   
-  console.log(`🤖 Processing ${botPlayers.length} bot moves...`);
+  console.log(`🤖 Processing ${botPlayers.length} bots${calledNumber ? ` for number ${calledNumber}` : ''}...`);
   
   for (const botPlayer of botPlayers) {
+    // Use telegramId (string) directly for lookup - DO NOT cast to ObjectId
     const bot = await Bot.findOne({ telegramId: botPlayer.user });
     if (!bot) {
       console.warn(`⚠️ Bot not found in DB: ${botPlayer.user}`);
@@ -670,9 +685,10 @@ async function processBotMoves(gameSession) {
       }
     }
 
-    // Check win pattern logic: bots win 2 times in a row, then user wins 1 time
-    // If consecutiveBotWins >= 2, skip bot winning to allow human to win
-    const shouldLetBotWin = consecutiveBotWins < 2;
+    // Simulate bot reaction with 2 second delay (only when a number is called)
+    if (calledNumber) {
+      await new Promise(resolve => setTimeout(resolve, BOT_REACTION_TIME_MS));
+    }
     
     // THE TRIGGER: Call simulateBotMove() for this bot
     const move = simulateBotMove(gameSession, bot);
@@ -685,16 +701,11 @@ async function processBotMoves(gameSession) {
         console.log(`✅ Bot ${bot.name} marked position [${move.row},${move.col}] = ${move.num}`);
         
         // THE WIN CHECK: Run checkBotWin() after every mark
-        const botWinResult = gameSession.checkWin(botIndex);
-        if (botWinResult.win && shouldLetBotWin) {
+        const botWinResult = checkBotWin(gameSession, bot);
+        if (botWinResult.win) {
           // Bot wins - handle payout sequence
-          console.log(`🎉 Bot ${bot.name} WINS with pattern: ${botWinResult.pattern}!`);
-          await handleBotWin(gameSession, bot, botIndex, botWinResult);
-          return; // Exit after a bot wins
-        } else if (botWinResult.win && !shouldLetBotWin) {
-          // Bot would win but we need to let human win - unmark this move
-          console.log(`⏸️ Bot ${bot.name} would win but human turn - unmarking move`);
-          gameSession.players[botIndex].markedState[move.row][move.col] = false;
+          console.log(`🏆 BOT WINNER: ${bot.name} with pattern: ${botWinResult.pattern}!`);
+          return { winner: bot, botIndex, winResult: botWinResult };
         }
       }
     }
@@ -705,6 +716,8 @@ async function processBotMoves(gameSession) {
     await gameSession.save();
     console.log(`💾 Saved bot moves to database`);
   }
+  
+  return null; // No winner yet
 }
 
 /**
@@ -879,7 +892,26 @@ router.post('/number/:sessionId', auth, async (req, res) => {
     const display = `${letter}-${nextNumber}`;
     
     // TRIGGER BOT MOVES: After calling a number, all bots check for matches and mark
-    await processBotMoves(gameSession);
+    const botResult = await processBotMoves(gameSession, nextNumber);
+    
+    // If a bot won, handle the payout and end the game
+    if (botResult && botResult.winner) {
+      await handleBotWin(gameSession, botResult.winner, botResult.botIndex, botResult.winResult);
+      
+      // Return game over response
+      return res.json({ 
+        success: true, 
+        number: nextNumber, 
+        display: display, 
+        callCount: gameSession.calledNumbers.length, 
+        complete: true,
+        gameOver: true,
+        winner: botResult.winner.name,
+        isBot: true,
+        pattern: botResult.winResult.pattern,
+        message: `Bot ${botResult.winner.name} has won the game!`
+      });
+    }
     
     // Reload game session to get updated bot states
     const updatedSession = await GameSession.findById(gameSession._id).select('players calledNumbers');

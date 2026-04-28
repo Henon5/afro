@@ -236,6 +236,126 @@ function checkBotWin(gameSession, bot) {
   return gameSession.checkWin(playerIndex);
 }
 
+/**
+ * Process bot moves in the game session with improved error handling and card validation
+ * This function is called after every callNumber() execution to activate bot play logic
+ * @param {Object} gameSession - The game session
+ * @param {number} calledNumber - The number that was just called
+ */
+async function processBotMoves(gameSession, calledNumber) {
+  const botPlayers = gameSession.players.filter(p => p.isBot);
+  
+  if (botPlayers.length === 0) return; // No bots to process
+  
+  console.log(`🤖 Processing ${botPlayers.length} bots for number ${calledNumber}...`);
+  
+  for (const botPlayer of botPlayers) {
+    // Use telegramId (string) directly for lookup - DO NOT cast to ObjectId
+    const bot = await Bot.findOne({ telegramId: botPlayer.user });
+    if (!bot) {
+      console.warn(`⚠️ Bot not found in DB: ${botPlayer.user}`);
+      continue;
+    }
+
+    // Validate bot has a valid card before playing
+    if (!bot.cardGrid || !bot.cardGrid.length || bot.cardGrid[0].length === 0) {
+      console.warn(`⚠️ Bot ${bot.name} has no valid card, generating one...`);
+      bot.generateCard();
+      await bot.save();
+      // Update player's card in session - Compare as strings
+      const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
+      if (botIndex !== -1) {
+        gameSession.players[botIndex].cardGrid = bot.cardGrid;
+        gameSession.players[botIndex].markedState = bot.markedState;
+      }
+    }
+
+    // Simulate bot reaction with 2 second delay
+    await new Promise(resolve => setTimeout(resolve, BOT_REACTION_TIME_MS));
+    
+    // THE TRIGGER: Call simulateBotMove() for this bot
+    const move = simulateBotMove(gameSession, bot);
+    if (move) {
+      const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
+      if (botIndex !== -1) {
+        // THE MARK: Update marked state in game session
+        gameSession.players[botIndex].markedState[move.row][move.col] = true;
+        
+        console.log(`✅ Bot ${bot.name} marked position [${move.row},${move.col}] = ${move.num}`);
+        
+        // THE WIN CHECK: Run checkBotWin() after every mark
+        const botWinResult = checkBotWin(gameSession, bot);
+        if (botWinResult.win) {
+          // Bot wins - handle payout sequence
+          console.log(`🏆 BOT WINNER: ${bot.name} with pattern: ${botWinResult.pattern}!`);
+          return { winner: bot, botIndex, winResult: botWinResult };
+        }
+      }
+    }
+  }
+  
+  return null; // No winner yet
+}
+
+/**
+ * Handle bot winning the game - THE PAYOUT
+ * Awards currentPool to the winning bot and stops the game
+ * @param {Object} gameSession - The game session
+ * @param {Object} winningBot - The winning bot
+ * @param {number} playerIndex - Index of bot in players array
+ * @param {Object} winResult - Win result object with pattern
+ */
+async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
+  const roomAmount = gameSession.roomAmount;
+  
+  // Get the room pool with current prize value BEFORE resetting
+  const roomPool = await RoomPool.findOne({ roomAmount: gameSession.roomAmount });
+  
+  if (!roomPool) return;
+  
+  const winnings = roomPool.currentPool + (roomPool.houseTotal || 0);
+  
+  // THE PAYOUT: Add currentPool to the winning bot's balance
+  await Bot.findByIdAndUpdate(winningBot._id, { 
+    $inc: { balance: winnings, totalWins: 1, totalWinnings: winnings } 
+  });
+  
+  console.log(`💰 Bot ${winningBot.name} awarded ${winnings} ETB (new balance will be updated)`);
+  
+  // Reset room pool
+  await RoomPool.findOneAndUpdate(
+    { roomAmount: gameSession.roomAmount },
+    { $set: { currentPool: 0, players: [] } }
+  );
+  
+  gameSession.gameStatus = 'completed';
+  gameSession.completedAt = new Date();
+  gameSession.winner = winningBot.telegramId.toString(); // Store as string to match schema
+  gameSession.winnerName = winningBot.name;
+  gameSession.winningPattern = winResult.pattern;
+  gameSession.isBotWin = true;
+  await gameSession.save();
+  
+  // Clear bot injection tracking for this room when game completes
+  const { clearBotInjectionForRoom } = require('./botInjectionPlane');
+  clearBotInjectionForRoom(roomAmount);
+  
+  // BROADCAST GAME_OVER: Send Socket.io event to frontend
+  const io = require('../server').io;
+  if (io) {
+    io.emit('GAME_OVER', {
+      sessionId: gameSession._id,
+      winner: winningBot.name,
+      winnerName: winningBot.name,
+      isBot: true,
+      pattern: winResult.pattern,
+      winnings: winnings,
+      roomAmount: roomAmount,
+      message: `Bot ${winningBot.name} has won the ${winnings} ETB pool!`
+    });
+  }
+}
+
 module.exports = {
   initializeBots,
   getActiveBots,
@@ -243,5 +363,7 @@ module.exports = {
   simulateBotMove,
   checkBotWin,
   ensureAllBotsHaveCards,
-  getBotReactionTime
+  getBotReactionTime,
+  processBotMoves,
+  handleBotWin
 };
