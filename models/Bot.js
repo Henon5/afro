@@ -10,6 +10,9 @@ const botSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true, index: true },
   difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium', index: true },
   lastPlayed: { type: Date, index: true },
+  lastRefill: { type: Date },
+  refillCount: { type: Number, default: 0 },
+  winRate: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now, index: true },
   // Bingo card fields for game participation
   cardGrid: { 
