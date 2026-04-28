@@ -700,8 +700,14 @@ async function processBotMovesLocal(gameSession, calledNumber) {
         
         console.log(`✅ Bot ${bot.name} marked position [${move.row},${move.col}] = ${move.num}`);
         
-        // THE WIN CHECK: Run checkBotWin() after every mark
-        const botWinResult = checkBotWin(gameSession, bot);
+        // CRITICAL: Save the game session immediately to persist the marked state
+        await gameSession.save();
+        
+        // Reload the game session to ensure we have the latest state
+        const freshSession = await GameSession.findById(gameSession._id).select('players calledNumbers gameStatus');
+        
+        // THE WIN CHECK: Run checkBotWin() after every mark using fresh session data
+        const botWinResult = freshSession.checkWin(botIndex);
         if (botWinResult.win) {
           // Bot wins - handle payout sequence
           console.log(`🏆 BOT WINNER: ${bot.name} with pattern: ${botWinResult.pattern}!`);
@@ -709,12 +715,6 @@ async function processBotMovesLocal(gameSession, calledNumber) {
         }
       }
     }
-  }
-  
-  // Save all bot marks to database
-  if (gameSession.isModified && gameSession.isModified()) {
-    await gameSession.save();
-    console.log(`💾 Saved bot moves to database`);
   }
   
   return null; // No winner yet
