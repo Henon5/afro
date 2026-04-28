@@ -22,6 +22,7 @@ async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
   return await handleBotWinFromManager(gameSession, winningBot, playerIndex, winResult);
 }
 const { getInjectionPlan, calculateAtomicPrize, getBotsForStreak, calculateStreak, getPrizeForStreakAndRoom } = require('../utils/botInjectionPlane');
+const { autoRefillBotBalances, regenerateBotCard } = require('../utils/botManager');
 
 // Track consecutive wins for the win pattern logic
 let consecutiveBotWins = 0;
@@ -458,6 +459,10 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     
     // Inject bots if needed according to the plan
     if (adjustedBotsToInject > 0) {
+      // AUTO-REFILL: Ensure all bots have sufficient balance before injection
+      // This prevents bots from being excluded due to low balance
+      await autoRefillBotBalances(500, 1000);
+      
       // UNIQUE PARTICIPATION: Get available bots (exclude bots already in session AND already tracked AND in any active game)
       // FIXED: Use simple string comparison instead of ObjectId conversion
       const existingBotIds = gameSession.players
@@ -494,7 +499,12 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       
       // Process each bot: deduct balance and add to game session
       for (const bot of availableBots) {
-        // BOT WALLET CHECK: If bot's balance is below entry fee, reset it to 1,000 ETB
+        // 🔄 FRESH CARD: Regenerate bot's card for this new game
+        // This ensures bots have different cards in each game they play
+        bot.generateCard();
+        await bot.save();
+        
+        // BOT WALLET CHECK: If bot's balance is below entry fee after refill, reset it to 1,000 ETB
         if (bot.balance < amount) {
           console.log(`💰 Bot ${bot.name} balance too low (${bot.balance}), resetting to 1000 ETB`);
           await Bot.findByIdAndUpdate(bot._id, { balance: 1000 });
@@ -504,19 +514,9 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         // Deduct bot balance (bot pays entry fee)
         await deductBotBalance(bot._id, amount);
         
-        // Use the bot's pre-generated card from database if available, otherwise generate new one
-        let botCard, botMarked;
-        if (bot.cardGrid && bot.cardGrid.length > 0 && bot.cardGrid[0].length > 0) {
-          // Use existing card from bot's profile
-          botCard = bot.cardGrid;
-          botMarked = bot.markedState || Array(5).fill(null).map(() => Array(5).fill(false));
-          botMarked[2][2] = true; // Ensure center is marked (free space)
-        } else {
-          // Generate new card if none exists
-          const newCard = GameSession.generateCard();
-          botCard = newCard.cardGrid;
-          botMarked = newCard.markedState;
-        }
+        // Use the bot's freshly generated card
+        const botCard = bot.cardGrid;
+        const botMarked = bot.markedState; // Already reset with free space marked
         
         const botPlayer = {
           user: bot.telegramId.toString(), // Ensure bot ID is stored as STRING
@@ -761,7 +761,7 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   
   // THE PAYOUT: Add currentPool to the winning bot's balance
   await Bot.findByIdAndUpdate(bot._id, { 
-    $inc: { balance: winnings, totalWins: 1, totalWinnings: winnings } 
+    $inc: { balance: winnings, totalWins: 1, totalWinnings: winnings, gamesPlayed: 1 } 
   });
   
   console.log(`💰 Bot ${bot.name} awarded ${winnings} ETB (new balance will be updated)`);

@@ -370,6 +370,81 @@ async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
   }
 }
 
+/**
+ * Auto-refill bot balances when they fall below minimum threshold
+ * Ensures bots can always participate in games
+ * @param {number} minBalance - Minimum balance threshold (default: 500 ETB)
+ * @param {number} refillAmount - Amount to add when below threshold (default: 1000 ETB)
+ * @returns {Promise<Object>} - { refilled, totalAdded }
+ */
+async function autoRefillBotBalances(minBalance = 500, refillAmount = 1000) {
+  try {
+    const lowBalanceBots = await Bot.find({ 
+      isActive: true, 
+      balance: { $lt: minBalance } 
+    });
+    
+    if (lowBalanceBots.length === 0) {
+      console.log('✅ All bots have sufficient balance');
+      return { refilled: 0, totalAdded: 0 };
+    }
+    
+    console.log(`💰 Refilling ${lowBalanceBots.length} bots with low balance...`);
+    
+    const refillOps = lowBalanceBots.map(bot => ({
+      updateOne: {
+        filter: { _id: bot._id },
+        update: { 
+          $inc: { balance: refillAmount, refillCount: 1 },
+          lastRefill: new Date()
+        }
+      }
+    }));
+    
+    const result = await Bot.bulkWrite(refillOps);
+    
+    console.log(`✅ Refilled ${result.modifiedCount} bots with ${refillAmount} ETB each`);
+    
+    return { 
+      refilled: result.modifiedCount,
+      totalAdded: result.modifiedCount * refillAmount
+    };
+  } catch (error) {
+    console.error('❌ Error refilling bot balances:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Regenerate a fresh bingo card for a specific bot
+ * Called when bot enters a new game to ensure unique cards per game
+ * @param {string} botId - Bot MongoDB ID or telegramId
+ * @returns {Promise<Object>} - Updated bot with new card
+ */
+async function regenerateBotCard(botId) {
+  try {
+    const bot = await Bot.findOne({ 
+      $or: [{ _id: botId }, { telegramId: botId }] 
+    });
+    
+    if (!bot) {
+      console.warn(`⚠️ Bot not found for card regeneration: ${botId}`);
+      return null;
+    }
+    
+    // Generate fresh card
+    bot.generateCard();
+    await bot.save();
+    
+    console.log(`🔄 Regenerated card for bot ${bot.name}`);
+    
+    return bot;
+  } catch (error) {
+    console.error('❌ Error regenerating bot card:', error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   initializeBots,
   getActiveBots,
@@ -379,5 +454,7 @@ module.exports = {
   ensureAllBotsHaveCards,
   getBotReactionTime,
   processBotMoves,
-  handleBotWin
+  handleBotWin,
+  autoRefillBotBalances,
+  regenerateBotCard
 };
