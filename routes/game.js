@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const { auth } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
@@ -316,9 +317,6 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     
     console.log(`📈 User ${req.user._id} streak: ${updatedUser.currentStreak || 0} → ${userStreak} (reset: ${streakResult.shouldReset})`);
     
-    // Step 2: Get bots to inject based on streak from Master Sheet
-    const botsToInject = getBotsForStreak(userStreak);
-    
     // ANTI-FLOOD: Check if this room is already being processed
     const processingKey = `${roomAmount}_${req.user._id}`;
     if (roomProcessingState.get(processingKey)) {
@@ -350,11 +348,29 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Set processing flag
     roomProcessingState.set(processingKey, true);
     
-    // MILESTONE CAP: Enforce hard limit at 28 players
+    // Refresh game session to get latest player count after potential concurrent joins
+    gameSession = await GameSession.findOne({ roomAmount, gameStatus: { $in: ['waiting', 'active'] } });
+    if (!gameSession) {
+      // Session was deleted or completed, create new one with just this human
+      gameSession = await GameSession.create({ 
+        roomAmount, 
+        gameStatus: 'active',
+        startedAt: new Date(),
+        players: [humanPlayer]
+      });
+    }
+    
+    // MILESTONE CAP: Enforce hard limit at 28 players - STRICT CHECK BEFORE ANY INJECTION
     const currentTotalPlayers = gameSession.players.length;
     const maxPlayersAllowed = 28;
     
-    // If room already at maximum capacity, stop all injection
+    // Count humans and bots separately for accurate tracking
+    const currentHumans = gameSession.players.filter(p => !p.isBot).length;
+    const currentBots = gameSession.players.filter(p => p.isBot).length;
+    
+    console.log(`📊 Room ${roomAmount}: ${currentHumans} humans + ${currentBots} bots = ${currentTotalPlayers} total`);
+    
+    // If room already at maximum capacity, stop all injection - DO NOT ADD BOTS
     if (currentTotalPlayers >= maxPlayersAllowed) {
       console.log(`🛑 Milestone Cap: Room ${roomAmount} at maximum capacity (${currentTotalPlayers}/28). Stopping bot injection.`);
       roomProcessingState.delete(processingKey);
@@ -367,8 +383,8 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
           currentPool: updatedRoomPool ? updatedRoomPool.currentPool : 0, 
           totalPrize: prizeCalculation.prizePool,
           playersCount: currentTotalPlayers,
-          humanPlayers: currentHumanCount,
-          botPlayers: gameSession.players.filter(p => p.isBot).length,
+          humanPlayers: currentHumans,
+          botPlayers: currentBots,
           cardGrid, 
           markedState, 
           calledNumbers: gameSession.calledNumbers, 
@@ -378,6 +394,9 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         } 
       });
     }
+    
+    // Step 2: Get bots to inject based on streak from Master Sheet
+    const botsToInject = getBotsForStreak(userStreak);
     
     // RESOURCE GUARD: Limit bots injected in single request to MAX_BOTS_PER_REQUEST
     let adjustedBotsToInject = botsToInject;
@@ -393,8 +412,16 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       adjustedBotsToInject = Math.max(0, maxBotsForMilestone);
     }
     
+    // STREAK LOGIC FIX: Check if room already has bots from previous player
+    // Do not add more bots if it will exceed the Streak Milestone target
+    const targetTotalPlayers = currentHumans + adjustedBotsToInject;
+    if (targetTotalPlayers > maxPlayersAllowed) {
+      console.log(`⚠️ Streak Logic: Adjusting to prevent overflow. Target: ${targetTotalPlayers}, Max: ${maxPlayersAllowed}`);
+      adjustedBotsToInject = Math.max(0, maxPlayersAllowed - currentTotalPlayers);
+    }
+    
     // Calculate total players and prize based on adjusted bot count
-    const totalPlayersAfterInjection = currentHumanCount + adjustedBotsToInject;
+    const totalPlayersAfterInjection = currentHumans + adjustedBotsToInject;
     const prizeCalculation = {
       prizePool: calculatePrizeForRoom(roomAmount, totalPlayersAfterInjection),
       totalPlayers: totalPlayersAfterInjection,
@@ -409,22 +436,35 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     // Inject bots if needed according to the plan
     if (adjustedBotsToInject > 0) {
       // UNIQUE PARTICIPATION: Get available bots (exclude bots already in session AND already tracked AND in any active game)
-      const existingBotIds = gameSession.players.filter(p => p.isBot).map(p => p.user);
-      const allExcludedBotIds = new Set([...existingBotIds, ...trackedBotsInRoom]);
+      // Use mongoose.Types.ObjectId for proper deduplication
+      const existingBotIds = gameSession.players
+        .filter(p => p.isBot)
+        .map(p => mongoose.Types.ObjectId.isValid(p.user) ? new mongoose.Types.ObjectId(p.user) : p.user);
+      
+      const trackedBotIds = Array.from(trackedBotsInRoom).map(id => 
+        mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id
+      );
+      
+      const allExcludedBotIds = new Set([...existingBotIds, ...trackedBotIds]);
       
       // Find all active game sessions to exclude bots currently playing elsewhere
       const activeSessions = await GameSession.find({ gameStatus: 'active' }).select('players');
       const botsInActiveGames = new Set();
       activeSessions.forEach(session => {
         session.players.filter(p => p.isBot).forEach(botPlayer => {
-          botsInActiveGames.add(botPlayer.user);
+          if (mongoose.Types.ObjectId.isValid(botPlayer.user)) {
+            botsInActiveGames.add(new mongoose.Types.ObjectId(botPlayer.user));
+          } else {
+            botsInActiveGames.add(botPlayer.user);
+          }
         });
       });
       
+      console.log(`🔍 Bot Deduplication: Excluding ${allExcludedBotIds.size} tracked bots + ${botsInActiveGames.size} active bots`);
+      
       // Query for available bots: not in this session, not tracked, not in other active games, isActive=true, has sufficient balance
       const availableBots = await Bot.find({ 
-        telegramId: { $nin: Array.from(allExcludedBotIds) },
-        _id: { $nin: Array.from(botsInActiveGames) },
+        _id: { $nin: Array.from(allExcludedBotIds), $nin: Array.from(botsInActiveGames) },
         isActive: true,
         balance: { $gte: roomAmount }
       }).limit(adjustedBotsToInject);

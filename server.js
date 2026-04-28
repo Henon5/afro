@@ -15,6 +15,42 @@ require('dotenv').config();
 
 const app = express();
 
+// EMERGENCY ROOM RESET: Flush all rooms on startup to clear any overflow (42 players issue)
+async function performEmergencyReset() {
+  try {
+    const RoomPool = require('./models/RoomPool');
+    const GameSession = require('./models/GameSession');
+    
+    console.log('🔧 Performing Emergency Room Reset on startup...');
+    
+    // Reset all RoomPool player arrays and currentPool to 0
+    await RoomPool.updateMany({}, {
+      $set: { 
+        currentPool: 0,
+        houseTotal: 0,
+        players: []
+      }
+    });
+    
+    // Clear all active game sessions
+    await GameSession.updateMany(
+      { gameStatus: { $in: ['waiting', 'active'] } },
+      { 
+        $set: { 
+          gameStatus: 'completed',
+          completedAt: new Date(),
+          players: []
+        } 
+      }
+    );
+    
+    console.log('✅ Emergency Room Reset Complete - All rooms flushed\n');
+  } catch (err) {
+    console.error('⚠️ Emergency Reset Warning:', err.message);
+    // Non-critical, continue startup
+  }
+}
+
 // CORS Configuration - Allow GitHub Pages origin with credentials
 app.use(cors({ 
   origin: 'https://henon5.github.io', 
@@ -37,6 +73,8 @@ const initPromise = Promise.all([
     console.error('❌ Database connection failed:', err.message);
     throw err;
   }),
+  // Perform emergency reset AFTER database connection but BEFORE room initialization
+  performEmergencyReset(),
   RoomPool.initializeRooms().catch(err => {
     console.error('❌ Room initialization failed:', err.message);
     // Non-critical, continue
