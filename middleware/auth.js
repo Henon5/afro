@@ -8,6 +8,11 @@ const verifyTelegramData = (initData) => {
   // Skip verification in development if no bot token is set
   if (!process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN === 'YOUR_TELEGRAM_BOT_TOKEN_HERE') {
     console.warn('⚠️ TELEGRAM_BOT_TOKEN not set - skipping initData verification (DEV MODE)');
+    // SECURITY FIX: In production, always require valid bot token
+    if (process.env.NODE_ENV === 'production') {
+      console.error('❌ CRITICAL: Telegram verification disabled in production!');
+      return false;
+    }
     return true;
   }
   
@@ -83,14 +88,11 @@ exports.auth = async (req, res, next) => {
     let user = null;
     let isAdminAuth = false;
     
-    // Log the raw authorization header for debugging
-    const authHeader = req.headers.authorization;
-    console.log('🔑 Raw Authorization Header:', authHeader || 'null');
-    
+    // Log auth attempts without exposing sensitive data
     if (!authHeader || authHeader === 'null' || authHeader === 'undefined') {
-      console.log('❌ No Token Received');
+      // No token provided
     } else {
-      console.log('🔑 Token Received:', authHeader.substring(0, 50) + '...');
+      // Token received
     }
 
     // 📱 Case 1: Telegram WebApp authentication via Authorization header
@@ -98,7 +100,6 @@ exports.auth = async (req, res, next) => {
     let authToken = authHeader;
     if (authToken && authToken.startsWith('Bearer ')) {
       authToken = authToken.substring(7); // Remove 'Bearer ' prefix
-      console.log('✂️ Stripped Bearer prefix, raw token:', authToken.substring(0, 50) + '...');
     }
     
     // Check if it's Telegram initData (starts with query_id= or user=, or contains hash=)
@@ -140,7 +141,6 @@ exports.auth = async (req, res, next) => {
         
         user = await processTelegramUser(tgUser);
         
-        console.log('✅ Player authenticated via Authorization header:', user._id, 'telegramId:', user.telegramId);
         isAdminAuth = false;
       } catch (telegramError) {
         console.error('❌ Telegram authentication error:', telegramError.message);
@@ -186,7 +186,6 @@ exports.auth = async (req, res, next) => {
         
         user = await processTelegramUser(tgUser);
         
-        console.log('✅ Player authenticated via X-Telegram-Init-Data:', user._id, 'telegramId:', user.telegramId);
         isAdminAuth = false;
       } catch (telegramError) {
         console.error('❌ Telegram authentication error:', telegramError.message);
@@ -242,10 +241,11 @@ exports.auth = async (req, res, next) => {
         
         if (!secret) {
           console.error('❌ CRITICAL: No JWT Secret found in environment variables!');
+          return res.status(500).json({ error: 'Server configuration error' });
         }
         
         try {
-          const decoded = jwt.verify(token, secret || 'fallback-secret-change-in-production');
+          const decoded = jwt.verify(token, secret);
           
           // Check if this is an admin token
           if (decoded && (decoded.id === 'admin' || decoded.isAdmin)) {
@@ -269,24 +269,23 @@ exports.auth = async (req, res, next) => {
               { upsert: true, new: true, setDefaultsOnInsert: true }
             );
             isAdminAuth = false;
-            console.log('✅ Player authenticated via JWT:', user._id, 'telegramId:', user.telegramId);
           } else {
             console.warn('⚠️ Valid JWT but missing telegramId - cannot identify user');
             return res.status(401).json({ error: 'Invalid token payload' });
           }
         } catch (jwtError) {
-          console.warn('⚠️ JWT verification failed:', jwtError.message);
+          console.warn('⚠️ JWT verification failed:', jwtError.name);
           if (jwtError.name === 'TokenExpiredError') {
-            console.error('❌ Token Expired:', jwtError.expiredAt);
+            console.error('❌ Token Expired');
           } else if (jwtError.name === 'JsonWebTokenError') {
-            console.error('❌ Invalid Token (Wrong Secret or Malformed):', jwtError.message);
+            console.error('❌ Invalid Token');
           } else {
-            console.error('❌ JWT Error:', jwtError.name, jwtError.message);
+            console.error('❌ JWT Error:', jwtError.name);
           }
           return res.status(401).json({ error: 'Invalid session. Please login again.' });
         }
       } catch (tokenError) {
-        console.warn('⚠️ JWT token processing error:', tokenError.message);
+        console.warn('⚠️ JWT token processing error');
         return res.status(401).json({ error: 'Invalid session. Please login again.' });
       }
     }
@@ -325,29 +324,17 @@ exports.auth = async (req, res, next) => {
       const isAdminById = adminIds.includes(userIdToCheck);
       const isAdminByTelegramId = telegramIdToCheck && adminIds.includes(telegramIdToCheck);
       
-      // DEBUG LOGGING
-      console.log('🔍 Admin Check Debug:', {
-        userId: userIdToCheck,
-        telegramId: telegramIdToCheck,
-        adminIds,
-        isAdminById,
-        isAdminByTelegramId,
-        currentIsAdmin: user.isAdmin
-      });
-      
       if (isAdminById || isAdminByTelegramId) {
         // This user is an admin based on their Telegram ID or User ID
         isAdminAuth = true;
         user.isAdmin = true;
-        console.log('✅ Admin authenticated via ID:', user._id, 'telegramId:', user.telegramId, 'matched adminId:', isAdminById ? userIdToCheck : telegramIdToCheck);
       } else {
         // This is a regular player - explicitly set isAdminAuth to false
         isAdminAuth = false;
         // Keep existing isAdmin value from DB, don't override to false
-        console.log('✅ Regular player authenticated:', user._id, 'telegramId:', user.telegramId, 'adminIds:', adminIds);
       }
     } else if (user._id === 'admin') {
-      console.log('👮 Admin authenticated via credentials');
+      // Admin authenticated via credentials
     }
 
     // 🚫 Check if user is blocked (skip for admin)
@@ -358,7 +345,6 @@ exports.auth = async (req, res, next) => {
     // ✅ Attach user to request and proceed
     req.user = user;
     req.isAdminAuth = isAdminAuth; // Flag to indicate admin auth (not a real DB user)
-    console.log('✅ Auth successful - user:', req.user._id, 'isAdminAuth:', req.isAdminAuth);
     next();
     
   } catch (error) {

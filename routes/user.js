@@ -53,124 +53,9 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// POST method (legacy support)
-router.post('/profile', auth, validate('updateProfile'), async (req, res) => {
-  try {
-    // Debug logging - FIRST thing to log
-    console.log("📝 Attempting to save profile for user:", req.user._id);
-    console.log("📝 Data received:", JSON.stringify(req.body));
-    console.log("📝 User object:", JSON.stringify({ 
-      _id: req.user._id, 
-      telegramId: req.user.telegramId,
-      isAdminAuth: req.isAdminAuth,
-      isAdmin: req.user.isAdmin
-    }));
-    
-    // Admin users authenticated via token cannot update profile (no DB record)
-    if (req.isAdminAuth) {
-      console.warn('⚠️ Admin attempted to update profile');
-      return res.status(403).json({ error: 'Admin profiles cannot be updated via this endpoint' });
-    }
-    
-    // Validate that req.user._id is a valid ObjectId format (not 'admin' string or invalid ID)
-    const mongoose = require('mongoose');
-    if (!req.user._id || !mongoose.Types.ObjectId.isValid(req.user._id)) {
-      console.error('❌ Invalid user ID for profile update:', req.user._id);
-      return res.status(400).json({ error: 'Invalid user authentication - please log in again' });
-    }
-    
-    const updates = {};
-    
-    // Only update fields that are provided and not empty/null in the request
-    if (req.body.name !== undefined && req.body.name !== null && req.body.name !== '') {
-      updates.firstName = req.body.name;
-    }
-    if (req.body.username !== undefined && req.body.username !== null && req.body.username !== '') {
-      updates.username = req.body.username;
-    }
-    if (req.body.phone !== undefined && req.body.phone !== null && req.body.phone !== '') {
-      updates.phone = req.body.phone;
-    }
-    if (req.body.telegramHandle !== undefined && req.body.telegramHandle !== null && req.body.telegramHandle !== '') {
-      updates.telegramHandle = req.body.telegramHandle;
-    }
-    
-    // Always update lastActive
-    updates.lastActive = Date.now();
-    
-    // Debug logging
-    console.log('📝 Profile update request (POST):', {
-      userId: req.user._id,
-      userType: 'telegram',
-      updates: Object.keys(updates).filter(k => k !== 'lastActive'),
-      hasName: !!updates.firstName,
-      hasUsername: !!updates.username,
-      hasPhone: !!updates.phone
-    });
-    
-    // If no valid updates, return current user data without changes
-    if (Object.keys(updates).length === 1 && updates.lastActive) {
-      const user = await User.findById(req.user._id);
-      if (!user) {
-        console.error('❌ User not found in DB:', req.user._id);
-        return res.status(404).json({ error: 'User not found' });
-      }
-      return res.json({ 
-        success: true, 
-        message: 'No changes to update',
-        user: { 
-          displayName: user.firstName || user.username || user.telegramHandle || 'Player', 
-          username: user.username || '',
-          firstName: user.firstName || '',
-          phone: user.phone || '', 
-          telegramHandle: user.telegramHandle || '',
-          gamesPlayed: user.gamesPlayed || 0,
-          totalWins: user.totalWins || 0
-        } 
-      });
-    }
-    
-    console.log('🔄 Updating user (POST):', req.user._id, 'with fields:', Object.keys(updates).filter(k => k !== 'lastActive'));
-    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true, runValidators: true });
-    if (!user) {
-      console.error('❌ Failed to update user - not found:', req.user._id);
-      return res.status(404).json({ error: 'User not found' });
-    }
-    console.log('✅ User updated successfully (POST):', user._id);
-    res.json({ 
-      success: true, 
-      user: { 
-        displayName: user.firstName || user.username || user.telegramHandle || 'Player', 
-        username: user.username || '',
-        firstName: user.firstName || '',
-        phone: user.phone || '', 
-        telegramHandle: user.telegramHandle || '',
-        gamesPlayed: user.gamesPlayed || 0,
-        totalWins: user.totalWins || 0
-      } 
-    });
-  } catch (err) {
-    console.error('❌ Error updating profile (POST):', err);
-    console.error('Error details:', {
-      message: err.message,
-      name: err.name,
-      code: err.code,
-      keyValue: err.keyValue
-    });
-    res.status(500).json({ error: 'Failed to update profile', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
-  }
-});
-
 // PUT method (preferred)
 router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
-    // Debug logging - FIRST thing to log
-    console.log("💾 Save attempt received. Body:", req.body);
-    console.log("👤 Authenticated User ID:", req.user?._id);
-    console.log('Incoming User ID:', req.user._id);
-    console.log('Incoming Data:', req.body);
-    console.log('Attempting to save data for:', req.user._id);
-    
     // If req.user._id === 'admin', return 403
     if (req.user._id === 'admin') {
       console.warn('⚠️ Admin user attempted to update profile');
@@ -202,9 +87,6 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    console.log('✅ Database updated successfully');
-    console.log('✅ Player data saved to MongoDB');
-    
     return res.status(200).json({ 
       success: true, 
       message: 'Profile updated successfully',
@@ -219,14 +101,8 @@ router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('❌ Error updating profile (PUT):', err);
-    console.error('Error details:', {
-      message: err.message,
-      name: err.name,
-      code: err.code,
-      keyValue: err.keyValue
-    });
-    res.status(500).json({ error: 'Failed to update profile', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+    console.error('❌ Error updating profile:', err);
+    res.status(500).json({ error: 'Failed to update profile' });
   }
 });
 
