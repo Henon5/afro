@@ -1,4 +1,5 @@
 const Bot = require('../models/Bot');
+const RoomPool = require('../models/RoomPool');
 
 // BOT SPEED CONFIGURATION: 2 second reaction time
 // Bots automatically mark their cards when a number is called
@@ -344,18 +345,24 @@ async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
   clearBotInjectionForRoom(roomAmount);
   
   // BROADCAST GAME_OVER: Send Socket.io event to frontend
-  const io = require('../server').io;
-  if (io) {
-    io.emit('GAME_OVER', {
-      sessionId: gameSession._id,
-      winner: winningBot.name,
-      winnerName: winningBot.name,
-      isBot: true,
-      pattern: winResult.pattern,
-      winnings: winnings,
-      roomAmount: roomAmount,
-      message: `Bot ${winningBot.name} has won the ${winnings} ETB pool!`
-    });
+  // Note: Socket.io integration requires server.js to export io instance
+  try {
+    const serverModule = require('../server');
+    const io = serverModule.io || serverModule.getIO();
+    if (io) {
+      io.emit('GAME_OVER', {
+        sessionId: gameSession._id,
+        winner: winningBot.name,
+        winnerName: winningBot.name,
+        isBot: true,
+        pattern: winResult.pattern,
+        winnings: winnings,
+        roomAmount: roomAmount,
+        message: `Bot ${winningBot.name} has won the ${winnings} ETB pool!`
+      });
+    }
+  } catch (err) {
+    console.warn('⚠️ Socket.io not available, skipping GAME_OVER broadcast:', err.message);
   }
 }
 
