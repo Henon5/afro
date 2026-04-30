@@ -527,10 +527,12 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
               $set: {
                 cardGrid: bot.cardGrid,
                 markedState: bot.markedState,
-                balance: bot.balance - amount,
                 lastPlayed: new Date()
               },
-              $inc: { gamesPlayed: 1 }
+              $inc: { 
+                gamesPlayed: 1,
+                balance: -amount // Deduct entry fee from bot's balance
+              }
             }
           }
         });
@@ -552,6 +554,9 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
         
         // Track this bot injection in the sheet
         trackBotInjection(amount, bot.telegramId);
+        
+        // AUDIT LOG: Track bot entry fee deduction
+        console.log(`💸 Bot ${bot.name} paid ${amount} ETB entry fee (new balance: ${bot.balance - amount})`);
       }
       
       // OPTIMIZATION: Execute all bot updates in a single batch operation
@@ -783,15 +788,20 @@ async function processBotMovesLocal(gameSession, calledNumber) {
 async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   const roomAmount = gameSession.roomAmount;
   
-  // Get the room pool with current prize value BEFORE resetting
-  const roomPool = await RoomPool.findOne({ roomAmount: gameSession.roomAmount });
+  // Get the room pool with current prize value BEFORE resetting (critical for correct payout)
+  const roomPoolBeforeReset = await RoomPool.findOne({ roomAmount: gameSession.roomAmount });
   
-  if (!roomPool) return;
+  if (!roomPoolBeforeReset) return;
   
-  const winnings = roomPool.currentPool + (roomPool.houseTotal || 0);
+  // Capture the actual pool values before they're reset
+  const poolValue = roomPoolBeforeReset.currentPool || 0;
+  const houseTotalValue = roomPoolBeforeReset.houseTotal || 0;
+  
+  // Calculate total winnings from captured values
+  const winnings = poolValue + houseTotalValue;
   
   // HOUSE CUT SEPARATION: Transfer 15% house cut to Admin Wallet BEFORE bot payout
-  const houseCut = roomPool.houseTotal || 0;
+  const houseCut = houseTotalValue;
   if (houseCut > 0) {
     const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [];
     if (adminIds.length > 0) {
@@ -804,7 +814,10 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
     }
   }
   
-  // THE PAYOUT: Add currentPool to the winning bot's balance
+  // DEBUG LOG: Show pool breakdown
+  console.log(`💰 Bot Payout Breakdown - Pool: ${poolValue}, House: ${houseTotalValue}, Total: ${winnings}`);
+  
+  // THE PAYOUT: Add winnings to the winning bot's balance
   await Bot.findByIdAndUpdate(bot._id, { 
     $inc: { balance: winnings, totalWins: 1, totalWinnings: winnings, gamesPlayed: 1 } 
   });
@@ -813,7 +826,7 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   // AUDIT LOG: Track successful payout
   console.log(`[PAYOUT] Successfully moved ${winnings} ETB to Bot: ${bot.telegramId}`);
   
-  // Reset room pool (including houseTotal since it's been transferred to admin)
+  // Reset room pool after capturing values (including houseTotal since it's been transferred to admin)
   await RoomPool.findOneAndUpdate(
     { roomAmount: gameSession.roomAmount },
     { $set: { currentPool: 0, houseTotal: 0, players: [] } }
@@ -871,22 +884,30 @@ router.post('/claim', auth, async (req, res) => {
     const winResult = gameSession.checkWin(playerIndex);
     if (!winResult.win) return res.status(400).json({ error: 'No bingo pattern detected' });
 
-    // Atomic update to reset pool and get current value (including houseTotal)
+    // Get current pool value BEFORE resetting (critical for correct payout)
+    const roomPoolBeforeReset = await RoomPool.findOne({ roomAmount: gameSession.roomAmount });
+    
+    if (!roomPoolBeforeReset) return res.status(404).json({ error: 'Room pool not found' });
+    
+    // Capture the actual pool values before they're reset
+    const poolValue = roomPoolBeforeReset.currentPool || 0;
+    const houseTotalValue = roomPoolBeforeReset.houseTotal || 0;
+    
+    // Atomic update to reset pool after capturing values
     const roomPool = await RoomPool.findOneAndUpdate(
       { roomAmount: gameSession.roomAmount },
       { $set: { currentPool: 0, houseTotal: 0, players: [] } },
       { new: true }
     );
     
-    if (!roomPool) return res.status(404).json({ error: 'Room pool not found' });
-    
-    const winnings = roomPool.currentPool + (roomPool.houseTotal || 0);
+    // Calculate total winnings from captured values
+    const winnings = poolValue + houseTotalValue;
 
     // Get user info for name display
     const userInfo = await User.findById(req.user._id).select('firstName username telegramId');
     
     // HOUSE CUT SEPARATION: Calculate and transfer 15% house cut to Admin Wallet BEFORE player payout
-    const houseCut = roomPool.houseTotal || 0;
+    const houseCut = houseTotalValue;
     if (houseCut > 0) {
       // Transfer house cut to admin wallet (using first admin ID from env)
       const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [];
@@ -899,6 +920,9 @@ router.post('/claim', auth, async (req, res) => {
         console.log(`🏦 House Cut: ${houseCut} ETB transferred to Admin Wallet`);
       }
     }
+    
+    // DEBUG LOG: Show pool breakdown
+    console.log(`💰 Payout Breakdown - Pool: ${poolValue}, House: ${houseTotalValue}, Total: ${winnings}`);
     
     // Atomic balance update with projection
     const updatedUser = await User.findByIdAndUpdate(
