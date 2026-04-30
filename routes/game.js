@@ -884,54 +884,43 @@ router.post('/claim', auth, async (req, res) => {
     const winResult = gameSession.checkWin(playerIndex);
     if (!winResult.win) return res.status(400).json({ error: 'No bingo pattern detected' });
 
-    // Get current pool value BEFORE resetting (critical for correct payout)
-    const roomPoolBeforeReset = await RoomPool.findOne({ roomAmount: gameSession.roomAmount });
+    // STEP 1: Calculate Total Pool using the Master Formula
+    // totalPool = entryFee * totalPlayers (all players including bots)
+    const totalPlayers = gameSession.players.length;
+    const totalPool = gameSession.roomAmount * totalPlayers;
     
-    if (!roomPoolBeforeReset) return res.status(404).json({ error: 'Room pool not found' });
+    // STEP 2: Calculate My Prize (85% of total pool)
+    const prizeAmount = Math.floor(totalPool * 0.85);
     
-    // Capture the actual pool values before they're reset
-    const poolValue = roomPoolBeforeReset.currentPool || 0;
-    const houseTotalValue = roomPoolBeforeReset.houseTotal || 0;
+    // STEP 3: Calculate House Cut (15% of total pool)
+    const houseCut = Math.floor(totalPool * 0.15);
     
-    // Atomic update to reset pool after capturing values
-    const roomPool = await RoomPool.findOneAndUpdate(
-      { roomAmount: gameSession.roomAmount },
-      { $set: { currentPool: 0, houseTotal: 0, players: [] } },
-      { new: true }
-    );
-    
-    // Calculate total winnings from captured values
-    const winnings = poolValue + houseTotalValue;
+    console.log(`💰 PAYOUT CALCULATION: Total Pool=${totalPool} ETB, Prize (85%)=${prizeAmount} ETB, House Cut (15%)=${houseCut} ETB`);
 
     // Get user info for name display
     const userInfo = await User.findById(req.user._id).select('firstName username telegramId');
     
-    // HOUSE CUT SEPARATION: Calculate and transfer 15% house cut to Admin Wallet BEFORE player payout
-    const houseCut = houseTotalValue;
-    if (houseCut > 0) {
-      // Transfer house cut to admin wallet (using first admin ID from env)
-      const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [];
-      if (adminIds.length > 0) {
-        await User.findByIdAndUpdate(
-          adminIds[0],
-          { $inc: { balance: houseCut } },
-          { upsert: true }
-        );
-        console.log(`🏦 House Cut: ${houseCut} ETB transferred to Admin Wallet`);
-      }
+    // STEP 4: Execute Database Transaction - Transfer House Cut to Admin FIRST
+    const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [];
+    if (adminIds.length > 0 && houseCut > 0) {
+      await User.findByIdAndUpdate(
+        adminIds[0],
+        { $inc: { balance: houseCut } },
+        { upsert: true }
+      );
+      console.log(`🏦 House Cut: ${houseCut} ETB transferred to Admin Wallet`);
     }
     
-    // DEBUG LOG: Show pool breakdown
-    console.log(`💰 Payout Breakdown - Pool: ${poolValue}, House: ${houseTotalValue}, Total: ${winnings}`);
-    
-    // Atomic balance update with projection
+    // STEP 5: Execute Database Transaction - Award Prize to Winner
+    // Use String ID for the winner to match database format
+    const winnerId = req.user._id.toString();
     const updatedUser = await User.findByIdAndUpdate(
-      req.user._id,
+      winnerId,
       { 
         $inc: { 
-          balance: winnings, 
+          balance: prizeAmount, 
           totalWins: 1, 
-          totalWinnings: winnings,
+          totalWinnings: prizeAmount,
           gamesPlayed: 1 
         } 
       },
@@ -939,11 +928,11 @@ router.post('/claim', auth, async (req, res) => {
     );
 
     // Create transaction asynchronously
-    Transaction.create({ userId: req.user._id, type: 'winning', amount: winnings, status: 'completed' }).catch(console.error);
+    Transaction.create({ userId: req.user._id, type: 'winning', amount: prizeAmount, status: 'completed' }).catch(console.error);
     
     gameSession.gameStatus = 'completed'; 
     gameSession.completedAt = new Date(); 
-    gameSession.winner = req.user._id.toString();
+    gameSession.winner = winnerId;
     gameSession.winnerName = userInfo.firstName || userInfo.username || 'Player';
     gameSession.winningPattern = winResult.pattern;
     gameSession.isBotWin = false;
@@ -956,12 +945,19 @@ router.post('/claim', auth, async (req, res) => {
     consecutiveBotWins = 0;
     lastWinnerWasBot = false;
 
-    // AUDIT LOG: Track successful payout
-    console.log(`[PAYOUT] Successfully moved ${winnings} ETB to User: ${req.user._id}`);
+    // Reset room pool after payout
+    await RoomPool.findOneAndUpdate(
+      { roomAmount: gameSession.roomAmount },
+      { $set: { currentPool: 0, houseTotal: 0, players: [] } }
+    );
+
+    // STEP 6: Verification Log
+    console.log(`💰 PAYOUT SUCCESS: ${prizeAmount} ETB sent to winner`);
+    console.log(`[PAYOUT] Successfully moved ${prizeAmount} ETB to User: ${winnerId}`);
 
     res.json({ 
       success: true, 
-      winnings, 
+      winnings: prizeAmount, 
       newBalance: updatedUser.balance, 
       pattern: winResult.pattern,
       winnerName: gameSession.winnerName
