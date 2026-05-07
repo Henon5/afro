@@ -9,6 +9,7 @@ const GameSession = require('../models/GameSession');
 const Transaction = require('../models/Transaction');
 const Bot = require('../models/Bot');
 const { initializeBots, simulateBotMove, checkBotWin, ensureAllBotsHaveCards, processBotMoves: processBotMovesFromManager, handleBotWin: handleBotWinFromManager, getBotReactionTime } = require('../utils/botManager');
+const { updateBotBalance, updateUserBalance } = require('../utils/balanceManager');
 
 // BOT SPEED CONFIGURATION: 2 second reaction time (imported from botManager)
 const BOT_REACTION_TIME_MS = getBotReactionTime();
@@ -817,10 +818,8 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   // DEBUG LOG: Show pool breakdown
   console.log(`💰 Bot Payout Breakdown - Pool: ${poolValue}, House: ${houseTotalValue}, Total: ${winnings}`);
   
-  // THE PAYOUT: Add winnings to the winning bot's balance
-  await Bot.findByIdAndUpdate(bot._id, { 
-    $inc: { balance: winnings, totalWins: 1, totalWinnings: winnings, gamesPlayed: 1 } 
-  });
+  // THE PAYOUT: Add winnings to the winning bot's balance (with retry logic)
+  await updateBotBalance(bot._id, winnings, true);
   
   console.log(`💰 Bot ${bot.name} awarded ${winnings} ETB (new balance will be updated)`);
   // AUDIT LOG: Track successful payout
@@ -960,25 +959,18 @@ router.post('/claim', auth, async (req, res) => {
       console.log('⚠️ [CLAIM] No admin ID configured or house cut is 0');
     }
     
-    // STEP 5: Execute Database Transaction - Award Prize to Winner
+    // STEP 5: Execute Database Transaction - Award Prize to Winner (with retry logic)
     // Use String ID for the winner to match database format
     const winnerId = req.user._id.toString();
     console.log('💰 [CLAIM] Awarding prize to winner:', winnerId);
     console.log('💰 [CLAIM] Prize amount:', prizeAmount, 'ETB');
     
-    // CRITICAL FIX: Use findOneAndUpdate with { new: true } to ensure atomic update and return new value
-    const updatedUser = await User.findOneAndUpdate(
-      { _id: winnerId },
-      { 
-        $inc: { 
-          balance: prizeAmount, 
-          totalWins: 1, 
-          totalWinnings: prizeAmount,
-          gamesPlayed: 1 
-        } 
-      },
-      { new: true, select: 'balance firstName username' } // 'new: true' returns the updated document
-    );
+    // CRITICAL FIX: Use optimized balance update with retry logic
+    const updatedUser = await updateUserBalance(winnerId, prizeAmount, {
+      totalWins: 1,
+      totalWinnings: prizeAmount,
+      gamesPlayed: 1
+    });
     
     if (!updatedUser) {
       console.error('❌ [CLAIM] CRITICAL: User not found after win verification!');

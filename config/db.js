@@ -2,6 +2,76 @@ const mongoose = require('mongoose');
 
 let cachedConnection = null;
 
+// Retry configuration for MongoDB Atlas rate limit handling
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  initialDelayMs: 1000,
+  maxDelayMs: 10000,
+  retryWrites: true
+};
+
+/**
+ * Exponential backoff delay calculator
+ */
+function calculateBackoffDelay(attempt) {
+  const delay = RETRY_CONFIG.initialDelayMs * Math.pow(2, attempt);
+  return Math.min(delay, RETRY_CONFIG.maxDelayMs);
+}
+
+/**
+ * Execute database operation with retry logic for rate limit errors
+ * @param {Function} operation - Async function to execute
+ * @param {string} operationName - Name of operation for logging
+ * @param {number} maxRetries - Maximum retry attempts
+ */
+async function executeWithRetry(operation, operationName = 'Database operation', maxRetries = RETRY_CONFIG.maxRetries) {
+  let lastError;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        const delay = calculateBackoffDelay(attempt - 1);
+        console.log(`⚠️ [DB] ${operationName}: Retrying after ${delay}ms (attempt ${attempt}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      
+      const result = await operation();
+      
+      if (attempt > 0) {
+        console.log(`✅ [DB] ${operationName}: Succeeded on attempt ${attempt + 1}`);
+      }
+      
+      return result;
+    } catch (error) {
+      lastError = error;
+      
+      // Check if this is a rate limit error or transient failure
+      const isRateLimitError = error.codeName === 'RateLimitExceeded' || 
+                               error.message.includes('rate limit') ||
+                               error.message.includes('too many requests');
+      
+      const isTransientError = error.code === 'NetworkTimeout' ||
+                               error.message.includes('ECONNRESET') ||
+                               error.message.includes('ETIMEDOUT');
+      
+      if (!isRateLimitError && !isTransientError) {
+        // Non-retryable error, throw immediately
+        console.error(`❌ [DB] ${operationName}: Non-retryable error:`, error.message);
+        throw error;
+      }
+      
+      console.warn(`⚠️ [DB] ${operationName}: Rate limit/transient error (attempt ${attempt + 1}/${maxRetries + 1}):`, error.message);
+      
+      if (attempt === maxRetries) {
+        console.error(`❌ [DB] ${operationName}: Failed after ${maxRetries + 1} attempts`);
+        throw lastError;
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
 const connectDB = async () => {
   console.log('🔗 [DB] Attempting to connect to MongoDB...');
   
@@ -20,15 +90,23 @@ const connectDB = async () => {
     }
     
     console.log('🔗 [DB] MONGODB_URI found, connecting...');
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds
-      socketTimeoutMS: 45000,
-      // Connection pool settings for better performance
-      maxPoolSize: 10, // Maintain up to 10 socket connections
-      minPoolSize: 5,  // Maintain at least 5 sockets
-      maxIdleTimeMS: 60000, // Close idle connections after 60 seconds
-      waitQueueTimeoutMS: 30000 // Max time a request waits for a connection
-    });
+    const conn = await executeWithRetry(
+      () => mongoose.connect(process.env.MONGODB_URI, {
+        retryWrites: RETRY_CONFIG.retryWrites,
+        serverSelectionTimeoutMS: 10000, // Increased timeout for rate limit scenarios
+        socketTimeoutMS: 60000,
+        // Connection pool settings for better performance and rate limit mitigation
+        maxPoolSize: 5, // Reduced from 10 to lower concurrent requests
+        minPoolSize: 2, // Reduced from 5 to maintain fewer connections
+        maxIdleTimeMS: 30000, // Close idle connections faster
+        waitQueueTimeoutMS: 45000, // Increased wait time for available connection
+        // Additional retry settings
+        heartbeatFrequencyMS: 10000, // Check connection health every 10 seconds
+        localThresholdMS: 15, // Accept replicas within 15ms latency
+      }),
+      'MongoDB Connection',
+      5 // More retries for initial connection
+    );
     
     cachedConnection = conn;
     console.log(`✅ [DB] MongoDB Connected: ${conn.connection.host}`);
@@ -64,3 +142,4 @@ const connectDB = async () => {
 };
 
 module.exports = connectDB;
+module.exports.executeWithRetry = executeWithRetry;
