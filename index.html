@@ -987,7 +987,6 @@
     // GitHub Pages cannot host the backend - you must deploy it separately.
     // Options:
     //   - Local dev: 'http://localhost:3000/api'
-    //   - Railway: 'https://your-app.up.railway.app/api'
     //   - Render: 'https://your-app.onrender.com/api'
     //   - Vercel: 'https://your-app.vercel.app/api'
     
@@ -998,10 +997,10 @@
       if (metaBackend) {
         return metaBackend.getAttribute('content');
       }
-      // If running on GitHub Pages, use Railway backend
+      // If running on GitHub Pages, use Render backend
       if (window.location.hostname.includes('github.io')) {
-        // ✅ Updated to actual Railway URL (no trailing spaces)
-        return 'https://afro-production-dd8e.up.railway.app/api';
+        // ✅ Updated to Render URL (no trailing spaces)
+        return 'https://afro-pxbt.onrender.com/api';
       }
       // If running on localhost, use local backend
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
