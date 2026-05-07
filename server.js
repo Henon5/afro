@@ -53,7 +53,7 @@ async function performEmergencyReset() {
 
 // CORS Configuration - Allow GitHub Pages origin with credentials
 app.use(cors({ 
-  origin: 'https://henon5.github.io', 
+  origin: ['https://henon5.github.io', 'https://afro-pxbt.onrender.com'], 
   credentials: true 
 }));
 
@@ -100,7 +100,8 @@ app.use(helmet({
         "https://telegram.org", 
         "https://cdn.jsdelivr.net", 
         "https://cdn.socket.io",
-        "https://*.jsdelivr.net"
+        "https://*.jsdelivr.net",
+        "https://afro-pxbt.onrender.com"
       ],
       scriptSrcElem: [
         "'self'",
@@ -108,13 +109,15 @@ app.use(helmet({
         "https://telegram.org",
         "https://cdn.jsdelivr.net",
         "https://cdn.socket.io",
-        "https://*.jsdelivr.net"
+        "https://*.jsdelivr.net",
+        "https://afro-pxbt.onrender.com"
       ],
       styleSrc: [
         "'self'", 
         "'unsafe-inline'", 
         "https://fonts.googleapis.com",
-        "https://cdn.jsdelivr.net"
+        "https://cdn.jsdelivr.net",
+        "https://afro-pxbt.onrender.com"
       ],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: [
@@ -122,18 +125,19 @@ app.use(helmet({
         "https:", 
         "http://localhost:*",
         "wss:",
-        "ws:"
+        "ws:",
+        "https://afro-pxbt.onrender.com"
       ],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
-      frameAncestors: ["'self'", "https://t.me"]
+      frameAncestors: ["'self'", "https://t.me", "https://afro-pxbt.onrender.com"]
     }
   }
 }));
 app.use(express.json({ limit: '10kb' })); // Limit body size for performance
-// Trust Railway's proxy
+// Trust Render's proxy
 app.set('trust proxy', 1);
 
 // Rate limiting with stricter limits for auth endpoints

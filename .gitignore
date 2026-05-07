@@ -1,1 +1,11 @@
-(index.html is a source file, so according to rule 6, since there are no build artifacts, dependencies, or temp files in the changes, output nothing)
+```
+# Environment variables
+.env.local
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Editors
+.vscode/
+```
