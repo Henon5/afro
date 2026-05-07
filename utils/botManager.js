@@ -329,7 +329,7 @@ async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
   
   // THE PAYOUT: Add currentPool to the winning bot's balance
   await Bot.findByIdAndUpdate(winningBot._id, { 
-    $inc: { balance: winnings, totalWins: 1, totalWinnings: winnings } 
+    $inc: { balance: winnings, totalWins: 1, totalWinnings: winnings, gamesPlayed: 1 } 
   });
   
   console.log(`💰 Bot ${winningBot.name} awarded ${winnings} ETB (new balance will be updated)`);
