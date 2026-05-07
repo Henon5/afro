@@ -1192,6 +1192,15 @@
       },
 
       // 🔐 Authentication - Use GET /user instead of POST /auth/sync
+      getUser: async () => {
+        try {
+          return await Api._request('/user/balance', { method: 'GET' });
+        } catch (error) {
+          console.error('❌ getUser failed:', error.message);
+          throw error;
+        }
+      },
+
       syncUser: async () => {
         try {
           return await Api._request('/user', { method: 'GET' });
@@ -2048,6 +2057,23 @@
         showWinnerAnnouncement(AppState.user?.name || 'Player', response.winnings || expectedWinnings);
         showToast(`🎉 You won ${response.winnings || expectedWinnings} ETB! Balance: ${response.newBalance || AppState.user?.balance} ETB`, 'success');
         
+        // CRITICAL FIX: Force re-fetch balance from backend to confirm MongoDB update
+        try {
+          console.log('🔄 [FRONTEND] Forcing balance re-fetch from /api/user/balance to confirm DB update...');
+          const freshUser = await Api.getUser();
+          if (freshUser && freshUser.balance !== undefined) {
+            AppState.user.balance = freshUser.balance;
+            const balanceEl = document.getElementById('userBalance');
+            if (balanceEl) {
+              balanceEl.textContent = freshUser.balance;
+              console.log('✅ [FRONTEND] Balance confirmed from backend:', freshUser.balance, 'ETB');
+              console.log('✅ [FRONTEND] MongoDB balance update VERIFIED!');
+            }
+          }
+        } catch (fetchError) {
+          console.error('❌ [FRONTEND] Balance re-fetch failed:', fetchError.message);
+        }
+        
         // Log debug info if available
         if (response.debug) {
           console.log('🔍 [FRONTEND] Debug info from server:', response.debug);
@@ -2057,6 +2083,22 @@
         console.error('❌ [FRONTEND] Win claim FAILED:', error.message);
         console.error('❌ [FRONTEND] Error details:', error);
         
+        // CRITICAL FIX: Force re-fetch balance from backend immediately after error
+        try {
+          console.log('🔄 [FRONTEND] Forcing balance re-fetch from backend after error...');
+          const freshUser = await Api.getUser();
+          if (freshUser && freshUser.balance !== undefined) {
+            AppState.user.balance = freshUser.balance;
+            const balanceEl = document.getElementById('userBalance');
+            if (balanceEl) {
+              balanceEl.textContent = freshUser.balance;
+              console.log('✅ [FRONTEND] Balance re-fetched successfully:', freshUser.balance, 'ETB');
+            }
+          }
+        } catch (fetchError) {
+          console.error('❌ [FRONTEND] Balance re-fetch failed:', fetchError.message);
+        }
+
         // Still show the win visually, but warn about balance update
         const roomAmount = AppState.game.roomAmount || AppState.user?.selectedRoom || 20;
         const winnings = Math.floor(roomAmount * 0.85 * 5);

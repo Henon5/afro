@@ -966,8 +966,9 @@ router.post('/claim', auth, async (req, res) => {
     console.log('💰 [CLAIM] Awarding prize to winner:', winnerId);
     console.log('💰 [CLAIM] Prize amount:', prizeAmount, 'ETB');
     
-    const updatedUser = await User.findByIdAndUpdate(
-      winnerId,
+    // CRITICAL FIX: Use findOneAndUpdate with { new: true } to ensure atomic update and return new value
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: winnerId },
       { 
         $inc: { 
           balance: prizeAmount, 
@@ -976,9 +977,15 @@ router.post('/claim', auth, async (req, res) => {
           gamesPlayed: 1 
         } 
       },
-      { new: true, select: 'balance firstName username' }
+      { new: true, select: 'balance firstName username' } // 'new: true' returns the updated document
     );
     
+    if (!updatedUser) {
+      console.error('❌ [CLAIM] CRITICAL: User not found after win verification!');
+      return res.status(404).json({ success: false, message: 'User not found during prize award' });
+    }
+
+    console.log('✅ DB Update Result:', updatedUser); // CRITICAL DEBUG LOG
     console.log('✅ [CLAIM] User balance updated successfully!');
     console.log('💰 [CLAIM] New user balance:', updatedUser?.balance, 'ETB');
     console.log('💰 [CLAIM] Balance increase confirmed:', (updatedUser?.balance || 0) - (userInfo?.balance || 0), 'ETB');
