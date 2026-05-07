@@ -1,5 +1,16 @@
 // Log immediately as the first line of code
-console.log('Server is starting...');
+console.log('🚀 [SERVER] Server is starting...');
+console.log('🚀 [SERVER] NODE_ENV:', process.env.NODE_ENV || 'development');
+console.log('🚀 [SERVER] PORT:', process.env.PORT || 3000);
+console.log('🔐 [SERVER] Environment variables check:');
+console.log('  - MONGODB_URI exists:', !!process.env.MONGODB_URI);
+console.log('  - JWT_SECRET exists:', !!process.env.JWT_SECRET);
+console.log('  - TELEGRAM_BOT_TOKEN exists:', !!process.env.TELEGRAM_BOT_TOKEN);
+console.log('  - ADMIN_MASTER_ID exists:', !!process.env.ADMIN_MASTER_ID);
+console.log('  - ADMIN_SECURE_CODE exists:', !!process.env.ADMIN_SECURE_CODE);
+console.log('  - ADMIN_SECURITY_KEY exists:', !!process.env.ADMIN_SECURITY_KEY);
+console.log('  - ADMIN_SECRET_KEY exists:', !!process.env.ADMIN_SECRET_KEY);
+console.log('  - ADMIN_IDS exists:', !!process.env.ADMIN_IDS);
 
 const express = require('express');
 const cors = require('cors');
@@ -182,7 +193,11 @@ app.use('*', (req, res) => res.status(404).json({ error: 'Endpoint not found' })
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`✅ [SERVER] Server running on port ${PORT}`);
+  console.log(`✅ [SERVER] Health check available at: /health`);
+  console.log(`✅ [SERVER] Environment: ${process.env.NODE_ENV || 'development'}`);
+});
 
 // Helper function for prize calculation with 15% house cut (Single Source of Truth)
 function calculateRoomPrize(entryFee, totalPlayers) {
