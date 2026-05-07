@@ -12,10 +12,10 @@
 - Added `frameAncestors` for Telegram embedding
 
 ### 2. **API 404/405 Errors** ✅
-**Problem:** Frontend was calling GitHub Pages instead of Railway backend
+**Problem:** Frontend was calling GitHub Pages instead of Render backend
 **Solution:** Backend URL correctly configured in `index.html`:
 ```javascript
-const BACKEND_URL = 'https://afro-production-dd8e.up.railway.app/api';
+const BACKEND_URL = 'https://afro-pxbt.onrender.com/api';
 ```
 
 ### 3. **Missing API Endpoints** ✅
@@ -38,15 +38,15 @@ All features now check for support before calling:
 
 ## 🚀 Deployment Steps
 
-### For Railway (Recommended):
+### For Render (Recommended):
 ```bash
 # 1. Push changes to GitHub
 git add .
 git commit -m "Fix CSP headers and API configuration"
 git push origin main
 
-# 2. Railway will auto-deploy
-# 3. Verify environment variables in Railway dashboard:
+# 2. Deploy to Render
+# 3. Verify environment variables in Render dashboard:
 #    - MONGODB_URI
 #    - JWT_SECRET
 #    - ADMIN_MASTER_ID
@@ -56,7 +56,7 @@ git push origin main
 ```
 
 ### Test Your Deployment:
-1. Open: `https://afro-production-dd8e.up.railway.app`
+1. Open: `https://afro-pxbt.onrender.com`
 2. Check browser console - NO CSP errors should appear
 3. Login/Register should work
 4. Admin panel should show user stats and commissions
@@ -106,7 +106,7 @@ API_BASE: BACKEND_URL || (window.location.hostname === 'localhost'
 
 Your app now:
 - ✅ Loads without CSP blocking scripts
-- ✅ Connects to Railway backend correctly
+- ✅ Connects to Render backend correctly
 - ✅ Saves user profiles
 - ✅ Shows admin statistics
 - ✅ Applies 15% house commission

@@ -50,7 +50,7 @@ const updatedUser = await User.findByIdAndUpdate(
 - Database: `afro-bingo`
 - Cluster: `cluster0.enemcot.mongodb.net`
 
-## 🚀 Railway Deployment Ready
+## 🚀 Render Deployment Ready
 
 ### Required Environment Variables:
 ```bash
@@ -66,7 +66,7 @@ PORT=3000
 
 ### Backend URL for Frontend:
 ```javascript
-const BACKEND_URL = 'https://afro-production-dd8e.up.railway.app/api';
+const BACKEND_URL = 'https://afro-pxbt.onrender.com/api';
 ```
 
 ## ✅ Test Checklist

@@ -25,13 +25,13 @@ When you deploy only to GitHub Pages, the frontend tries to call `/api/user` but
 
 Use a platform that supports both static files and Node.js:
 
-#### Railway.app (Easiest)
+#### Render.com (Easiest)
 ```bash
 # Push your code to GitHub
 git push origin main
 
-# Connect Railway to your GitHub repo
-# Railway will automatically detect package.json and deploy
+# Connect Render to your GitHub repo
+# Render will automatically detect package.json and deploy
 ```
 
 #### Vercel with Serverless Functions
@@ -48,12 +48,12 @@ git push heroku main
 ### Option 2: Separate Deployments
 
 **Frontend**: GitHub Pages
-**Backend**: Railway/Render/Heroku
+**Backend**: Render/Railway/Heroku
 
 Then update `index.html` line 988-990:
 
 ```javascript
-API_BASE: 'https://your-backend-url.railway.app/api'
+API_BASE: 'https://afro-pxbt.onrender.com/api'
 ```
 
 ## 📋 Environment Variables Required
@@ -122,7 +122,7 @@ Older Telegram clients (v6.0) will see console warnings but the app still works.
 - **Database**: MongoDB with Mongoose
 - **Real-time**: Socket.io
 - **Authentication**: JWT + Telegram initData
-- **Deployment**: Railway/Vercel/GitHub Pages (frontend only)
+- **Deployment**: Render/Vercel/GitHub Pages (frontend only)
 
 ## 📞 Support
 

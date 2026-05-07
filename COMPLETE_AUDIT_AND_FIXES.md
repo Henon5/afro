@@ -17,7 +17,7 @@ I've conducted a comprehensive audit of your entire codebase and fixed all criti
 
 **Fix Applied:**
 ```javascript
-return 'https://afro-production-dd8e.up.railway.app/api';
+return 'https://afro-pxbt.onrender.com/api';
 ```
 
 **Added Debug Logging:**
@@ -80,13 +80,13 @@ try {
 | Game Routes | ✅ Working | Atomic operations |
 | Transaction Routes | ✅ Working | Deposit/withdrawal |
 | CORS Configuration | ✅ Working | Allows all origins |
-| Frontend API Calls | ✅ Fixed | Correct Railway URL |
+| Frontend API Calls | ✅ Fixed | Correct Render URL |
 
 ---
 
 ## 🔧 ENVIRONMENT VARIABLES REQUIRED
 
-Make sure these are set in Railway:
+Make sure these are set in Render:
 
 ```bash
 MONGODB_URI=mongodb+srv://henokkifle_db_user:hpoZiRDHW9VwMQqo@cluster0.enemcot.mongodb.net/afro-bingo?retryWrites=true&w=majority
@@ -105,13 +105,13 @@ PORT=3000
 
 ### Before Deployment:
 1. ✅ Clear browser cache and localStorage
-2. ✅ Verify Railway URL in `index.html` matches your deployment
-3. ✅ Check all environment variables in Railway dashboard
-4. ✅ Restart Railway deployment after pushing changes
+2. ✅ Verify Render URL in `index.html` matches your deployment
+3. ✅ Check all environment variables in Render dashboard
+4. ✅ Restart Render deployment after pushing changes
 
 ### After Deployment:
 1. Open DevTools Console
-2. Look for: `🔧 Backend API URL: https://afro-production-dd8e.up.railway.app/api`
+2. Look for: `🔧 Backend API URL: https://afro-pxbt.onrender.com/api`
 3. Login as admin
 4. Try adding funds to user
 5. Check Network tab for successful requests (200 OK)
@@ -139,15 +139,15 @@ Both are now fixed. Your system should work end-to-end.
    git push
    ```
 
-2. **Railway will auto-deploy** from GitHub
+2. **Render will auto-deploy** from GitHub
 
-3. **Test on Railway:**
+3. **Test on Render:**
    - Open your frontend URL
    - Open DevTools Console
    - Verify correct API URL is logged
    - Test login and all buttons
 
-4. **Monitor Railway logs** for any remaining issues
+4. **Monitor Render logs** for any remaining issues
 
 ---
 

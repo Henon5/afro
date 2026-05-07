@@ -38,7 +38,7 @@ The warnings you see in console are **expected behavior** for older Telegram cli
 
 **Example:**
 ```javascript
-const BACKEND_URL = 'https://afro-bingo.up.railway.app/api';
+const BACKEND_URL = 'https://afro-pxbt.onrender.com/api';
 ```
 
 ---
@@ -72,10 +72,10 @@ This error occurred when the server returned HTML instead of JSON. The code now:
            │ ❌ Currently broken
            ▼
 ┌──────────────────────┐
-│   YOUR BACKEND       │ ← Needs deployment!
-│   (Not deployed yet) │   Options:
-└──────────┬───────────┘   - Railway (recommended)
-           │               - Render
+│   YOUR BACKEND       │ ← Deployed to Render!
+│   afro-pxbt.onrender.com │   Options:
+└──────────┬───────────┘   - Render (recommended)
+           │               - Railway
            ▼               - Vercel
 ┌──────────────────────┐
 │   MongoDB Atlas      │
@@ -117,30 +117,27 @@ Your app will NOT work until you deploy the backend and configure the URL.
 
 **Quick Steps:**
 
-1. **Choose hosting** (Railway recommended):
-   ```bash
-   npm install -g @railway/cli
-   railway login
-   railway init
-   ```
+1. **Choose hosting** (Render recommended):
+   - Visit https://render.com
+   - Create a new Web Service
+   - Connect your GitHub repository
 
 2. **Set environment variables**:
    ```bash
-   railway variables set MONGODB_URI="your-mongodb-uri"
-   railway variables set JWT_SECRET="your-secret-key"
-   railway variables set ADMIN_ID="MasterAdmin"
-   railway variables set ADMIN_PASS="SECURE123"
-   railway variables set HOUSE_COMMISSION="0.15"
+   MONGODB_URI="your-mongodb-uri"
+   JWT_SECRET="your-secret-key"
+   ADMIN_MASTER_ID="MasterAdmin"
+   ADMIN_SECURE_CODE="SECURE123"
+   ADMIN_SECURITY_KEY="GOLDENKEY"
+   HOUSE_COMMISSION="0.15"
    ```
 
 3. **Deploy**:
-   ```bash
-   railway up
-   ```
+   - Render will auto-deploy from GitHub
 
 4. **Update frontend** (`index.html` line 992):
    ```javascript
-   const BACKEND_URL = 'https://your-app.up.railway.app/api';
+   const BACKEND_URL = 'https://afro-pxbt.onrender.com/api';
    ```
 
 5. **Push changes**:
@@ -226,7 +223,7 @@ After deploying backend:
 
 **What's left:** You just need to deploy the backend and configure the URL.
 
-**Time needed:** 10-15 minutes to deploy to Railway
+**Time needed:** 10-15 minutes to deploy to Render
 
 **Result:** Fully working Afro-Bingo game with:
 - User authentication

@@ -1,4 +1,1 @@
-```
-# Coverage reports
-coverage/
-```
+Nothing should be ignored since the changes only include markdown documentation files (.md) and no build artifacts, dependencies, or temporary files.
