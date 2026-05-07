@@ -1,12 +1,4 @@
 ```
 # Coverage reports
 coverage/
-*.lcov
-*.info
-
-# Environment
-.env.local
-
-# Logs
-*.log
 ```
