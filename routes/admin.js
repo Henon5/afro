@@ -10,6 +10,8 @@ const { validate } = require('../middleware/validate');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 const RoomPool = require('../models/RoomPool');
+const Bot = require('../models/Bot');
+const { resetBotBalancesDaily, startDailyBotReset, stopDailyBotReset, getBotResetStatus } = require('../utils/botManager');
 
 // 🔐 POST /admin/login - Authenticate admin credentials (NO auth middleware needed for login)
 router.post('/login', (req, res) => {
@@ -280,6 +282,110 @@ router.post('/create-user', auth, adminOnly, async (req, res) => {
   } catch (err) {
     console.error('Create user error:', err);
     res.status(500).json({ error: 'Failed to create player' });
+  }
+});
+
+// 🤖 GET /admin/bots/status - Get all bots with detailed stats
+router.get('/bots/status', auth, adminOnly, async (req, res) => {
+  try {
+    const bots = await Bot.find({}).sort({ name: 1 }).select('-__v');
+    
+    const botStats = bots.map(bot => ({
+      name: bot.name,
+      telegramId: bot.telegramId,
+      balance: bot.balance,
+      totalWins: bot.totalWins,
+      totalWinnings: bot.totalWinnings,
+      gamesPlayed: bot.gamesPlayed,
+      winRate: bot.winRate,
+      difficulty: bot.difficulty,
+      isActive: bot.isActive,
+      lastPlayed: bot.lastPlayed,
+      lastRefill: bot.lastRefill,
+      refillCount: bot.refillCount,
+      createdAt: bot.createdAt
+    }));
+    
+    res.json({ 
+      success: true, 
+      totalBots: bots.length,
+      bots: botStats 
+    });
+  } catch (err) {
+    console.error('Get bots status error:', err);
+    res.status(500).json({ error: 'Failed to get bots status' });
+  }
+});
+
+// 🔄 POST /admin/bots/reset-now - Immediately reset all bot balances to 1000 ETB
+router.post('/bots/reset-now', auth, adminOnly, async (req, res) => {
+  try {
+    console.log('🔄 Admin triggered manual bot balance reset');
+    
+    const result = await resetBotBalancesDaily();
+    
+    res.json({ 
+      success: true, 
+      message: `Reset ${result.reset} bots to 1000 ETB`,
+      totalResetAmount: result.totalResetAmount,
+      details: result.details
+    });
+  } catch (err) {
+    console.error('Manual bot reset error:', err);
+    res.status(500).json({ error: `Failed to reset bots: ${err.message}` });
+  }
+});
+
+// ⏰ POST /admin/bots/schedule-reset - Start/stop the daily reset scheduler
+router.post('/bots/schedule-reset', auth, adminOnly, async (req, res) => {
+  try {
+    const { action, hour, minute } = req.body;
+    
+    if (action === 'start') {
+      const h = hour !== undefined ? Number(hour) : 0;
+      const m = minute !== undefined ? Number(minute) : 0;
+      
+      if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+        return res.status(400).json({ error: 'Invalid hour or minute. Hour: 0-23, Minute: 0-59' });
+      }
+      
+      startDailyBotReset(h, m);
+      
+      res.json({ 
+        success: true, 
+        message: `Daily bot reset scheduled for ${h}:${m.toString().padStart(2, '0')}`,
+        isRunning: true
+      });
+    } else if (action === 'stop') {
+      stopDailyBotReset();
+      
+      res.json({ 
+        success: true, 
+        message: 'Daily bot reset scheduler stopped',
+        isRunning: false
+      });
+    } else {
+      return res.status(400).json({ error: 'Invalid action. Must be "start" or "stop"' });
+    }
+  } catch (err) {
+    console.error('Schedule bot reset error:', err);
+    res.status(500).json({ error: `Failed to manage scheduler: ${err.message}` });
+  }
+});
+
+// 📊 GET /admin/bots/reset-status - Get current status of the reset scheduler
+router.get('/bots/reset-status', auth, adminOnly, async (req, res) => {
+  try {
+    const status = getBotResetStatus();
+    
+    res.json({ 
+      success: true, 
+      isRunning: status.isRunning,
+      message: status.isRunning ? 'Daily reset scheduler is running' : 'Daily reset scheduler is stopped'
+    });
+  } catch (err) {
+    console.error('Get reset status error:', err);
+    res.status(500).json({ error: 'Failed to get reset status' });
   }
 });
 

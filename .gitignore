@@ -1,1 +1,45 @@
-(index.html is a source file, so no need to add anything to .gitignore)
+```
+# Coverage reports
+coverage/
+*.info
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Logs
+*.log
+
+# Dependencies
+node_modules/
+
+# Editors
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Temp files
+*.tmp
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Testing
+.nyc_output/
+coverage/
+```
