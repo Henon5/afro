@@ -1,45 +1,26 @@
 ```
 # Coverage reports
 coverage/
+*.lcov
 *.info
+
+# Dependencies
+node_modules/
+
+# Logs and temp files
+*.log
+*.tmp
 
 # Environment
 .env
 .env.local
-*.env.*
-
-# Logs
-*.log
-
-# Dependencies
-node_modules/
+.env.*
 
 # Editors
 .vscode/
 .idea/
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-
-# Build outputs
-dist/
-build/
-*.egg-info/
-*.egg
-
-# Temp files
-*.tmp
-*.swp
-*~
+# OS generated files
 .DS_Store
 Thumbs.db
-
-# Testing
-.nyc_output/
-coverage/
 ```
