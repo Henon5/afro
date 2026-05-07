@@ -29,14 +29,14 @@ app.use(helmet({
 ---
 
 ### 2. **API 404/405 Errors on GitHub Pages** ✓
-**Problem:** Frontend was calling `https://henon5.github.io/api/*` instead of the actual Railway backend
+**Problem:** Frontend was calling `https://henon5.github.io/api/*` instead of the actual Render backend
 
-**Solution:** Updated `index.html` line 992 to point to your Railway backend:
+**Solution:** Updated `index.html` line 992 to point to your Render backend:
 ```javascript
-const BACKEND_URL = 'https://afro-production-dd8e.up.railway.app/api';
+const BACKEND_URL = 'https://afro-pxbt.onrender.com/api';
 ```
 
-**Result:** API calls now correctly route to your Railway-hosted backend.
+**Result:** API calls now correctly route to your Render-hosted backend.
 
 ---
 
@@ -151,8 +151,8 @@ All endpoints tested and working:
 
 4. Update Telegram bot with new Railway URL
 
-### Option B: Keep Using Current Railway Backend
-Your current Railway deployment at `https://afro-production-dd8e.up.railway.app/` should work once you redeploy with these fixes.
+### Option B: Keep Using Current Render Backend
+Your current Render deployment at `https://afro-pxbt.onrender.com/` should work once you redeploy with these fixes.
 
 ---
 
@@ -174,8 +174,8 @@ The warnings about "BackButton not supported in version 6.0" are **normal and no
 - [x] API endpoints respond properly
 - [x] Admin login works with body parameters
 - [x] User profile endpoint exists and requires auth
-- [x] Backend URL points to Railway
+- [x] Backend URL points to Render
 - [x] Server starts without errors
 - [x] Health check returns OK
 
-**All issues resolved!** Your app should now work perfectly when deployed to Railway and accessed via Telegram.
+**All issues resolved!** Your app should now work perfectly when deployed to Render and accessed via Telegram.
