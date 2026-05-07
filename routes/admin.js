@@ -12,6 +12,7 @@ const User = require('../models/User');
 const RoomPool = require('../models/RoomPool');
 const Bot = require('../models/Bot');
 const { resetBotBalancesDaily, startDailyBotReset, stopDailyBotReset, getBotResetStatus } = require('../utils/botManager');
+const { checkAtlasTriggers, batchUpdateUserBalances, updateUserBalance } = require('../utils/balanceManager');
 
 // 🔐 POST /admin/login - Authenticate admin credentials (NO auth middleware needed for login)
 router.post('/login', (req, res) => {
@@ -386,6 +387,78 @@ router.get('/bots/reset-status', auth, adminOnly, async (req, res) => {
   } catch (err) {
     console.error('Get reset status error:', err);
     res.status(500).json({ error: 'Failed to get reset status' });
+  }
+});
+
+// 🔍 GET /admin/atlas/trigger-status - Check Atlas Trigger status and get manual resume guide
+router.get('/atlas/trigger-status', auth, adminOnly, async (req, res) => {
+  try {
+    const result = await checkAtlasTriggers();
+    
+    res.json({ 
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    console.error('Check trigger status error:', err);
+    res.status(500).json({ error: 'Failed to check trigger status' });
+  }
+});
+
+// 📦 POST /admin/balance/batch-update - Batch update user balances (reduces API calls)
+router.post('/balance/batch-update', auth, adminOnly, async (req, res) => {
+  try {
+    const { updates } = req.body; // Array of { userId, amount }
+    
+    if (!updates || !Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ error: 'Updates array is required and must not be empty' });
+    }
+    
+    console.log(`📦 [ADMIN] Batch updating ${updates.length} user balances...`);
+    
+    const result = await batchUpdateUserBalances(updates);
+    
+    res.json({ 
+      success: true, 
+      message: `Successfully updated ${result.modifiedCount || 0} user balances`,
+      modifiedCount: result.modifiedCount
+    });
+  } catch (err) {
+    console.error('Batch balance update error:', err);
+    res.status(500).json({ error: `Failed to batch update balances: ${err.message}` });
+  }
+});
+
+// 💰 POST /admin/balance/update-user - Single user balance update with retry logic
+router.post('/balance/update-user', auth, adminOnly, async (req, res) => {
+  try {
+    const { userId, amount, totalWins, totalWinnings, gamesPlayed } = req.body;
+    
+    if (!userId || amount === undefined) {
+      return res.status(400).json({ error: 'userId and amount are required' });
+    }
+    
+    console.log(`💰 [ADMIN] Updating user ${userId} balance by ${amount} ETB...`);
+    
+    const additionalFields = {};
+    if (totalWins !== undefined) additionalFields.totalWins = totalWins;
+    if (totalWinnings !== undefined) additionalFields.totalWinnings = totalWinnings;
+    if (gamesPlayed !== undefined) additionalFields.gamesPlayed = gamesPlayed;
+    
+    const updatedUser = await updateUserBalance(userId, amount, additionalFields);
+    
+    res.json({ 
+      success: true, 
+      message: 'User balance updated successfully',
+      user: {
+        id: updatedUser._id,
+        name: updatedUser.firstName || updatedUser.username,
+        balance: updatedUser.balance
+      }
+    });
+  } catch (err) {
+    console.error('Single balance update error:', err);
+    res.status(500).json({ error: `Failed to update user balance: ${err.message}` });
   }
 });
 
