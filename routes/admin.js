@@ -3,6 +3,8 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const router = express.Router(); // 👈 MUST be at the top!
 
+console.log('🔐 [ADMIN] Admin routes loaded');
+
 const { auth, adminOnly } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const Transaction = require('../models/Transaction');
@@ -11,12 +13,17 @@ const RoomPool = require('../models/RoomPool');
 
 // 🔐 POST /admin/login - Authenticate admin credentials (NO auth middleware needed for login)
 router.post('/login', (req, res) => {
+  console.log('👮 [ADMIN] Login attempt received');
+  console.log('📝 [ADMIN] Request body:', JSON.stringify({ hasBody: !!req.body, keys: req.body ? Object.keys(req.body) : [] }));
+  console.log('📝 [ADMIN] Headers:', JSON.stringify({ hasXAdminAuth: !!req.headers['x-admin-auth'] }));
+  
   try {
     // Support both header and body authentication
     let masterId, secureCode, securityKey;
     
     // Try to get from request body first
     if (req.body && req.body.masterId) {
+      console.log('📝 [ADMIN] Using body authentication');
       masterId = req.body.masterId;
       secureCode = req.body.secureCode;
       securityKey = req.body.securityKey;
@@ -24,24 +31,33 @@ router.post('/login', (req, res) => {
       // Fallback to header
       const authHeader = req.headers['x-admin-auth'];
       if (!authHeader) {
+        console.warn('⚠️ [ADMIN] No credentials provided');
         return res.status(401).json({ error: 'No credentials provided' });
       }
+      console.log('📝 [ADMIN] Using header authentication');
       const creds = JSON.parse(authHeader);
       masterId = creds.masterId;
       secureCode = creds.secureCode;
       securityKey = creds.securityKey;
     }
 
+    console.log('🔍 [ADMIN] Checking credentials against environment variables...');
+    console.log('🔍 [ADMIN] ADMIN_MASTER_ID exists:', !!process.env.ADMIN_MASTER_ID);
+    console.log('🔍 [ADMIN] ADMIN_SECURE_CODE exists:', !!process.env.ADMIN_SECURE_CODE);
+    console.log('🔍 [ADMIN] ADMIN_SECURITY_KEY exists:', !!process.env.ADMIN_SECURITY_KEY);
+    
     if (
       masterId === process.env.ADMIN_MASTER_ID &&
       secureCode === process.env.ADMIN_SECURE_CODE &&
       securityKey === process.env.ADMIN_SECURITY_KEY
     ) {
+      console.log('✅ [ADMIN] Credentials matched!');
+      
       // Safe Check: Use proper JWT secret - fail securely if not configured
       const secret = process.env.JWT_SECRET;
       
       if (!secret) {
-        console.error('❌ CRITICAL: No JWT Secret found in environment variables for signing!');
+        console.error('❌ [ADMIN] CRITICAL: No JWT Secret found in environment variables for signing!');
         return res.status(500).json({ error: 'Server configuration error' });
       }
       
@@ -56,16 +72,22 @@ router.post('/login', (req, res) => {
         { expiresIn: '24h' }
       );
       
+      console.log('✅ [ADMIN] JWT token generated successfully');
       return res.json({ 
         success: true, 
         message: 'Login successful',
         token: token
       });
     } else {
+      console.error('❌ [ADMIN] Invalid credentials - mismatch detected');
+      console.error('❌ [ADMIN] masterId match:', masterId === process.env.ADMIN_MASTER_ID);
+      console.error('❌ [ADMIN] secureCode match:', secureCode === process.env.ADMIN_SECURE_CODE);
+      console.error('❌ [ADMIN] securityKey match:', securityKey === process.env.ADMIN_SECURITY_KEY);
       return res.status(403).json({ error: 'Invalid credentials' });
     }
   } catch (err) {
-    console.error('Admin login error:', err);
+    console.error('❌ [ADMIN] Admin login error:', err.message);
+    console.error('❌ [ADMIN] Stack:', err.stack);
     return res.status(400).json({ error: 'Invalid request format' });
   }
 });
