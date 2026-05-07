@@ -92,6 +92,13 @@
       text-align: center;
       position: relative;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .header > div:nth-child(1) {
+      flex: 1;
     }
     
     .header h1 {
@@ -107,10 +114,10 @@
     }
     
     .header-btn {
-      position: absolute;
-      left: 12px;
-      top: 50%;
-      transform: translateY(-50%);
+      position: relative;
+      left: auto;
+      top: auto;
+      transform: none;
       background: none;
       border: none;
       color: white;
@@ -124,7 +131,7 @@
     
     .header-btn:active {
       background: rgba(255,255,255,0.2);
-      transform: translateY(-50%) scale(0.95);
+      transform: scale(0.95);
     }
     
     .header-actions {
@@ -846,8 +853,8 @@
     
     /* ========== HOUSE ICON ========== */
     .house-icon-btn {
-      background: linear-gradient(145deg, #fff8f0, #ffe6c7);
-      border: 2.5px solid #d4a373;
+      background: linear-gradient(145deg, #009b3a, #007a2e);
+      border: 2.5px solid #006400;
       border-radius: 50%;
       width: 46px;
       height: 46px;
@@ -858,12 +865,17 @@
       cursor: pointer;
       transition: var(--transition);
       box-shadow: 0 3px 10px rgba(0,0,0,0.12);
-      color: #8b5a2b;
+      color: #009b3a;
+      opacity: 0;
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 100;
     }
     
     .house-icon-btn:active {
       transform: scale(0.92);
-      background: linear-gradient(145deg, #ffe6c7, #fff8f0);
+      background: linear-gradient(145deg, #007a2e, #009b3a);
     }
     
     /* ========== UTILITY CLASSES ========== */
@@ -1390,7 +1402,8 @@
         isLoggedIn: false,
         token: null
       },
-      socket: null
+      socket: null,
+      lastHouseClick: 0
     };
 
     // ============================================
@@ -1567,6 +1580,7 @@
             <p>Pool Prize System • Win Real ETB</p>
           </div>
           <div class="house-icon-btn" id="houseIcon" title="Admin Panel">🏠</div>
+          <div style="width: 46px;"></div>
         </div>
         
         <div class="profile-mini">
@@ -1624,7 +1638,13 @@
 
       document.getElementById('houseIcon')?.addEventListener('click', () => {
         Sound.click();
-        showAdminLogin();
+        // Double-click detection for admin login
+        const now = Date.now();
+        if (AppState.lastHouseClick && (now - AppState.lastHouseClick) < 300) {
+          // Double-click detected - show admin login
+          showAdminLogin();
+        }
+        AppState.lastHouseClick = now;
       });
       
       // Load room pools from database
@@ -1707,8 +1727,11 @@
       container.innerHTML = `
         <div class="header">
           <button class="header-btn" onclick="exitGame()">←</button>
-          <h3>AFRO-BINGO</h3>
-          <p>Room: ${roomAmount} ETB</p>
+          <div style="flex: 1;">
+            <h3>AFRO-BINGO</h3>
+            <p>Room: ${roomAmount} ETB</p>
+          </div>
+          <div style="width: 46px;"></div>
         </div>
         
         <div class="pool-box">
@@ -2143,7 +2166,10 @@
       container.innerHTML = `
         <div class="header">
           <button class="header-btn" onclick="showPage('lobby')">←</button>
-          <h2>👤 My Profile</h2>
+          <div style="flex: 1;">
+            <h2>👤 My Profile</h2>
+          </div>
+          <div style="width: 46px;"></div>
         </div>
         
         <div class="input-group">
@@ -2234,7 +2260,10 @@
       container.innerHTML = `
         <div class="header">
           <button class="header-btn" onclick="showPage('lobby')">←</button>
-          <h2>💰 Deposit Funds</h2>
+          <div style="flex: 1;">
+            <h2>💰 Deposit Funds</h2>
+          </div>
+          <div style="width: 46px;"></div>
         </div>
         
         <div class="payment-box">
@@ -2295,7 +2324,9 @@
     function renderWaitingPage(container, amount) {
       container.innerHTML = `
         <div class="page waiting-screen">
-          <div class="header"><h3>⏳ Pending Approval</h3></div>
+          <div class="header" style="display: flex; justify-content: center;">
+            <h3>⏳ Pending Approval</h3>
+          </div>
           <div class="spinner"></div>
           <p><b>Requested:</b> ${amount} ETB</p>
           <p style="color:var(--gray);">
