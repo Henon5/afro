@@ -53,6 +53,32 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// GET /api/user/balance - Get current user balance only (optimized for frequent calls)
+router.get('/balance', auth, async (req, res) => {
+  try {
+    console.log('💰 [BALANCE ENDPOINT] Fetching balance for user:', req.user._id);
+    
+    // Admin users don't have a real DB record
+    if (req.isAdminAuth) {
+      console.log('⚠️ [BALANCE ENDPOINT] Admin user requested balance');
+      return res.json({ success: true, balance: 0 });
+    }
+    
+    // Use findById with projection to only fetch balance field (maximum performance)
+    const user = await User.findById(req.user._id).select('balance');
+    if (!user) {
+      console.error('❌ [BALANCE ENDPOINT] User not found:', req.user._id);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    console.log('✅ [BALANCE ENDPOINT] Balance retrieved:', user.balance, 'ETB');
+    res.json({ success: true, balance: user.balance });
+  } catch (err) {
+    console.error('❌ [BALANCE ENDPOINT] Error fetching balance:', err);
+    res.status(500).json({ error: 'Failed to fetch balance' });
+  }
+});
+
 // PUT method (preferred)
 router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
