@@ -869,20 +869,59 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
 
 router.post('/claim', auth, async (req, res) => {
   try {
+    console.log('🎯 [CLAIM] Win claim request received');
+    console.log('🎯 [CLAIM] User ID:', req.user._id);
+    console.log('🎯 [CLAIM] Is Admin Auth:', req.isAdminAuth);
+    console.log('🎯 [CLAIM] Request body:', JSON.stringify(req.body));
+    
     // Admin users cannot claim wins (no real DB record)
     if (req.isAdminAuth) {
+      console.warn('⚠️ [CLAIM] Admin account attempted to claim win - rejected');
       return res.status(403).json({ error: 'Admin accounts cannot claim wins' });
     }
     
     const { sessionId } = req.body;
-    const gameSession = await GameSession.findOne({ _id: sessionId, gameStatus: 'active' }).select('players roomAmount');
-    if (!gameSession) return res.status(404).json({ error: 'Game not found' });
+    console.log('🔍 [CLAIM] Looking up game session:', sessionId);
+    
+    const gameSession = await GameSession.findOne({ 
+      _id: sessionId, 
+      gameStatus: 'active' 
+    }).select('players roomAmount calledNumbers');
+    
+    if (!gameSession) {
+      console.error('❌ [CLAIM] Game session not found or not active:', sessionId);
+      return res.status(404).json({ error: 'Game not found' });
+    }
+    
+    console.log('✅ [CLAIM] Game session found:', {
+      roomId: gameSession.roomAmount,
+      playerCount: gameSession.players.length,
+      calledNumbers: gameSession.calledNumbers.length
+    });
 
-    const playerIndex = gameSession.players.findIndex(p => p.user === req.user._id.toString());
-    if (playerIndex === -1) return res.status(403).json({ error: 'Not in this game' });
+    const userIdStr = req.user._id.toString();
+    console.log('🔍 [CLAIM] Looking for user in players:', userIdStr);
+    
+    const playerIndex = gameSession.players.findIndex(p => {
+      const match = p.user === userIdStr;
+      console.log('  - Player:', p.user, 'Match:', match);
+      return match;
+    });
+    
+    if (playerIndex === -1) {
+      console.error('❌ [CLAIM] User not found in game session players');
+      return res.status(403).json({ error: 'Not in this game' });
+    }
+    
+    console.log('✅ [CLAIM] User found at player index:', playerIndex);
     
     const winResult = gameSession.checkWin(playerIndex);
-    if (!winResult.win) return res.status(400).json({ error: 'No bingo pattern detected' });
+    console.log('🎯 [CLAIM] Win check result:', winResult);
+    
+    if (!winResult.win) {
+      console.warn('⚠️ [CLAIM] No bingo pattern detected for user');
+      return res.status(400).json({ error: 'No bingo pattern detected' });
+    }
 
     // STEP 1: Calculate Total Pool using the Master Formula
     // totalPool = entryFee * totalPlayers (all players including bots)
@@ -895,25 +934,38 @@ router.post('/claim', auth, async (req, res) => {
     // STEP 3: Calculate House Cut (15% of total pool)
     const houseCut = Math.floor(totalPool * 0.15);
     
-    console.log(`💰 PAYOUT CALCULATION: Total Pool=${totalPool} ETB, Prize (85%)=${prizeAmount} ETB, House Cut (15%)=${houseCut} ETB`);
+    console.log('💰 [CLAIM] PAYOUT CALCULATION:');
+    console.log('  - Room Amount:', gameSession.roomAmount, 'ETB');
+    console.log('  - Total Players:', totalPlayers);
+    console.log('  - Total Pool:', totalPool, 'ETB');
+    console.log('  - Prize (85%):', prizeAmount, 'ETB');
+    console.log('  - House Cut (15%):', houseCut, 'ETB');
 
     // Get user info for name display
-    const userInfo = await User.findById(req.user._id).select('firstName username telegramId');
+    console.log('👤 [CLAIM] Fetching user info for:', req.user._id);
+    const userInfo = await User.findById(req.user._id).select('firstName username telegramId balance');
+    console.log('👤 [CLAIM] Current user balance:', userInfo?.balance || 0, 'ETB');
     
     // STEP 4: Execute Database Transaction - Transfer House Cut to Admin FIRST
     const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [];
     if (adminIds.length > 0 && houseCut > 0) {
-      await User.findByIdAndUpdate(
+      console.log('🏦 [CLAIM] Transferring house cut to admin:', adminIds[0]);
+      const adminResult = await User.findByIdAndUpdate(
         adminIds[0],
         { $inc: { balance: houseCut } },
-        { upsert: true }
+        { upsert: true, new: true }
       );
-      console.log(`🏦 House Cut: ${houseCut} ETB transferred to Admin Wallet`);
+      console.log('✅ [CLAIM] House Cut transferred. Admin new balance:', adminResult?.balance);
+    } else {
+      console.log('⚠️ [CLAIM] No admin ID configured or house cut is 0');
     }
     
     // STEP 5: Execute Database Transaction - Award Prize to Winner
     // Use String ID for the winner to match database format
     const winnerId = req.user._id.toString();
+    console.log('💰 [CLAIM] Awarding prize to winner:', winnerId);
+    console.log('💰 [CLAIM] Prize amount:', prizeAmount, 'ETB');
+    
     const updatedUser = await User.findByIdAndUpdate(
       winnerId,
       { 
@@ -924,11 +976,24 @@ router.post('/claim', auth, async (req, res) => {
           gamesPlayed: 1 
         } 
       },
-      { new: true, select: 'balance' }
+      { new: true, select: 'balance firstName username' }
     );
+    
+    console.log('✅ [CLAIM] User balance updated successfully!');
+    console.log('💰 [CLAIM] New user balance:', updatedUser?.balance, 'ETB');
+    console.log('💰 [CLAIM] Balance increase confirmed:', (updatedUser?.balance || 0) - (userInfo?.balance || 0), 'ETB');
 
     // Create transaction asynchronously
-    Transaction.create({ userId: req.user._id, type: 'winning', amount: prizeAmount, status: 'completed' }).catch(console.error);
+    console.log('📝 [CLAIM] Creating transaction record...');
+    Transaction.create({ 
+      userId: req.user._id, 
+      type: 'winning', 
+      amount: prizeAmount, 
+      status: 'completed',
+      description: `Bingo win in ${gameSession.roomAmount} ETB room`
+    })
+    .then(tx => console.log('✅ [CLAIM] Transaction record created:', tx._id))
+    .catch(err => console.error('❌ [CLAIM] Failed to create transaction:', err));
     
     gameSession.gameStatus = 'completed'; 
     gameSession.completedAt = new Date(); 
@@ -937,34 +1002,56 @@ router.post('/claim', auth, async (req, res) => {
     gameSession.winningPattern = winResult.pattern;
     gameSession.isBotWin = false;
     await gameSession.save();
+    console.log('✅ [CLAIM] Game session marked as completed');
     
     // Clear bot injection tracking for this room when game completes (human win)
     clearBotInjectionForRoom(gameSession.roomAmount);
+    console.log('🤖 [CLAIM] Bot injection tracking cleared for room:', gameSession.roomAmount);
     
     // Reset bot win tracking after human win
     consecutiveBotWins = 0;
     lastWinnerWasBot = false;
+    console.log('🤖 [CLAIM] Bot win tracking reset');
 
     // Reset room pool after payout
-    await RoomPool.findOneAndUpdate(
+    console.log('🏦 [CLAIM] Resetting room pool for:', gameSession.roomAmount);
+    const poolUpdate = await RoomPool.findOneAndUpdate(
       { roomAmount: gameSession.roomAmount },
-      { $set: { currentPool: 0, houseTotal: 0, players: [] } }
+      { $set: { currentPool: 0, houseTotal: 0, players: [] } },
+      { new: true }
     );
+    console.log('✅ [CLAIM] Room pool reset. New pool state:', {
+      currentPool: poolUpdate?.currentPool,
+      houseTotal: poolUpdate?.houseTotal,
+      players: poolUpdate?.players?.length || 0
+    });
 
-    // STEP 6: Verification Log
-    console.log(`💰 PAYOUT SUCCESS: ${prizeAmount} ETB sent to winner`);
-    console.log(`[PAYOUT] Successfully moved ${prizeAmount} ETB to User: ${winnerId}`);
+    // STEP 6: Final Verification Log
+    console.log('===========================================');
+    console.log('✅ [CLAIM] PAYOUT COMPLETE');
+    console.log('  - Winner:', winnerId, '(', userInfo.firstName || userInfo.username, ')');
+    console.log('  - Prize Amount:', prizeAmount, 'ETB');
+    console.log('  - New Balance:', updatedUser?.balance, 'ETB');
+    console.log('  - Pattern:', winResult.pattern);
+    console.log('===========================================');
 
     res.json({ 
       success: true, 
       winnings: prizeAmount, 
       newBalance: updatedUser.balance, 
       pattern: winResult.pattern,
-      winnerName: gameSession.winnerName
+      winnerName: gameSession.winnerName,
+      debug: {
+        totalPool,
+        houseCut,
+        previousBalance: userInfo?.balance || 0,
+        balanceIncrease: prizeAmount
+      }
     });
   } catch (err) {
-    console.error('Claim win error:', err);
-    res.status(500).json({ error: 'Failed to claim win' });
+    console.error('❌ [CLAIM] Claim win error:', err);
+    console.error('❌ [CLAIM] Error stack:', err.stack);
+    res.status(500).json({ error: 'Failed to claim win', details: err.message });
   }
 });
 

@@ -1994,9 +1994,11 @@
     }
 
     async function handleWin() {
+      console.log('🎯 [FRONTEND] handleWin called - starting win verification process');
       const game = AppState.game;
       stopAutoPlay();
       
+      // 🎉 Show visual effects immediately
       Sound.win();
       confetti({
         particleCount: 200,
@@ -2005,13 +2007,81 @@
         colors: ['#009b3a', '#fed105', '#ef3340']
       });
       
-      const roomAmount = AppState.game.roomAmount || AppState.user?.selectedRoom || 20;
-      const winnings = Math.floor(roomAmount * 0.85 * 5);
-      
-      showWinnerAnnouncement(AppState.user?.name || 'Player', winnings);
-      showToast(`🎉 You won ${winnings} ETB!`, 'success');
+      // 🔐 CRITICAL: Call backend to verify win and update balance
+      try {
+        console.log('📡 [FRONTEND] Sending win claim to backend...');
+        console.log('📡 [FRONTEND] Game session ID:', game?.sessionId);
+        console.log('📡 [FRONTEND] Current user balance before claim:', AppState.user?.balance || 0, 'ETB');
+        
+        const response = await Api.claimBingo({ sessionId: game.sessionId });
+        
+        console.log('✅ [FRONTEND] Win claim successful! Response:', JSON.stringify(response));
+        console.log('💰 [FRONTEND] New balance from server:', response.newBalance, 'ETB');
+        console.log('💰 [FRONTEND] Balance increase:', response.winnings, 'ETB');
+        
+        // Update local user state with new balance
+        if (response.newBalance !== undefined) {
+          const oldBalance = AppState.user?.balance || 0;
+          AppState.user.balance = response.newBalance;
+          console.log('✅ [FRONTEND] Local balance updated:', oldBalance, '->', response.newBalance, 'ETB');
+          
+          // Update UI immediately
+          const balanceEl = document.getElementById('userBalance');
+          if (balanceEl) {
+            balanceEl.textContent = response.newBalance;
+            console.log('✅ [FRONTEND] UI balance element updated');
+          }
+        }
+        
+        // Calculate expected winnings for display
+        const roomAmount = AppState.game.roomAmount || AppState.user?.selectedRoom || 20;
+        const totalPlayers = game?.players?.length || 1;
+        const expectedWinnings = Math.floor(roomAmount * totalPlayers * 0.85);
+        
+        console.log('💰 [FRONTEND] Win calculation:');
+        console.log('  - Room Amount:', roomAmount, 'ETB');
+        console.log('  - Total Players:', totalPlayers);
+        console.log('  - Expected Winnings (85%):', expectedWinnings, 'ETB');
+        console.log('  - Actual Winnings:', response.winnings, 'ETB');
+        
+        // Show winner announcement with ACTUAL winnings from server
+        showWinnerAnnouncement(AppState.user?.name || 'Player', response.winnings || expectedWinnings);
+        showToast(`🎉 You won ${response.winnings || expectedWinnings} ETB! Balance: ${response.newBalance || AppState.user?.balance} ETB`, 'success');
+        
+        // Log debug info if available
+        if (response.debug) {
+          console.log('🔍 [FRONTEND] Debug info from server:', response.debug);
+        }
+        
+      } catch (error) {
+        console.error('❌ [FRONTEND] Win claim FAILED:', error.message);
+        console.error('❌ [FRONTEND] Error details:', error);
+        
+        // Still show the win visually, but warn about balance update
+        const roomAmount = AppState.game.roomAmount || AppState.user?.selectedRoom || 20;
+        const winnings = Math.floor(roomAmount * 0.85 * 5);
+        showWinnerAnnouncement(AppState.user?.name || 'Player', winnings);
+        showToast(`⚠️ Win detected but balance update failed. Please refresh.`, 'error');
+        
+        // Try to sync user data as fallback
+        try {
+          console.log('🔄 [FRONTEND] Attempting fallback user sync...');
+          const syncedUser = await Api.syncUser();
+          if (syncedUser && syncedUser.balance !== undefined) {
+            AppState.user.balance = syncedUser.balance;
+            const balanceEl = document.getElementById('userBalance');
+            if (balanceEl) {
+              balanceEl.textContent = syncedUser.balance;
+            }
+            console.log('✅ [FRONTEND] Fallback sync successful. New balance:', syncedUser.balance);
+          }
+        } catch (syncError) {
+          console.error('❌ [FRONTEND] Fallback sync also failed:', syncError.message);
+        }
+      }
       
       setTimeout(() => {
+        console.log('🏠 [FRONTEND] Returning to lobby');
         showPage('lobby');
       }, 4000);
     }
