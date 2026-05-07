@@ -1,9 +1,13 @@
 const Bot = require('../models/Bot');
 const RoomPool = require('../models/RoomPool');
+const mongoose = require('mongoose');
 
 // BOT SPEED CONFIGURATION: 2 second reaction time
 // Bots automatically mark their cards when a number is called
 const BOT_REACTION_TIME_MS = 2000; // 2 seconds
+
+// Scheduled job state
+let botResetIntervalId = null;
 
 const botNames = [
   'Abebe', 'Abel', 'Abdi', 'Alem', 'Amanuel',
@@ -416,6 +420,155 @@ async function autoRefillBotBalances(minBalance = 500, refillAmount = 1000) {
 }
 
 /**
+ * Reset all bot balances to 1000 ETB every 24 hours
+ * This prevents unlimited wealth accumulation and maintains game balance
+ * Logs detailed information about each bot's state before and after reset
+ */
+async function resetBotBalancesDaily() {
+  try {
+    console.log('\n🔄 ========================================');
+    console.log('🔄 STARTING DAILY BOT BALANCE RESET');
+    console.log('🔄 ========================================\n');
+    
+    const resetTime = new Date();
+    const allBots = await Bot.find({}).sort({ name: 1 });
+    
+    if (allBots.length === 0) {
+      console.log('⚠️ No bots found in database');
+      return { reset: 0, totalResetAmount: 0 };
+    }
+    
+    console.log(`📊 Found ${allBots.length} bots to process\n`);
+    
+    let totalResetAmount = 0;
+    const INITIAL_BALANCE = 1000;
+    const resetDetails = [];
+    
+    for (const bot of allBots) {
+      const previousBalance = bot.balance;
+      const balanceChange = INITIAL_BALANCE - previousBalance;
+      
+      // Log detailed bot state BEFORE reset
+      console.log(`----------------------------------------`);
+      console.log(`🤖 Bot: ${bot.name} (${bot.telegramId})`);
+      console.log(`   📈 Previous Balance: ${previousBalance} ETB`);
+      console.log(`   🎯 Target Balance: ${INITIAL_BALANCE} ETB`);
+      console.log(`   💵 Change: ${balanceChange >= 0 ? '+' : ''}${balanceChange} ETB`);
+      console.log(`   🏆 Total Wins: ${bot.totalWins}`);
+      console.log(`   💰 Total Winnings (lifetime): ${bot.totalWinnings} ETB`);
+      console.log(`   🎮 Games Played: ${bot.gamesPlayed}`);
+      console.log(`   📊 Win Rate: ${bot.winRate.toFixed(2)}%`);
+      console.log(`   ⚙️  Difficulty: ${bot.difficulty}`);
+      console.log(`   ✅ Active: ${bot.isActive}`);
+      console.log(`   🕐 Last Played: ${bot.lastPlayed ? bot.lastPlayed.toISOString() : 'Never'}`);
+      console.log(`   🕐 Last Refill: ${bot.lastRefill ? bot.lastRefill.toISOString() : 'Never'}`);
+      console.log(`   🔄 Refill Count: ${bot.refillCount}`);
+      
+      // Update bot balance and increment refill count
+      await Bot.findByIdAndUpdate(bot._id, {
+        $set: { 
+          balance: INITIAL_BALANCE,
+          lastRefill: new Date()
+        },
+        $inc: { refillCount: 1 }
+      });
+      
+      totalResetAmount += Math.abs(balanceChange);
+      
+      // Log confirmation AFTER reset
+      console.log(`   ✅ Balance reset successfully`);
+      console.log(`   🆕 New Balance: ${INITIAL_BALANCE} ETB\n`);
+      
+      resetDetails.push({
+        name: bot.name,
+        telegramId: bot.telegramId,
+        previousBalance,
+        newBalance: INITIAL_BALANCE,
+        change: balanceChange,
+        totalWins: bot.totalWins,
+        gamesPlayed: bot.gamesPlayed,
+        winRate: bot.winRate
+      });
+    }
+    
+    // Summary report
+    console.log('\n🔄 ========================================');
+    console.log('🔄 DAILY BOT BALANCE RESET COMPLETE');
+    console.log('🔄 ========================================');
+    console.log(`📊 Total Bots Processed: ${allBots.length}`);
+    console.log(`💵 Total Amount Reset: ${totalResetAmount} ETB`);
+    console.log(`🕐 Reset Time: ${resetTime.toISOString()}`);
+    console.log('🔄 ========================================\n');
+    
+    return { 
+      reset: allBots.length,
+      totalResetAmount,
+      details: resetDetails
+    };
+  } catch (error) {
+    console.error('❌ Error resetting bot balances:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Start the daily bot balance reset scheduler
+ * Runs every 24 hours at midnight (or specified time)
+ */
+function startDailyBotReset(hour = 0, minute = 0) {
+  // Clear any existing interval
+  if (botResetIntervalId) {
+    clearInterval(botResetIntervalId);
+    botResetIntervalId = null;
+  }
+  
+  // Calculate initial delay until next scheduled time
+  const now = new Date();
+  const nextRun = new Date();
+  nextRun.setHours(hour, minute, 0, 0);
+  
+  if (nextRun <= now) {
+    nextRun.setDate(nextRun.getDate() + 1);
+  }
+  
+  const initialDelay = nextRun.getTime() - now.getTime();
+  
+  console.log(`⏰ Daily bot reset scheduled for ${hour}:${minute.toString().padStart(2, '0')}`);
+  console.log(`⏰ First run in ${Math.round(initialDelay / 1000 / 60)} minutes`);
+  
+  // Run first reset after initial delay
+  setTimeout(async () => {
+    await resetBotBalancesDaily();
+    
+    // Then run every 24 hours
+    botResetIntervalId = setInterval(async () => {
+      await resetBotBalancesDaily();
+    }, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
+  }, initialDelay);
+}
+
+/**
+ * Stop the daily bot reset scheduler
+ */
+function stopDailyBotReset() {
+  if (botResetIntervalId) {
+    clearInterval(botResetIntervalId);
+    botResetIntervalId = null;
+    console.log('⏹️ Daily bot reset scheduler stopped');
+  }
+}
+
+/**
+ * Get current status of the bot reset scheduler
+ */
+function getBotResetStatus() {
+  return {
+    isRunning: botResetIntervalId !== null,
+    intervalId: botResetIntervalId
+  };
+}
+
+/**
  * Regenerate a fresh bingo card for a specific bot
  * Called when bot enters a new game to ensure unique cards per game
  * @param {string} botId - Bot MongoDB ID or telegramId
@@ -456,5 +609,9 @@ module.exports = {
   processBotMoves,
   handleBotWin,
   autoRefillBotBalances,
-  regenerateBotCard
+  regenerateBotCard,
+  resetBotBalancesDaily,
+  startDailyBotReset,
+  stopDailyBotReset,
+  getBotResetStatus
 };

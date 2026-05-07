@@ -20,7 +20,7 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 const RoomPool = require('./models/RoomPool');
-const { initializeBots } = require('./utils/botManager');
+const { initializeBots, startDailyBotReset } = require('./utils/botManager');
 const path = require('path');
 require('dotenv').config();
 
@@ -193,11 +193,18 @@ app.use('*', (req, res) => res.status(404).json({ error: 'Endpoint not found' })
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`✅ [SERVER] Server running on port ${PORT}`);
   console.log(`✅ [SERVER] Health check available at: /health`);
   console.log(`✅ [SERVER] Environment: ${process.env.NODE_ENV || 'development'}`);
+  
+  // Start daily bot balance reset scheduler (runs every 24 hours at midnight)
+  startDailyBotReset(0, 0);
+  console.log('⏰ [SERVER] Daily bot balance reset scheduler started (resets at 00:00 UTC)\n');
 });
+
+// Export server instance for Socket.io and other modules
+module.exports = { app, server };
 
 // Helper function for prize calculation with 15% house cut (Single Source of Truth)
 function calculateRoomPrize(entryFee, totalPlayers) {
