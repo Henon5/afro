@@ -566,7 +566,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       // Emit socket events to notify clients about bot joins
       try {
         const serverModule = require('../server');
-        const io = serverModule.io || serverModule.getIO();
+        const io = serverModule.io;
         if (io) {
           // Emit individual bot join events for each injected bot
           for (let i = 0; i < injectedBots.length; i++) {
@@ -578,6 +578,8 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
             });
           }
           console.log(`📡 Emitted ${injectedBots.length} botJoined events for room ${amount}`);
+        } else {
+          console.warn('⚠️ Socket.io instance not found for botJoined events');
         }
       } catch (err) {
         console.warn('⚠️ Failed to emit botJoined events:', err.message);
@@ -854,18 +856,22 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   // Bots play fairly - no win manipulation or forced patterns
   // Each bot has equal chance to win based on their card and called numbers
   
-  // BROADCAST GAME_OVER: Send Socket.io event to frontend
+  // BROADCAST GAME_OVER: Send Socket.io event to frontend with proper room scoping
   const io = require('../server').io;
   if (io) {
-    io.emit('GAME_OVER', {
+    io.to(`game:${gameSession._id}`).emit('GAME_OVER', {
       sessionId: gameSession._id,
       winner: bot.name,
       winnerName: bot.name,
       isBot: true,
       pattern: winResult.pattern,
       winnings: winnings,
-      roomAmount: roomAmount
+      roomAmount: roomAmount,
+      message: `Bot ${bot.name} has won the ${winnings} ETB pool!`
     });
+    console.log(`📡 [BOT WIN] Broadcasted GAME_OVER to room game:${gameSession._id}`);
+  } else {
+    console.warn('⚠️ [BOT WIN] Socket.io instance not found');
   }
 }
 
@@ -1055,6 +1061,9 @@ router.post('/claim', auth, async (req, res) => {
         roomAmount: gameSession.roomAmount,
         message: `${gameSession.winnerName} has won the ${prizeAmount} ETB pool!`
       });
+      console.log(`📡 [HUMAN WIN] Broadcasted GAME_OVER to room game:${gameSession._id}`);
+    } else {
+      console.warn('⚠️ [HUMAN WIN] Socket.io instance not found');
     }
   } catch (err) {
     console.error('❌ [CLAIM] Claim win error:', err);
@@ -1105,13 +1114,7 @@ router.post('/number/:sessionId', auth, async (req, res) => {
     if (botResult && botResult.winner) {
       await handleBotWin(gameSession, botResult.winner, botResult.botIndex, botResult.winResult);
       
-      // BROADCAST: Emit game over to all players
-      io.to(`game:${gameSession._id}`).emit('GAME_OVER', {
-        winner: botResult.winner.name,
-        isBot: true,
-        pattern: botResult.winResult.pattern,
-        message: `Bot ${botResult.winner.name} has won the game!`
-      });
+      // Note: handleBotWin already broadcasts GAME_OVER event, so no need to duplicate
       
       // Return game over response
       return res.json({ 
