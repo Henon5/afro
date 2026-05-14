@@ -434,7 +434,9 @@ exports.auth = async (req, res, next) => {
     // Admin access is granted if:
     // 1. User is authenticated via admin credentials/token (isAdminAuth already true)
     // 2. User's telegramId OR _id is in the ADMIN_IDS environment variable
-    if (user.telegramId || (user._id && user._id !== 'admin')) {
+    // IMPORTANT: If isAdminAuth is already true from earlier auth methods, preserve it!
+    if (!isAdminAuth && (user.telegramId || (user._id && user._id !== 'admin'))) {
+      // Only check ADMIN_IDS if not already authenticated as admin
       // Check if this user's telegramId OR _id is in the admin list
       const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(id => id.trim()) : [];
       const userIdToCheck = String(user._id);
@@ -458,6 +460,8 @@ exports.auth = async (req, res, next) => {
         isAdminAuth = false;
         // Keep existing isAdmin value from DB, don't override to false
       }
+    } else if (isAdminAuth) {
+      console.log('✅ [AUTH] Admin status preserved from authentication method');
     } else if (user._id === 'admin') {
       console.log('👮 [AUTH] Admin authenticated via credentials');
     }
