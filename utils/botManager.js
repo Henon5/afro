@@ -2,6 +2,27 @@ const Bot = require('../models/Bot');
 const RoomPool = require('../models/RoomPool');
 const mongoose = require('mongoose');
 
+// Store IO instance reference to avoid circular dependency
+let ioInstance = null;
+
+/**
+ * Set the Socket.IO instance for bot events
+ * Called from server.js after initialization
+ */
+function setIO(io) {
+  ioInstance = io;
+}
+
+/**
+ * Get the Socket.IO instance
+ */
+function getIO() {
+  return ioInstance;
+}
+
+module.exports.setIO = setIO;
+module.exports.getIO = getIO;
+
 // BOT SPEED CONFIGURATION: 2 second reaction time
 // Bots automatically mark their cards when a number is called
 const BOT_REACTION_TIME_MS = 2000; // 2 seconds
@@ -340,8 +361,7 @@ async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
   // BROADCAST GAME_OVER: Send Socket.io event to frontend
   // Use proper room-scoped emission to ensure all players in the game receive it
   try {
-    const serverModule = require('../server');
-    const io = serverModule.io;
+    const io = getIO();
     if (io) {
       io.to(`game:${gameSession._id}`).emit('GAME_OVER', {
         sessionId: gameSession._id,
@@ -601,5 +621,7 @@ module.exports = {
   resetBotBalancesDaily,
   startDailyBotReset,
   stopDailyBotReset,
-  getBotResetStatus
+  getBotResetStatus,
+  setIO,
+  getIO
 };

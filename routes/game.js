@@ -8,7 +8,7 @@ const RoomPool = require('../models/RoomPool');
 const GameSession = require('../models/GameSession');
 const Transaction = require('../models/Transaction');
 const Bot = require('../models/Bot');
-const { io } = require('../server'); // Import Socket.io instance
+const { getIO } = require('../utils/botManager'); // Import getIO function
 const { initializeBots, simulateBotMove, checkBotWin, ensureAllBotsHaveCards, processBotMoves: processBotMovesFromManager, handleBotWin: handleBotWinFromManager, getBotReactionTime } = require('../utils/botManager');
 const { updateBotBalance, updateUserBalance } = require('../utils/balanceManager');
 
@@ -565,8 +565,7 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       
       // Emit socket events to notify clients about bot joins
       try {
-        const serverModule = require('../server');
-        const io = serverModule.io;
+        const io = getIO();
         if (io) {
           // Emit individual bot join events for each injected bot
           for (let i = 0; i < injectedBots.length; i++) {
@@ -857,7 +856,7 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   // Each bot has equal chance to win based on their card and called numbers
   
   // BROADCAST GAME_OVER: Send Socket.io event to frontend with proper room scoping
-  const io = require('../server').io;
+  const io = getIO();
   if (io) {
     io.to(`game:${gameSession._id}`).emit('GAME_OVER', {
       sessionId: gameSession._id,
@@ -1049,7 +1048,7 @@ router.post('/claim', auth, async (req, res) => {
     });
     
     // BROADCAST GAME_OVER: Send Socket.io event to frontend for human wins
-    const io = require('../server').io;
+    const io = getIO();
     if (io) {
       io.to(`game:${gameSession._id}`).emit('GAME_OVER', {
         sessionId: gameSession._id,
