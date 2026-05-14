@@ -20,7 +20,7 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 const RoomPool = require('./models/RoomPool');
-const { initializeBots, startDailyBotReset } = require('./utils/botManager');
+const { initializeBots, startDailyBotReset, setIO } = require('./utils/botManager');
 const path = require('path');
 const http = require('http');
 const socketIO = require('socket.io');
@@ -244,6 +244,9 @@ io.on('connection', (socket) => {
     console.log(`🔌 [SOCKET] Client disconnected: ${socket.id}`);
   });
 });
+
+// Set IO instance in botManager to avoid circular dependency
+setIO(io);
 
 // Export io for use in routes
 module.exports = { app, server, io };
