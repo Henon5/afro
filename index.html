@@ -1892,6 +1892,15 @@
         cell.classList.toggle('marked');
         game.markedState[row][col] = cell.classList.contains('marked');
         updateMatchesCount();
+        
+        // Emit socket event to sync mark with server
+        if (AppState.socket && AppState.socket.connected) {
+          AppState.socket.emit('markNumber', { 
+            sessionId: game.sessionId, 
+            number: num, 
+            marked: cell.classList.contains('marked') 
+          });
+        }
       } else {
         showToast('Number not called yet!', 'error');
         Sound.error();
@@ -2017,6 +2026,13 @@
 
     function checkForBingo() {
       const game = AppState.game;
+      
+      // Check if socket is connected before claiming
+      if (!AppState.socket || !AppState.socket.connected) {
+        showToast('Not connected to game server. Please refresh.', 'error');
+        return;
+      }
+      
       let won = false;
       
       for(let i = 0; i < 5; i++) {
@@ -2039,7 +2055,15 @@
       if(d1 || d2) won = true;
       
       if(won) {
+        // Emit bingo claim event to server first
+        console.log('🎯 Emitting bingoClaim to server for session:', game.sessionId);
+        AppState.socket.emit('bingoClaim', { sessionId: game.sessionId });
+        
+        // Still call handleWin for UI feedback, but server will verify
         handleWin();
+      } else {
+        showToast('No bingo yet! Keep playing.', 'error');
+        Sound.error();
       }
     }
 
@@ -2863,6 +2887,8 @@
       
       AppState.socket.on('connect', () => {
         console.log('✅ Socket connected:', AppState.socket.id);
+        console.log('🚀 Emitting joinGame event for session:', sessionId);
+        AppState.socket.emit('joinGame', { sessionId: sessionId });
       });
       
       AppState.socket.on('disconnect', (reason) => {
