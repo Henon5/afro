@@ -1077,7 +1077,7 @@ router.post('/number/:sessionId', auth, async (req, res) => {
     const display = `${letter}-${nextNumber}`;
     
     // BROADCAST: Emit the called number to all players in real-time
-    io.to(`game:${gameSession._id}`).emit('NUMBER_CALLED', {
+    io.to(`game:${gameSession._id}`).emit('numberCalled', {
       number: nextNumber,
       display: display,
       callCount: gameSession.calledNumbers.length
