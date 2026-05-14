@@ -266,6 +266,23 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       return res.status(400).json({ error: 'Invalid room amount' });
     }
     
+    // ============================================
+    // 📝 COMPREHENSIVE USER ACTION LOGGING
+    // ============================================
+    console.log('\n' + '='.repeat(60));
+    console.log('🎮 [JOIN REQUEST] User attempting to join game');
+    console.log('='.repeat(60));
+    console.log('👤 User ID:', req.user._id);
+    console.log('👤 User Name:', req.user.firstName || req.user.username || 'Unknown');
+    console.log('💰 Entry Fee:', amount, 'ETB');
+    console.log('⏰ Timestamp:', new Date().toISOString());
+    console.log('='.repeat(60));
+    
+    // Get user's current balance before deduction
+    const userBefore = await User.findById(req.user._id).select('balance firstName username telegramId');
+    console.log('💵 [BEFORE JOIN] Current Balance:', userBefore?.balance || 0, 'ETB');
+    console.log('='.repeat(60) + '\n');
+    
     // SECURITY FIX: Use atomic update with condition to prevent race conditions and double-spending
     const updatedUser = await User.findOneAndUpdate(
       { 
@@ -277,8 +294,19 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
     );
     
     if (!updatedUser) {
+      console.error('❌ [JOIN FAILED] Insufficient balance for user:', req.user._id);
+      console.log('   Required:', amount, 'ETB');
+      console.log('   Available:', userBefore?.balance || 0, 'ETB');
       return res.status(400).json({ error: 'Insufficient Money' });
     }
+    
+    // Log balance deduction
+    console.log('💸 [BALANCE DEDUCTED] Entry fee paid');
+    console.log('   Previous Balance:', userBefore.balance, 'ETB');
+    console.log('   Amount Deducted:', amount, 'ETB');
+    console.log('   New Balance:', updatedUser.balance, 'ETB');
+    console.log('   Room Entered:', amount, 'ETB room');
+    console.log('='.repeat(60) + '\n');
 
     // Atomic upsert for room pool
     let roomPool = await RoomPool.findOneAndUpdate(
@@ -617,6 +645,22 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
 
     const updatedRoomPool = await RoomPool.findOne({ roomAmount: amount });
     
+    // ============================================
+    // 📝 JOIN SUCCESS LOGGING
+    // ============================================
+    console.log('\n' + '='.repeat(60));
+    console.log('✅ [JOIN SUCCESS] User successfully joined game');
+    console.log('='.repeat(60));
+    console.log('🎮 Session ID:', gameSession._id);
+    console.log('💰 Room Amount:', amount, 'ETB');
+    console.log('👥 Total Players:', gameSession.players.length);
+    console.log('   - Humans:', gameSession.players.filter(p => !p.isBot).length);
+    console.log('   - Bots:', injectedBots.length);
+    console.log('💵 User Balance After Join:', updatedUser.balance, 'ETB');
+    console.log('🏆 Potential Prize Pool:', finalPrize, 'ETB');
+    console.log('📊 Streak Bonus:', userStreak);
+    console.log('='.repeat(60) + '\n');
+    
     res.json({ 
       success: true, 
       game: { 
@@ -653,27 +697,51 @@ router.post('/mark', auth, async (req, res) => {
   try {
     const { sessionId, row, col } = req.body;
     
+    // ============================================
+    // 📝 HUMAN PLAYER MARK ACTION LOGGING
+    // ============================================
+    console.log('\n' + '='.repeat(60));
+    console.log('✋ [MARK ACTION] Human player marking a number');
+    console.log('='.repeat(60));
+    console.log('👤 User ID:', req.user._id);
+    console.log('🎮 Session ID:', sessionId);
+    console.log('📍 Coordinates: Row', row, 'Col', col);
+    console.log('⏰ Timestamp:', new Date().toISOString());
+    console.log('='.repeat(60));
+    
     // Validate coordinates first (fast fail)
     if (row < 0 || row > 2 || col < 0 || col > 2) {
+      console.error('❌ [MARK FAILED] Invalid coordinates:', row, col);
       return res.status(400).json({ error: 'Invalid coordinates' });
     }
     
     // Use lean() for faster query, but we need to save later so don't use lean here
     const gameSession = await GameSession.findOne({ _id: sessionId, gameStatus: 'active' })
       .select('players calledNumbers gameStatus');
-    if (!gameSession) return res.status(404).json({ error: 'Game not found or not active' });
+    if (!gameSession) {
+      console.error('❌ [MARK FAILED] Game not found or not active:', sessionId);
+      return res.status(404).json({ error: 'Game not found or not active' });
+    }
 
     const player = gameSession.players.find(p => p.user === req.user._id.toString());
-    if (!player) return res.status(403).json({ error: 'Not in this game' });
+    if (!player) {
+      console.error('❌ [MARK FAILED] User not in this game:', req.user._id);
+      return res.status(403).json({ error: 'Not in this game' });
+    }
     
     const num = player.cardGrid[row][col];
     // Use Set for O(1) lookup instead of O(n) array includes
     const calledSet = new Set(gameSession.calledNumbers);
     if (!(row === 2 && col === 2) && !calledSet.has(num)) {
+      console.warn('⚠️ [MARK REJECTED] Number not called yet:', num);
       return res.status(400).json({ error: 'Number not called yet' });
     }
 
     player.markedState[row][col] = !player.markedState[row][col];
+    
+    console.log('✅ [NUMBER MARKED] Grid position:', row, col);
+    console.log('   Number on card:', num);
+    console.log('   Marked state:', player.markedState[row][col] ? 'MARKED' : 'UNMARKED');
     
     // Use updateOne instead of save() for better performance (only updates changed fields)
     await GameSession.updateOne(
@@ -683,6 +751,13 @@ router.post('/mark', auth, async (req, res) => {
 
     const playerIndex = gameSession.players.indexOf(player);
     const winResult = gameSession.checkWin(playerIndex);
+    
+    console.log('🔍 [WIN CHECK] Pattern detected:', winResult.win ? 'YES' : 'NO');
+    if (winResult.win) {
+      console.log('🎯 Winning pattern:', winResult.pattern);
+      console.log('🏆 Player should claim win now!');
+    }
+    console.log('='.repeat(60) + '\n');
     
     // Process bot moves after human player marks (pass null since no new number was called)
     await processBotMoves(gameSession, null);
@@ -799,10 +874,26 @@ async function processBotMovesLocal(gameSession, calledNumber) {
 async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   const roomAmount = gameSession.roomAmount;
   
+  // ============================================
+  // 📝 BOT WIN EVENT LOGGING
+  // ============================================
+  console.log('\n' + '='.repeat(60));
+  console.log('🤖 [BOT WIN EVENT] Bot has won the game!');
+  console.log('='.repeat(60));
+  console.log('🤖 Bot ID:', bot.telegramId);
+  console.log('🤖 Bot Name:', bot.name);
+  console.log('🎮 Room Amount:', roomAmount, 'ETB');
+  console.log('🎯 Winning Pattern:', winResult.pattern);
+  console.log('⏰ Timestamp:', new Date().toISOString());
+  console.log('='.repeat(60));
+  
   // Get the room pool with current prize value BEFORE resetting (critical for correct payout)
   const roomPoolBeforeReset = await RoomPool.findOne({ roomAmount: gameSession.roomAmount });
   
-  if (!roomPoolBeforeReset) return;
+  if (!roomPoolBeforeReset) {
+    console.error('❌ [BOT WIN] Room pool not found for room:', roomAmount);
+    return;
+  }
   
   // Capture the actual pool values before they're reset
   const poolValue = roomPoolBeforeReset.currentPool || 0;
@@ -810,6 +901,14 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   
   // Calculate total winnings from captured values
   const winnings = poolValue + houseTotalValue;
+  
+  console.log('\n💰 [PAYOUT CALCULATION]');
+  console.log('   Total Players in Game:', gameSession.players.length);
+  console.log('   Entry Fee per Player:', roomAmount, 'ETB');
+  console.log('   Total Pool Generated:', poolValue, 'ETB');
+  console.log('   House Total (15%):', houseTotalValue, 'ETB');
+  console.log('   Total Winnings Awarded:', winnings, 'ETB');
+  console.log('='.repeat(60));
   
   // HOUSE CUT SEPARATION: Transfer 15% house cut to Admin Wallet BEFORE bot payout
   const houseCut = houseTotalValue;
@@ -821,19 +920,29 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
         { $inc: { balance: houseCut } },
         { upsert: true }
       );
-      console.log(`🏦 House Cut: ${houseCut} ETB transferred to Admin Wallet`);
+      console.log(`🏦 [HOUSE CUT] ${houseCut} ETB transferred to Admin Wallet`);
     }
   }
   
   // DEBUG LOG: Show pool breakdown
-  console.log(`💰 Bot Payout Breakdown - Pool: ${poolValue}, House: ${houseTotalValue}, Total: ${winnings}`);
+  console.log(`💰 [PAYOUT BREAKDOWN] Pool: ${poolValue}, House: ${houseTotalValue}, Total: ${winnings}`);
+  
+  // Get bot's balance before payout
+  const botBefore = await Bot.findById(bot._id).select('balance name telegramId');
+  console.log(`💵 [BOT BALANCE BEFORE] ${bot.name}: ${botBefore?.balance || 0} ETB`);
   
   // THE PAYOUT: Add winnings to the winning bot's balance (with retry logic)
   await updateBotBalance(bot._id, winnings, true);
   
-  console.log(`💰 Bot ${bot.name} awarded ${winnings} ETB (new balance will be updated)`);
+  // Get bot's balance after payout
+  const botAfter = await Bot.findById(bot._id).select('balance name telegramId');
+  console.log(`💵 [BOT BALANCE AFTER] ${bot.name}: ${botAfter?.balance || 0} ETB`);
+  console.log(`💸 [BALANCE INCREASE] +${winnings} ETB added to bot`);
+  
+  console.log(`💰 [PAYOUT SUCCESS] Bot ${bot.name} awarded ${winnings} ETB`);
   // AUDIT LOG: Track successful payout
   console.log(`[PAYOUT] Successfully moved ${winnings} ETB to Bot: ${bot.telegramId}`);
+  console.log('='.repeat(60) + '\n');
   
   // Reset room pool after capturing values (including houseTotal since it's been transferred to admin)
   await RoomPool.findOneAndUpdate(
@@ -1025,13 +1134,21 @@ router.post('/claim', auth, async (req, res) => {
     });
 
     // STEP 6: Final Verification Log
-    console.log('===========================================');
-    console.log('✅ [CLAIM] PAYOUT COMPLETE');
-    console.log('  - Winner:', winnerId, '(', userInfo.firstName || userInfo.username, ')');
-    console.log('  - Prize Amount:', prizeAmount, 'ETB');
-    console.log('  - New Balance:', updatedUser?.balance, 'ETB');
-    console.log('  - Pattern:', winResult.pattern);
-    console.log('===========================================');
+    console.log('\n' + '='.repeat(60));
+    console.log('🏆 [WIN PAYOUT] HUMAN PLAYER WON!');
+    console.log('='.repeat(60));
+    console.log('👤 Winner ID:', winnerId);
+    console.log('👤 Winner Name:', userInfo.firstName || userInfo.username);
+    console.log('💰 Previous Balance:', userInfo?.balance || 0, 'ETB');
+    console.log('💵 Prize Amount Added:', prizeAmount, 'ETB');
+    console.log('💰 New Balance:', updatedUser?.balance, 'ETB');
+    console.log('🎯 Winning Pattern:', winResult.pattern);
+    console.log('🎮 Room Amount:', gameSession.roomAmount, 'ETB');
+    console.log('👥 Total Players in Game:', totalPlayers);
+    console.log('📊 Total Pool Generated:', totalPool, 'ETB');
+    console.log('🏠 House Cut (15%):', houseCut, 'ETB');
+    console.log('⏰ Timestamp:', new Date().toISOString());
+    console.log('='.repeat(60) + '\n');
 
     res.json({ 
       success: true, 
@@ -1073,12 +1190,33 @@ router.post('/claim', auth, async (req, res) => {
 
 router.post('/number/:sessionId', auth, async (req, res) => {
   try {
+    // ============================================
+    // 📝 NUMBER CALL ACTION LOGGING
+    // ============================================
+    console.log('\n' + '='.repeat(60));
+    console.log('🔢 [NUMBER CALLED] New bingo number drawn');
+    console.log('='.repeat(60));
+    console.log('🎮 Session ID:', req.params.sessionId);
+    console.log('👤 Requested by User:', req.user._id);
+    console.log('⏰ Timestamp:', new Date().toISOString());
+    console.log('='.repeat(60));
+    
     const gameSession = await GameSession.findOne({ _id: req.params.sessionId, gameStatus: 'active' })
       .select('players calledNumbers gameStatus currentNumber');
-    if (!gameSession) return res.status(404).json({ error: 'Game not found or not active' });
+    if (!gameSession) {
+      console.error('❌ [NUMBER CALL FAILED] Game not found or not active:', req.params.sessionId);
+      return res.status(404).json({ error: 'Game not found or not active' });
+    }
+    
+    console.log('📊 Current game state:');
+    console.log('   Numbers called so far:', gameSession.calledNumbers.length);
+    console.log('   Total players:', gameSession.players.length);
+    console.log('   Humans:', gameSession.players.filter(p => !p.isBot).length);
+    console.log('   Bots:', gameSession.players.filter(p => p.isBot).length);
     
     // Fast path: check if all numbers called
     if (gameSession.calledNumbers.length >= 75) {
+      console.log('⚠️ [GAME COMPLETE] All 75 numbers have been called');
       return res.json({ success: true, number: null, complete: true, callCount: 75 });
     }
     
@@ -1089,7 +1227,10 @@ router.post('/number/:sessionId', auth, async (req, res) => {
       if (!calledSet.has(i)) available.push(i);
     }
     
-    if (available.length === 0) return res.json({ success: true, number: null, complete: true, callCount: 75 });
+    if (available.length === 0) {
+      console.log('⚠️ [GAME COMPLETE] No more numbers available');
+      return res.json({ success: true, number: null, complete: true, callCount: 75 });
+    }
     
     const nextNumber = available[Math.floor(Math.random() * available.length)];
     gameSession.calledNumbers.push(nextNumber);
@@ -1099,6 +1240,11 @@ router.post('/number/:sessionId', auth, async (req, res) => {
     const letter = ['B','I','N','G','O'][Math.floor((nextNumber - 1) / 15)];
     const display = `${letter}-${nextNumber}`;
     
+    console.log('\n🎯 NUMBER DRAWN:', display);
+    console.log('   Raw number:', nextNumber);
+    console.log('   Call count:', gameSession.calledNumbers.length);
+    console.log('='.repeat(60));
+    
     // BROADCAST: Emit the called number to all players in real-time
     io.to(`game:${gameSession._id}`).emit('numberCalled', {
       number: nextNumber,
@@ -1107,6 +1253,7 @@ router.post('/number/:sessionId', auth, async (req, res) => {
     });
     
     // TRIGGER BOT MOVES: After calling a number, all bots check for matches and mark
+    console.log('\n🤖 [BOT TURN] Processing bot moves...');
     const botResult = await processBotMoves(gameSession, nextNumber);
     
     // If a bot won, handle the payout and end the game
