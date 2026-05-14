@@ -2912,7 +2912,7 @@
       }
       
       // Connect to socket server
-      AppState.socket = io(CONFIG.API_URL, {
+      AppState.socket = io(CONFIG.API_BASE.replace('/api', ''), {
         query: queryParams,
         transports: ['websocket', 'polling'],
         reconnection: true,
