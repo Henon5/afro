@@ -1055,9 +1055,11 @@
       _headers(customHeaders = {}) {
         const headers = { 'Content-Type': 'application/json' };
         
-        // Add Telegram auth if available
-        if (window.Telegram?.WebApp?.initData) {
-          headers['x-telegram-init-data'] = Telegram.WebApp.initData;
+        // Add Telegram auth if available - check both live initData and stored initData
+        const telegramInitData = window.Telegram?.WebApp?.initData || localStorage.getItem('telegramInitData');
+        if (telegramInitData) {
+          headers['x-telegram-init-data'] = telegramInitData;
+          console.log('✅ Telegram initData added to headers');
         }
         
         // Always check for JWT token in localStorage first
@@ -1065,8 +1067,12 @@
         if (token) {
           headers['Authorization'] = 'Bearer ' + token;
           console.log('✅ JWT Token found in localStorage:', token.substring(0, 20) + '...');
+        } else if (telegramInitData) {
+          // Use Telegram initData as fallback for Authorization header
+          headers['Authorization'] = telegramInitData;
+          console.log('📱 Using Telegram initData for Authorization');
         } else {
-          console.log('⚠️ No JWT Token found in localStorage');
+          console.log('⚠️ No authentication token found');
         }
         
         // Add admin token ONLY for explicit admin requests
@@ -1095,7 +1101,7 @@
         const url = `${CONFIG.API_BASE}${endpoint}`;
         
         // 1. Retrieve the Token: Check localStorage first, then Telegram initData fallback
-        const token = localStorage.getItem('token') || window.Telegram?.WebApp?.initData;
+        const token = localStorage.getItem('token') || localStorage.getItem('telegramInitData') || window.Telegram?.WebApp?.initData;
         
         // 2. Force the Header: Always include Content-Type
         const headers = { 'Content-Type': 'application/json' };
@@ -1458,6 +1464,12 @@
       }
 
       tg.expand();
+      
+      // Store Telegram initData to localStorage for persistence across page reloads
+      if (tg.initData) {
+        localStorage.setItem('telegramInitData', tg.initData);
+        console.log('✅ Telegram initData saved to localStorage');
+      }
       
       // Only enable closing confirmation if supported
       if (typeof tg.enableClosingConfirmation === 'function') {
