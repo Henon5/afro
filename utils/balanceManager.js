@@ -95,6 +95,7 @@ async function batchUpdateBotBalances(updates) {
  */
 async function updateUserBalance(userId, amount, additionalFields = {}) {
   console.log(`💰 [BALANCE] Updating user ${userId} balance by ${amount} ETB`);
+  console.log(`📝 [BALANCE] Additional fields:`, additionalFields);
 
   const updateData = {
     $inc: {
@@ -106,6 +107,10 @@ async function updateUserBalance(userId, amount, additionalFields = {}) {
   };
 
   try {
+    // Get user before update for logging
+    const userBefore = await User.findById(userId).select('balance firstName username');
+    console.log(`📊 [BALANCE] User ${userId} balance BEFORE: ${userBefore?.balance || 0} ETB`);
+
     const result = await executeWithRetry(
       () => User.findOneAndUpdate(
         { _id: userId },
@@ -121,10 +126,12 @@ async function updateUserBalance(userId, amount, additionalFields = {}) {
       throw new Error('User not found');
     }
 
-    console.log(`✅ [BALANCE] User ${userId} new balance: ${result.balance} ETB`);
+    console.log(`📊 [BALANCE] User ${userId} balance AFTER: ${result.balance} ETB`);
+    console.log(`✅ [BALANCE] User ${userId} (${result.firstName || result.username}) new balance: ${result.balance} ETB (+${amount})`);
     return result;
   } catch (error) {
     console.error(`❌ [BALANCE] Failed to update user ${userId}:`, error.message);
+    console.error(`❌ [BALANCE] Error stack:`, error.stack);
     throw error;
   }
 }

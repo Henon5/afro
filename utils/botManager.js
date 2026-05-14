@@ -326,19 +326,49 @@ async function processBotMoves(gameSession, calledNumber) {
 async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
   const roomAmount = gameSession.roomAmount;
   
+  console.log('\\n' + '='.repeat(60));
+  console.log('🤖 [BOT WIN] Bot has won the game!');
+  console.log('='.repeat(60));
+  console.log('🤖 Bot ID:', winningBot.telegramId);
+  console.log('🤖 Bot Name:', winningBot.name);
+  console.log('🎮 Room Amount:', roomAmount, 'ETB');
+  console.log('🎯 Winning Pattern:', winResult.pattern);
+  console.log('⏰ Timestamp:', new Date().toISOString());
+  console.log('='.repeat(60));
+  
   // Get the room pool with current prize value BEFORE resetting
   const roomPool = await RoomPool.findOne({ roomAmount: gameSession.roomAmount });
   
-  if (!roomPool) return;
+  if (!roomPool) {
+    console.error('❌ [BOT WIN] Room pool not found for room:', roomAmount);
+    return;
+  }
   
   const winnings = roomPool.currentPool + (roomPool.houseTotal || 0);
+  
+  console.log('\\n💰 [PAYOUT CALCULATION]');
+  console.log('   Total Players in Game:', gameSession.players.length);
+  console.log('   Entry Fee per Player:', roomAmount, 'ETB');
+  console.log('   Total Pool Generated:', roomPool.currentPool, 'ETB');
+  console.log('   House Total (15%):', roomPool.houseTotal || 0, 'ETB');
+  console.log('   Total Winnings Awarded:', winnings, 'ETB');
+  console.log('='.repeat(60));
+  
+  // Get bot's balance before payout
+  const botBefore = await Bot.findById(winningBot._id).select('balance name telegramId');
+  console.log(`💵 [BOT BALANCE BEFORE] ${winningBot.name}: ${botBefore?.balance || 0} ETB`);
   
   // THE PAYOUT: Add currentPool to the winning bot's balance
   await Bot.findByIdAndUpdate(winningBot._id, { 
     $inc: { balance: winnings, totalWins: 1, totalWinnings: winnings, gamesPlayed: 1 } 
   });
   
-  console.log(`💰 Bot ${winningBot.name} awarded ${winnings} ETB (new balance will be updated)`);
+  // Get bot's balance after payout
+  const botAfter = await Bot.findById(winningBot._id).select('balance name telegramId');
+  console.log(`💵 [BOT BALANCE AFTER] ${winningBot.name}: ${botAfter?.balance || 0} ETB`);
+  console.log(`💸 [BALANCE INCREASE] +${winnings} ETB added to bot`);
+  console.log(`💰 [PAYOUT SUCCESS] Bot ${winningBot.name} awarded ${winnings} ETB`);
+  console.log('='.repeat(60) + '\\n');
   
   // Reset room pool
   await RoomPool.findOneAndUpdate(
