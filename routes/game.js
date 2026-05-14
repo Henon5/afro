@@ -8,6 +8,7 @@ const RoomPool = require('../models/RoomPool');
 const GameSession = require('../models/GameSession');
 const Transaction = require('../models/Transaction');
 const Bot = require('../models/Bot');
+const { io } = require('../server'); // Import Socket.io instance
 const { initializeBots, simulateBotMove, checkBotWin, ensureAllBotsHaveCards, processBotMoves: processBotMovesFromManager, handleBotWin: handleBotWinFromManager, getBotReactionTime } = require('../utils/botManager');
 const { updateBotBalance, updateUserBalance } = require('../utils/balanceManager');
 
@@ -1087,12 +1088,27 @@ router.post('/number/:sessionId', auth, async (req, res) => {
     const letter = ['B','I','N','G','O'][Math.floor((nextNumber - 1) / 15)];
     const display = `${letter}-${nextNumber}`;
     
+    // BROADCAST: Emit the called number to all players in real-time
+    io.to(`game:${gameSession._id}`).emit('NUMBER_CALLED', {
+      number: nextNumber,
+      display: display,
+      callCount: gameSession.calledNumbers.length
+    });
+    
     // TRIGGER BOT MOVES: After calling a number, all bots check for matches and mark
     const botResult = await processBotMoves(gameSession, nextNumber);
     
     // If a bot won, handle the payout and end the game
     if (botResult && botResult.winner) {
       await handleBotWin(gameSession, botResult.winner, botResult.botIndex, botResult.winResult);
+      
+      // BROADCAST: Emit game over to all players
+      io.to(`game:${gameSession._id}`).emit('GAME_OVER', {
+        winner: botResult.winner.name,
+        isBot: true,
+        pattern: botResult.winResult.pattern,
+        message: `Bot ${botResult.winner.name} has won the game!`
+      });
       
       // Return game over response
       return res.json({ 
@@ -1124,6 +1140,14 @@ router.post('/number/:sessionId', auth, async (req, res) => {
           isBot: true
         });
       }
+    }
+    
+    // BROADCAST: Emit bot moves to all players in real-time
+    if (botMarks.length > 0) {
+      io.to(`game:${gameSession._id}`).emit('BOT_MOVE', {
+        botMarks: botMarks,
+        callCount: gameSession.calledNumbers.length
+      });
     }
     
     res.json({ 
