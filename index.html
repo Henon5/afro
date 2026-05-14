@@ -1121,15 +1121,21 @@
           }
         }
         
-        // 3. Admin Fallback: Check for admin token
+        // 3. Admin Fallback: Check for admin token ONLY for explicit admin requests
+        // Never send admin token with regular player requests to prevent 403 errors
         const adminToken = localStorage.getItem('adminToken');
-        if (adminToken) {
+        if (adminToken && options.headers?.isAdminRequest) {
+          // Only include admin token when explicitly requested for admin operations
           headers['x-admin-token'] = adminToken;
+          console.log('✅ Admin Token added for admin request:', adminToken.substring(0, 20) + '...');
+        } else if (adminToken && !options.headers?.isAdminRequest) {
+          console.log('ℹ️ Admin Token exists but NOT sending (not an admin request)');
         }
         
-        // Merge with any custom headers passed in options
+        // Merge with any custom headers passed in options (excluding isAdminRequest flag)
         if (options.headers) {
-          Object.assign(headers, options.headers);
+          const { isAdminRequest, ...restHeaders } = options.headers;
+          Object.assign(headers, restHeaders);
         }
         
         // 4. Debug Log: Verify 'Authorization' appears in headers
@@ -2822,6 +2828,125 @@
     }
 
     // ============================================
+    // 🔌 SOCKET.IO CONNECTION
+    // ============================================
+    function initSocket(sessionId) {
+      console.log('🔌 Initializing socket connection for session:', sessionId);
+      
+      // Close existing socket if any
+      if (AppState.socket) {
+        AppState.socket.disconnect();
+        AppState.socket = null;
+      }
+      
+      // Get authentication token for socket
+      const token = localStorage.getItem('token') || localStorage.getItem('telegramInitData');
+      const adminToken = localStorage.getItem('adminToken');
+      
+      // Build query params for socket connection
+      let queryParams = `sessionId=${sessionId}`;
+      if (token) {
+        queryParams += `&token=${encodeURIComponent(token)}`;
+      }
+      if (adminToken) {
+        queryParams += `&adminToken=${encodeURIComponent(adminToken)}`;
+      }
+      
+      // Connect to socket server
+      AppState.socket = io(CONFIG.API_URL, {
+        query: queryParams,
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
+      });
+      
+      AppState.socket.on('connect', () => {
+        console.log('✅ Socket connected:', AppState.socket.id);
+      });
+      
+      AppState.socket.on('disconnect', (reason) => {
+        console.log('❌ Socket disconnected:', reason);
+      });
+      
+      AppState.socket.on('connect_error', (error) => {
+        console.error('🔴 Socket connection error:', error.message);
+        showToast('Connection lost. Reconnecting...', 'error');
+      });
+      
+      // Game events
+      AppState.socket.on('numberCalled', (data) => {
+        console.log('🎱 Number called:', data);
+        handleNumberCalled(data);
+      });
+      
+      AppState.socket.on('gameStarted', (data) => {
+        console.log('🎮 Game started:', data);
+        showToast('Game started!', 'info');
+        Sound.success();
+      });
+      
+      AppState.socket.on('bingoWin', (data) => {
+        console.log('🎉 Bingo win:', data);
+        showWinnerAnnouncement(data.winnerName, data.amount);
+        Sound.win();
+      });
+      
+      AppState.socket.on('gameEnd', (data) => {
+        console.log('🏁 Game ended:', data);
+        handleGameEnd(data);
+      });
+      
+      AppState.socket.on('playerJoined', (data) => {
+        console.log('👤 Player joined:', data);
+        updatePlayerCount(data.count);
+      });
+      
+      AppState.socket.on('playerLeft', (data) => {
+        console.log('👤 Player left:', data);
+        updatePlayerCount(data.count);
+      });
+      
+      AppState.socket.on('error', (error) => {
+        console.error('🔴 Socket error:', error);
+        showToast(error.message || 'Socket error', 'error');
+      });
+      
+      console.log('✅ Socket initialization complete');
+    }
+    
+    function handleNumberCalled(data) {
+      if (!AppState.game.calledNumbers.includes(data.number)) {
+        AppState.game.calledNumbers.push(data.number);
+        AppState.game.currentNumbers = [data.number];
+        updateBingoDisplay();
+        
+        // Auto-mark if number is on card
+        if (AppState.game.cardGrid && AppState.game.markedState) {
+          const index = AppState.game.cardGrid.indexOf(data.number);
+          if (index !== -1 && !AppState.game.markedState[index]) {
+            // Optional: auto-mark logic
+          }
+        }
+      }
+    }
+    
+    function handleGameEnd(data) {
+      AppState.game.isGameActive = false;
+      if (AppState.game.autoInterval) {
+        clearInterval(AppState.game.autoInterval);
+        AppState.game.autoInterval = null;
+      }
+      AppState.game.isAutoPlaying = false;
+      showToast('Game ended!', 'info');
+    }
+    
+    function updatePlayerCount(count) {
+      AppState.game.playersCount = count;
+      updateBingoDisplay();
+    }
+
+    // ============================================
     // 🚀 APP INITIALIZATION
     // ============================================
     async function initApp() {
@@ -2884,6 +3009,7 @@
     window.requestDeposit = requestDeposit;
     window.showAdminLogin = showAdminLogin;
     window.updateBingoDisplay = updateBingoDisplay;
+    window.initSocket = initSocket;
     
     window.AppState = AppState;
     window.Api = Api;
