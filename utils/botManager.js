@@ -338,12 +338,12 @@ async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
   clearBotInjectionForRoom(roomAmount);
   
   // BROADCAST GAME_OVER: Send Socket.io event to frontend
-  // Note: Socket.io integration requires server.js to export io instance
+  // Use proper room-scoped emission to ensure all players in the game receive it
   try {
     const serverModule = require('../server');
-    const io = serverModule.io || serverModule.getIO();
+    const io = serverModule.io;
     if (io) {
-      io.emit('GAME_OVER', {
+      io.to(`game:${gameSession._id}`).emit('GAME_OVER', {
         sessionId: gameSession._id,
         winner: winningBot.name,
         winnerName: winningBot.name,
@@ -353,6 +353,9 @@ async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
         roomAmount: roomAmount,
         message: `Bot ${winningBot.name} has won the ${winnings} ETB pool!`
       });
+      console.log(`📡 Broadcasted GAME_OVER to room game:${gameSession._id}`);
+    } else {
+      console.warn('⚠️ Socket.io instance not found');
     }
   } catch (err) {
     console.warn('⚠️ Socket.io not available, skipping GAME_OVER broadcast:', err.message);
