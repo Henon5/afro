@@ -1044,12 +1044,17 @@ router.post('/claim', auth, async (req, res) => {
     // STEP 3: Calculate House Cut (15% of total pool)
     const houseCut = Math.floor(totalPool * 0.15);
     
+    console.log('\\n' + '='.repeat(60));
     console.log('💰 [CLAIM] PAYOUT CALCULATION:');
+    console.log('='.repeat(60));
     console.log('  - Room Amount:', gameSession.roomAmount, 'ETB');
     console.log('  - Total Players:', totalPlayers);
+    console.log('     - Humans:', gameSession.players.filter(p => !p.isBot).length);
+    console.log('     - Bots:', gameSession.players.filter(p => p.isBot).length);
     console.log('  - Total Pool:', totalPool, 'ETB');
     console.log('  - Prize (85%):', prizeAmount, 'ETB');
     console.log('  - House Cut (15%):', houseCut, 'ETB');
+    console.log('='.repeat(60) + '\\n');
 
     // Get user info for name display
     console.log('👤 [CLAIM] Fetching user info for:', req.user._id);
