@@ -128,7 +128,7 @@ async function getRandomBot() {
  * @param {Object} bot - The bot player (from database with cardGrid and markedState)
  */
 function simulateBotMove(gameSession, bot) {
-  const playerIndex = gameSession.players.findIndex(p => p.user === bot.telegramId);
+  const playerIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
   if (playerIndex === -1) return null;
 
   const player = gameSession.players[playerIndex];

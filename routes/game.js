@@ -1041,6 +1041,21 @@ router.post('/claim', auth, async (req, res) => {
         balanceIncrease: prizeAmount
       }
     });
+    
+    // BROADCAST GAME_OVER: Send Socket.io event to frontend for human wins
+    const io = require('../server').io;
+    if (io) {
+      io.to(`game:${gameSession._id}`).emit('GAME_OVER', {
+        sessionId: gameSession._id,
+        winner: gameSession.winnerName,
+        winnerName: gameSession.winnerName,
+        isBot: false,
+        pattern: winResult.pattern,
+        winnings: prizeAmount,
+        roomAmount: gameSession.roomAmount,
+        message: `${gameSession.winnerName} has won the ${prizeAmount} ETB pool!`
+      });
+    }
   } catch (err) {
     console.error('❌ [CLAIM] Claim win error:', err);
     console.error('❌ [CLAIM] Error stack:', err.stack);
