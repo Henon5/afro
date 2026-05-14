@@ -1440,6 +1440,30 @@
       }, 3500);
     }
 
+    async function refreshBalance(element) {
+      if (element) {
+        element.style.transform = 'rotate(360deg)';
+        setTimeout(() => { element.style.transform = 'rotate(0deg)'; }, 300);
+      }
+      
+      try {
+        showToast('Refreshing balance...', 'info');
+        const freshUser = await Api.getUser();
+        if (freshUser && freshUser.balance !== undefined) {
+          AppState.user.balance = freshUser.balance;
+          const balanceEl = document.getElementById('userBalance');
+          if (balanceEl) {
+            balanceEl.textContent = freshUser.balance;
+          }
+          showToast(`Balance updated: ${freshUser.balance} ETB`, 'success');
+          console.log('✅ Balance refreshed:', freshUser.balance, 'ETB');
+        }
+      } catch (error) {
+        console.error('Failed to refresh balance:', error);
+        showToast('Failed to refresh balance', 'error');
+      }
+    }
+
     function showWinnerAnnouncement(name, amount) {
       const el = document.getElementById('winnerAnnouncement');
       el.innerHTML = `🎉 BINGO! 🎉<br><strong>${name}</strong><br>Won ${amount} ETB from pool!`;
@@ -1604,7 +1628,10 @@
         <div class="profile-mini">
           <div class="profile-info">
             <b>${user?.firstName || user?.displayName || user?.name || 'Player'}</b>
-            <div>💰 <span id="userBalance">${user?.balance || 0}</span> ETB</div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>💰 <span id="userBalance">${user?.balance || 0}</span> ETB</span>
+              <span style="cursor: pointer; font-size: 18px; transition: transform 0.3s;" onclick="refreshBalance(this)" title="Refresh Balance">🔄</span>
+            </div>
           </div>
           <button class="btn btn-outline btn-sm" onclick="showPage('profile')">✏️ Edit</button>
         </div>
