@@ -123,7 +123,7 @@ async function getRandomBot() {
 }
 
 /**
- * Simulate bot playing bingo
+ * Simulate bot playing bingo - FAIR PLAY (no advantage)
  * @param {Object} gameSession - The game session
  * @param {Object} bot - The bot player (from database with cardGrid and markedState)
  */
@@ -149,26 +149,11 @@ function simulateBotMove(gameSession, bot) {
 
   if (validMarks.length === 0) return null;
 
-  // Bot decision based on difficulty
-  let selectedMark;
-  const difficulty = bot.difficulty || 'medium';
-  
-  if (difficulty === 'easy') {
-    // Random mark
-    selectedMark = validMarks[Math.floor(Math.random() * validMarks.length)];
-  } else if (difficulty === 'medium') {
-    // Prefer marks that complete patterns
-    selectedMark = findStrategicMark(validMarks, markedState);
-  } else {
-    // Hard: Always choose the best strategic mark
-    selectedMark = findBestStrategicMark(validMarks, markedState, calledSet, cardGrid);
-  }
+  // FAIR PLAY: All bots use random selection like a human player
+  // No difficulty-based strategy - bots play exactly like humans
+  const selectedMark = validMarks[Math.floor(Math.random() * validMarks.length)];
 
-  if (!selectedMark) {
-    selectedMark = validMarks[Math.floor(Math.random() * validMarks.length)];
-  }
-
-  // THE THREAT: Bots react within 2 seconds and automatically mark
+  // Bots react within 2 seconds and automatically mark
   console.log(`⚡ Bot ${bot.name} reacting in ${BOT_REACTION_TIME_MS}ms...`);
 
   return selectedMark;
