@@ -2994,6 +2994,14 @@
         updatePlayerCount(data.count, true);
       });
       
+      // Bingo claim acknowledgment
+      AppState.socket.on('bingoClaimAck', (data) => {
+        console.log('🎯 [SOCKET] Bingo claim acknowledgment:', data);
+        if (data.status === 'received') {
+          showToast('Bingo claim submitted...', 'info');
+        }
+      });
+      
       AppState.socket.on('error', (error) => {
         console.error('🔴 Socket error:', error);
         showToast(error.message || 'Socket error', 'error');

@@ -208,15 +208,34 @@ io.on('connection', (socket) => {
   console.log(`🔌 [SOCKET] Client connected: ${socket.id}`);
   
   // Join a game room
-  socket.on('join-game', (sessionId) => {
+  socket.on('joinGame', (data) => {
+    const sessionId = data.sessionId || data;
     socket.join(`game:${sessionId}`);
     console.log(`🔌 [SOCKET] Client ${socket.id} joined game ${sessionId}`);
+  });
+  
+  // Legacy support for kebab-case event name
+  socket.on('join-game', (sessionId) => {
+    socket.join(`game:${sessionId}`);
+    console.log(`🔌 [SOCKET] Client ${socket.id} joined game ${sessionId} (legacy)`);
   });
   
   // Leave a game room
   socket.on('leave-game', (sessionId) => {
     socket.leave(`game:${sessionId}`);
     console.log(`🔌 [SOCKET] Client ${socket.id} left game ${sessionId}`);
+  });
+  
+  // Handle bingo claim via socket (for real-time validation)
+  socket.on('bingoClaim', async (data) => {
+    console.log(`🎯 [SOCKET] Bingo claim received from ${socket.id} for session:`, data.sessionId);
+    // The actual claim processing happens via the /game/claim REST endpoint
+    // This socket event is just for acknowledgment
+    socket.emit('bingoClaimAck', { 
+      sessionId: data.sessionId, 
+      status: 'received',
+      message: 'Claim received. Processing...'
+    });
   });
   
   socket.on('disconnect', () => {
