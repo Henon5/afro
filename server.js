@@ -22,9 +22,18 @@ const errorHandler = require('./middleware/errorHandler');
 const RoomPool = require('./models/RoomPool');
 const { initializeBots, startDailyBotReset } = require('./utils/botManager');
 const path = require('path');
+const http = require('http');
+const socketIO = require('socket.io');
 require('dotenv').config();
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIO(server, {
+  cors: {
+    origin: ['https://henon5.github.io', 'https://afro-pxbt.onrender.com'],
+    methods: ['GET', 'POST']
+  }
+});
 
 // EMERGENCY ROOM RESET: Flush all rooms on startup to clear any overflow (42 players issue)
 async function performEmergencyReset() {
@@ -193,7 +202,32 @@ app.use('*', (req, res) => res.status(404).json({ error: 'Endpoint not found' })
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => {
+
+// Socket.io Connection Handler
+io.on('connection', (socket) => {
+  console.log(`🔌 [SOCKET] Client connected: ${socket.id}`);
+  
+  // Join a game room
+  socket.on('join-game', (sessionId) => {
+    socket.join(`game:${sessionId}`);
+    console.log(`🔌 [SOCKET] Client ${socket.id} joined game ${sessionId}`);
+  });
+  
+  // Leave a game room
+  socket.on('leave-game', (sessionId) => {
+    socket.leave(`game:${sessionId}`);
+    console.log(`🔌 [SOCKET] Client ${socket.id} left game ${sessionId}`);
+  });
+  
+  socket.on('disconnect', () => {
+    console.log(`🔌 [SOCKET] Client disconnected: ${socket.id}`);
+  });
+});
+
+// Export io for use in routes
+module.exports = { app, server, io };
+
+server.listen(PORT, () => {
   console.log(`✅ [SERVER] Server running on port ${PORT}`);
   console.log(`✅ [SERVER] Health check available at: /health`);
   console.log(`✅ [SERVER] Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -202,9 +236,6 @@ const server = app.listen(PORT, () => {
   startDailyBotReset(0, 0);
   console.log('⏰ [SERVER] Daily bot balance reset scheduler started (resets at 00:00 UTC)\n');
 });
-
-// Export server instance for Socket.io and other modules
-module.exports = { app, server };
 
 // Helper function for prize calculation with 15% house cut (Single Source of Truth)
 function calculateRoomPrize(entryFee, totalPlayers) {

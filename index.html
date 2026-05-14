@@ -2800,6 +2800,9 @@
         showPage('bingo');
         updateBingoDisplay(); // Update the bingo page display with pool and player info
         loadRooms(); // Reload rooms to update pool display
+        
+        // Initialize Socket.io connection and join game room
+        initSocket(response.game.sessionId);
       } catch (error) {
         console.error('Failed to join room:', error);
         showToast(error.message || 'Failed to join room', 'error');
