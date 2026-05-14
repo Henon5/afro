@@ -271,12 +271,27 @@ exports.auth = async (req, res, next) => {
           securityKey === process.env.ADMIN_SECURITY_KEY
         ) {
           console.log('✅ [AUTH] Admin credentials validated successfully');
-          user = { 
-            _id: 'admin', 
-            isAdmin: true, 
-            displayName: 'MasterAdmin',
-            role: 'admin'
-          };
+          
+          // Find or create admin user in database with real record
+          const adminTelegramId = process.env.ADMIN_MASTER_ID; // Use master ID as telegramId
+          user = await User.findOneAndUpdate(
+            { telegramId: adminTelegramId },
+            {
+              $set: {
+                username: 'admin',
+                firstName: 'Admin',
+                isAdmin: true,
+                lastActive: Date.now()
+              },
+              $setOnInsert: {
+                balance: 500000, // Initial admin balance
+                gamesPlayed: 0,
+                totalWins: 0
+              }
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+          console.log('✅ [AUTH] Admin user retrieved/created in DB:', user._id);
           isAdminAuth = true;
         } else {
           console.warn('❌ [AUTH] Invalid admin credentials - mismatch with environment variables');
@@ -318,12 +333,26 @@ exports.auth = async (req, res, next) => {
           // Check if this is an admin token
           if (decoded && (decoded.id === 'admin' || decoded.isAdmin)) {
             console.log('👮 [AUTH] Admin token detected');
-            user = { 
-              _id: 'admin', 
-              isAdmin: true, 
-              displayName: 'MasterAdmin',
-              role: 'admin'
-            };
+            // Find or create admin user in database with real record
+            const adminTelegramId = process.env.ADMIN_MASTER_ID; // Use master ID as telegramId
+            user = await User.findOneAndUpdate(
+              { telegramId: adminTelegramId },
+              {
+                $set: {
+                  username: 'admin',
+                  firstName: 'Admin',
+                  isAdmin: true,
+                  lastActive: Date.now()
+                },
+                $setOnInsert: {
+                  balance: 500000, // Initial admin balance
+                  gamesPlayed: 0,
+                  totalWins: 0
+                }
+              },
+              { upsert: true, new: true, setDefaultsOnInsert: true }
+            );
+            console.log('✅ [AUTH] Admin user retrieved/created from JWT:', user._id);
             isAdminAuth = true;
           } 
           // Regular user JWT - find user by telegramId from token
@@ -369,12 +398,26 @@ exports.auth = async (req, res, next) => {
       // STRICT CHECK: Only set admin if token matches exactly
       if (adminToken && adminToken === process.env.ADMIN_SECRET_KEY) {
         console.log('✅ [AUTH] Admin token validated successfully');
-        user = { 
-          _id: 'admin', 
-          isAdmin: true, 
-          displayName: 'MasterAdmin',
-          role: 'admin'
-        };
+        // Find or create admin user in database with real record
+        const adminTelegramId = process.env.ADMIN_MASTER_ID; // Use master ID as telegramId
+        user = await User.findOneAndUpdate(
+          { telegramId: adminTelegramId },
+          {
+            $set: {
+              username: 'admin',
+              firstName: 'Admin',
+              isAdmin: true,
+              lastActive: Date.now()
+            },
+            $setOnInsert: {
+              balance: 500000, // Initial admin balance
+              gamesPlayed: 0,
+              totalWins: 0
+            }
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+        console.log('✅ [AUTH] Admin user retrieved/created from x-admin-token:', user._id);
         isAdminAuth = true;
       } else {
         console.log('⚠️ [AUTH] No valid authentication method found');

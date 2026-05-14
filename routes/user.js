@@ -7,28 +7,8 @@ const User = require('../models/User');
 // GET /api/user - Get current user profile (requires auth)
 router.get('/', auth, async (req, res) => {
   try {
-    // Admin users authenticated via token don't have a real DB record
-    if (req.isAdminAuth) {
-      return res.json({ 
-        success: true, 
-        user: { 
-          _id: req.user._id,
-          displayName: req.user.displayName || 'Admin', 
-          username: 'admin',
-          firstName: 'Admin',
-          phone: '', 
-          telegramHandle: '',
-          isAdmin: true,
-          balance: 0,
-          gamesPlayed: 0,
-          totalWins: 0,
-          createdAt: new Date()
-        } 
-      });
-    }
-    
     // Use projection to only fetch needed fields (performance optimization)
-    const user = await User.findById(req.user._id).select('username firstName phone telegramHandle balance gamesPlayed totalWins createdAt');
+    const user = await User.findById(req.user._id).select('username firstName phone telegramHandle balance gamesPlayed totalWins createdAt isAdmin');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -44,6 +24,7 @@ router.get('/', auth, async (req, res) => {
         balance: user.balance,
         gamesPlayed: user.gamesPlayed || 0,
         totalWins: user.totalWins || 0,
+        isAdmin: user.isAdmin || false,
         createdAt: user.createdAt
       } 
     });
@@ -57,12 +38,6 @@ router.get('/', auth, async (req, res) => {
 router.get('/balance', auth, async (req, res) => {
   try {
     console.log('💰 [BALANCE ENDPOINT] Fetching balance for user:', req.user._id);
-    
-    // Admin users don't have a real DB record
-    if (req.isAdminAuth) {
-      console.log('⚠️ [BALANCE ENDPOINT] Admin user requested balance');
-      return res.json({ success: true, balance: 0 });
-    }
     
     // Use findById with projection to only fetch balance field (maximum performance)
     const user = await User.findById(req.user._id).select('balance');
@@ -82,19 +57,7 @@ router.get('/balance', auth, async (req, res) => {
 // PUT method (preferred)
 router.put('/profile', auth, validate('updateProfile'), async (req, res) => {
   try {
-    // If req.user._id === 'admin', return 403
-    if (req.user._id === 'admin') {
-      console.warn('⚠️ Admin user attempted to update profile');
-      return res.status(403).json({ error: 'Admin cannot have a player profile' });
-    }
-    
-    // Admin users authenticated via token cannot update profile (no DB record)
-    if (req.isAdminAuth) {
-      console.warn('⚠️ Admin attempted to update profile');
-      return res.status(403).json({ error: 'Admin profiles cannot be updated via this endpoint' });
-    }
-    
-    // Validate that req.user._id is a valid ObjectId format (not 'admin' string or invalid ID)
+    // Validate that req.user._id is a valid ObjectId format
     const mongoose = require('mongoose');
     if (!req.user._id || !mongoose.Types.ObjectId.isValid(req.user._id)) {
       console.error('❌ Invalid user ID for profile update:', req.user._id);
