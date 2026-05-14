@@ -1962,8 +1962,14 @@
       const playersEl = document.getElementById('currentPlayers');
       if(playersEl) {
         const totalPlayers = game.playersCount || 0;
-        // Display total players so user sees the full room activity matching the pool amount
-        playersEl.textContent = `${totalPlayers} Players | ${game.currentPool || 0} ETB`;
+        const botPlayers = game.botPlayers || 0;
+        const humanPlayers = Math.max(0, totalPlayers - botPlayers);
+        // Display total players with breakdown so user sees the full room activity matching the pool amount
+        if (botPlayers > 0) {
+          playersEl.textContent = `${totalPlayers} Players (${humanPlayers} humans, ${botPlayers} bots) | ${game.currentPool || 0} ETB`;
+        } else {
+          playersEl.textContent = `${totalPlayers} Players | ${game.currentPool || 0} ETB`;
+        }
       }
     }
 
@@ -2885,6 +2891,9 @@
         reconnectionDelay: 1000
       });
       
+      // Also expose via window.socket for global access
+      window.socket = AppState.socket;
+      
       AppState.socket.on('connect', () => {
         console.log('✅ Socket connected:', AppState.socket.id);
         console.log('🚀 Emitting joinGame event for session:', sessionId);
@@ -2908,6 +2917,10 @@
       
       AppState.socket.on('gameStarted', (data) => {
         console.log('🎮 Game started:', data);
+        // Update bot count if provided in game start data
+        if (data.botPlayers !== undefined) {
+          AppState.game.botPlayers = data.botPlayers;
+        }
         showToast('Game started!', 'info');
         Sound.success();
       });
@@ -2920,17 +2933,36 @@
       
       AppState.socket.on('gameEnd', (data) => {
         console.log('🏁 Game ended:', data);
+        // Reset bot count on game end
+        AppState.game.botPlayers = 0;
         handleGameEnd(data);
       });
       
       AppState.socket.on('playerJoined', (data) => {
         console.log('👤 Player joined:', data);
-        updatePlayerCount(data.count);
+        updatePlayerCount(data.count, data.isBot);
       });
       
       AppState.socket.on('playerLeft', (data) => {
         console.log('👤 Player left:', data);
-        updatePlayerCount(data.count);
+        updatePlayerCount(data.count, data.isBot);
+      });
+      
+      // Bot-specific events for better tracking
+      AppState.socket.on('botJoined', (data) => {
+        console.log('🤖 Bot joined:', data);
+        if (AppState.game.botPlayers !== undefined) {
+          AppState.game.botPlayers = (AppState.game.botPlayers || 0) + 1;
+        }
+        updatePlayerCount(data.count, true);
+      });
+      
+      AppState.socket.on('botLeft', (data) => {
+        console.log('🤖 Bot left:', data);
+        if (AppState.game.botPlayers !== undefined && AppState.game.botPlayers > 0) {
+          AppState.game.botPlayers--;
+        }
+        updatePlayerCount(data.count, true);
       });
       
       AppState.socket.on('error', (error) => {
@@ -2967,7 +2999,8 @@
       showToast('Game ended!', 'info');
     }
     
-    function updatePlayerCount(count) {
+    function updatePlayerCount(count, isBot = false) {
+      // Only update total count, don't modify botPlayers here as it's handled by bot events
       AppState.game.playersCount = count;
       updateBingoDisplay();
     }
@@ -3040,6 +3073,7 @@
     window.AppState = AppState;
     window.Api = Api;
     window.CONFIG = CONFIG;
+    window.socket = null; // Expose socket globally for easy access
   </script>
 </body>
 </html>
