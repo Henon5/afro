@@ -1592,6 +1592,8 @@
       // Re-render lobby if returning to it to show updated profile info
       if(pageId === 'lobby' && AppState.user) {
         console.log('🔄 Refreshing lobby with user data:', AppState.user);
+        // Force re-render to ensure refresh button appears
+        setTimeout(() => renderLobbyPage(page), 50);
       }
     }
 
@@ -3096,6 +3098,7 @@
     window.showAdminLogin = showAdminLogin;
     window.updateBingoDisplay = updateBingoDisplay;
     window.initSocket = initSocket;
+    window.refreshBalance = refreshBalance;
     
     window.AppState = AppState;
     window.Api = Api;
