@@ -260,11 +260,6 @@ router.get('/bots', auth, async (req, res) => {
 
 router.post('/join', auth, validate('joinRoom'), async (req, res) => {
   try {
-    // Admin users cannot join rooms (no real DB record)
-    if (req.isAdminAuth) {
-      return res.status(403).json({ error: 'Admin accounts cannot join game rooms' });
-    }
-    
     const { roomAmount } = req.body;
     
     // DATA SAFETY: Convert roomAmount to Number explicitly
@@ -637,11 +632,6 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
 
 router.post('/mark', auth, async (req, res) => {
   try {
-    // Admin users cannot play games (no real DB record)
-    if (req.isAdminAuth) {
-      return res.status(403).json({ error: 'Admin accounts cannot play games' });
-    }
-    
     const { sessionId, row, col } = req.body;
     
     // Validate coordinates first (fast fail)
@@ -874,12 +864,6 @@ router.post('/claim', auth, async (req, res) => {
     console.log('🎯 [CLAIM] Is Admin Auth:', req.isAdminAuth);
     console.log('🎯 [CLAIM] Request body:', JSON.stringify(req.body));
     
-    // Admin users cannot claim wins (no real DB record)
-    if (req.isAdminAuth) {
-      console.warn('⚠️ [CLAIM] Admin account attempted to claim win - rejected');
-      return res.status(403).json({ error: 'Admin accounts cannot claim wins' });
-    }
-    
     const { sessionId } = req.body;
     console.log('🔍 [CLAIM] Looking up game session:', sessionId);
     
@@ -1057,11 +1041,6 @@ router.post('/claim', auth, async (req, res) => {
 
 router.post('/number/:sessionId', auth, async (req, res) => {
   try {
-    // Admin users cannot play games (no real DB record)
-    if (req.isAdminAuth) {
-      return res.status(403).json({ error: 'Admin accounts cannot play games' });
-    }
-    
     const gameSession = await GameSession.findOne({ _id: req.params.sessionId, gameStatus: 'active' })
       .select('players calledNumbers gameStatus currentNumber');
     if (!gameSession) return res.status(404).json({ error: 'Game not found or not active' });
