@@ -562,6 +562,26 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       
       // Save game session with all players (humans + bots)
       await gameSession.save();
+      
+      // Emit socket events to notify clients about bot joins
+      try {
+        const serverModule = require('../server');
+        const io = serverModule.io || serverModule.getIO();
+        if (io) {
+          // Emit individual bot join events for each injected bot
+          for (let i = 0; i < injectedBots.length; i++) {
+            io.to(`game:${gameSession._id}`).emit('botJoined', {
+              sessionId: gameSession._id,
+              count: currentHumans + i + 1,
+              isBot: true,
+              botName: injectedBots[i].name
+            });
+          }
+          console.log(`📡 Emitted ${injectedBots.length} botJoined events for room ${amount}`);
+        }
+      } catch (err) {
+        console.warn('⚠️ Failed to emit botJoined events:', err.message);
+      }
     }
     
     // Clear processing flag after completion
