@@ -30,9 +30,11 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIO(server, {
   cors: {
-    origin: ['https://henon5.github.io', 'https://afro-pxbt.onrender.com'],
-    methods: ['GET', 'POST']
-  }
+    origin: ['https://henon5.github.io', 'https://afro-pxbt.onrender.com', 'http://localhost:3000', 'http://127.0.0.1:3000'],
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  transports: ['websocket', 'polling']
 });
 
 // EMERGENCY ROOM RESET: Flush all rooms on startup to clear any overflow (42 players issue)

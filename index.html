@@ -3002,6 +3002,32 @@
         }
       });
       
+      // Bot move events - bots playing fairly like humans
+      AppState.socket.on('BOT_MOVE', (data) => {
+        console.log('🤖 Bot move received:', data);
+        if (data.botMarks && data.botMarks.length > 0) {
+          // Update bot progress display
+          data.botMarks.forEach(botMark => {
+            console.log(`Bot ${botMark.name} has ${botMark.markedCount} marks`);
+          });
+          showToast(`${data.botMarks.length} bot(s) marked numbers`, 'info');
+        }
+      });
+      
+      // Game over event - handles both human and bot wins
+      AppState.socket.on('GAME_OVER', (data) => {
+        console.log('🏆 Game Over:', data);
+        if (data.isBot) {
+          showToast(`🤖 ${data.winner} won with ${data.pattern}!`, 'info');
+        } else {
+          showToast(`🎉 ${data.winner} won with ${data.pattern}!`, 'success');
+        }
+        // Reset game state
+        setTimeout(() => {
+          window.location.reload();
+        }, 3000);
+      });
+      
       AppState.socket.on('error', (error) => {
         console.error('🔴 Socket error:', error);
         showToast(error.message || 'Socket error', 'error');
