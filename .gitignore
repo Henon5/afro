@@ -1,1 +1,59 @@
-Nothing should be ignored since only source files (.js) were modified and no build artifacts, dependencies, or temporary files were present in the changes.
+```
+# Coverage reports
+coverage/
+*.lcov
+*.info
+*.clover.xml
+*.coverage
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+*.env.*
+
+# Dependencies
+node_modules/
+__pycache__/
+*.egg-info/
+.eggs/
+
+# Build artifacts
+dist/
+build/
+target/
+*.pyc
+*.class
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Testing
+.nyc_output/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+```
