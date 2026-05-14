@@ -1,3 +1,31 @@
 ```
+# Coverage reports
+coverage/
+*.lcov
+*.info
+
+# Logs
 *.log
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Dependencies
+node_modules/
+
+# Editors
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+target/
+*.tmp
 ```

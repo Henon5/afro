@@ -135,6 +135,35 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
   }
 });
 
+// 👥 GET /admin/users - Get all users with their balances
+router.get('/users', auth, adminOnly, async (req, res) => {
+  try {
+    const users = await User.find({})
+      .select('username firstName lastName phone balance gamesPlayed totalWins createdAt lastActive')
+      .sort({ balance: -1 })
+      .limit(100);
+    
+    res.json({ 
+      success: true, 
+      users: users.map(u => ({
+        _id: u._id,
+        username: u.username,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        phone: u.phone,
+        balance: u.balance,
+        gamesPlayed: u.gamesPlayed,
+        totalWins: u.totalWins,
+        createdAt: u.createdAt,
+        lastActive: u.lastActive
+      }))
+    });
+  } catch (err) {
+    console.error('Get users error:', err);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
 // 📋 GET /admin/transactions
 router.get('/transactions', auth, adminOnly, async (req, res) => {
   try {
@@ -459,6 +488,38 @@ router.post('/balance/update-user', auth, adminOnly, async (req, res) => {
   } catch (err) {
     console.error('Single balance update error:', err);
     res.status(500).json({ error: `Failed to update user balance: ${err.message}` });
+  }
+});
+
+// 🗑️ POST /admin/user/clear-balance/:userId - Clear specific user balance to 0
+router.post('/user/clear-balance/:userId', auth, adminOnly, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Find user
+    const user = await User.findById(userId).select('username firstName balance');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const oldBalance = user.balance;
+    
+    // Reset balance to 0
+    user.balance = 0;
+    await user.save();
+
+    // Log action
+    console.log(`⚠️ ADMIN ACTION: Admin ${req.user.id} cleared balance for user ${user.username || user.firstName}. Amount removed: ${oldBalance} ETB`);
+
+    res.json({ 
+      success: true,
+      message: `Balance for ${user.username || user.firstName} cleared successfully`,
+      oldBalance,
+      newBalance: 0
+    });
+  } catch (error) {
+    console.error('Error clearing user balance:', error);
+    res.status(500).json({ error: 'Failed to clear user balance' });
   }
 });
 

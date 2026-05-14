@@ -1291,6 +1291,15 @@
         headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
       
+      getUsers: (token) => Api._request('/admin/users', {
+        headers: { isAdminRequest: true, 'x-admin-token': token }
+      }),
+      
+      clearUserBalance: (userId, token) => Api._request(`/admin/user/clear-balance/${userId}`, {
+        method: 'POST',
+        headers: { isAdminRequest: true, 'x-admin-token': token }
+      }),
+      
       getTransactions: (status, token) => Api._request(`/admin/transactions?status=${status || 'pending'}`, {
         headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
@@ -2626,7 +2635,7 @@
                 👤 Active Today
                 <b>${stats.stats?.activeUsers || 0}</b>
               </div>
-              <div class="admin-card">
+              <div class="admin-card" id="totalMoneyCard" style="cursor:pointer; transition:transform 0.2s;" onclick="showUserBalancePopup()">
                 💰 Total Money
                 <b>${stats.stats?.totalBalance || 0} ETB</b>
               </div>
@@ -2805,6 +2814,87 @@
       } catch (error) {
         hideLoading();
         showToast('Failed to load admin panel', 'error');
+      }
+    }
+
+    // ============================================
+    // 👥 SHOW USER BALANCE POPUP
+    // ============================================
+    async function showUserBalancePopup() {
+      if (!AppState.admin.isLoggedIn) {
+        showAdminLogin();
+        return;
+      }
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      
+      try {
+        showLoading('Loading users...');
+        const response = await Api.getUsers(AppState.admin.token);
+        hideLoading();
+        
+        const users = response.users || [];
+        
+        modal.innerHTML = `
+          <div class="modal-content" style="max-width:500px; max-height:80vh; overflow-y:auto;">
+            <h3 style="color:var(--green);">👥 User Balances</h3>
+            <p style="font-size:0.9rem; color:var(--gray); margin-bottom:15px;">Click the red button to clear a user's balance to 0</p>
+            
+            ${users.length > 0 ? `
+              <div style="max-height:500px; overflow-y:auto;">
+                ${users.map(user => `
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; margin:8px 0; background:white; border-radius:8px; border:1px solid #e0e0e0; box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+                    <div style="flex:1;">
+                      <div style="font-weight:700; color:var(--dark);">${user.username || user.firstName || 'Unknown'}</div>
+                      <div style="font-size:0.85rem; color:var(--gray); margin-top:4px;">
+                        Balance: <b style="color:var(--green);">${user.balance} ETB</b><br>
+                        Games: ${user.gamesPlayed || 0} | Wins: ${user.totalWins || 0}<br>
+                        <small>${user.phone || user.telegramId ? '📱 ' + (user.phone || user.telegramId) : ''}</small>
+                      </div>
+                    </div>
+                    <button class="btn btn-red btn-sm clear-balance-btn" data-user-id="${user._id}" data-username="${user.username || user.firstName || 'Unknown'}" data-balance="${user.balance}" style="padding:6px 12px; font-size:0.8rem;">Clear</button>
+                  </div>
+                `).join('')}
+              </div>
+            ` : '<p style="text-align:center; color:var(--gray); padding:20px;">No users found</p>'}
+            
+            <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()" style="margin-top:15px; width:100%;">Close</button>
+          </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Add event listeners for clear balance buttons
+        modal.querySelectorAll('.clear-balance-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const userId = btn.dataset.userId;
+            const username = btn.dataset.username;
+            const balance = btn.dataset.balance;
+            
+            if (confirm(`⚠️ WARNING: This will set ${username}'s balance from ${balance} ETB to 0 ETB. This action cannot be undone!\n\nAre you sure you want to proceed?`)) {
+              try {
+                showLoading('Clearing balance...');
+                await Api.clearUserBalance(userId, AppState.admin.token);
+                hideLoading();
+                showToast(`✅ ${username}'s balance cleared successfully`, 'success');
+                console.log(`⚠️ ADMIN ACTION: Cleared balance for ${username}. Amount removed: ${balance} ETB`);
+                
+                // Refresh the popup
+                modal.remove();
+                showUserBalancePopup();
+              } catch (error) {
+                hideLoading();
+                showToast('Failed to clear balance: ' + (error.message || 'Unknown error'), 'error');
+              }
+            }
+          });
+        });
+        
+      } catch (error) {
+        hideLoading();
+        showToast('Failed to load users: ' + (error.message || 'Unknown error'), 'error');
+        modal.remove();
       }
     }
 
@@ -3130,6 +3220,7 @@
     window.checkForBingo = checkForBingo;
     window.requestDeposit = requestDeposit;
     window.showAdminLogin = showAdminLogin;
+    window.showUserBalancePopup = showUserBalancePopup;
     window.updateBingoDisplay = updateBingoDisplay;
     window.initSocket = initSocket;
     window.refreshBalance = refreshBalance;
