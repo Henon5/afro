@@ -26,9 +26,7 @@ async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
 const { getInjectionPlan, calculateAtomicPrize, getBotsForStreak, calculateStreak, getPrizeForStreakAndRoom } = require('../utils/botInjectionPlane');
 const { autoRefillBotBalances, regenerateBotCard } = require('../utils/botManager');
 
-// Track consecutive wins for the win pattern logic
-let consecutiveBotWins = 0;
-let lastWinnerWasBot = false;
+// Bot win tracking variables REMOVED - bots now play fairly without manipulation
 
 // Bot Injection Control Sheet: Tracks which bots are in which rooms
 // Format: Map<roomId, Set<botId>>
@@ -833,14 +831,8 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   // Clear bot injection tracking for this room when game completes
   clearBotInjectionForRoom(roomAmount);
   
-  // Update win tracking
-  consecutiveBotWins++;
-  lastWinnerWasBot = true;
-  
-  // Reset after 2 bot wins to allow human win next
-  if (consecutiveBotWins >= 2) {
-    consecutiveBotWins = 0;
-  }
+  // Bots play fairly - no win manipulation or forced patterns
+  // Each bot has equal chance to win based on their card and called numbers
   
   // BROADCAST GAME_OVER: Send Socket.io event to frontend
   const io = require('../server').io;
@@ -992,10 +984,7 @@ router.post('/claim', auth, async (req, res) => {
     clearBotInjectionForRoom(gameSession.roomAmount);
     console.log('🤖 [CLAIM] Bot injection tracking cleared for room:', gameSession.roomAmount);
     
-    // Reset bot win tracking after human win
-    consecutiveBotWins = 0;
-    lastWinnerWasBot = false;
-    console.log('🤖 [CLAIM] Bot win tracking reset');
+    // Bots play fairly - no win manipulation tracking needed
 
     // Reset room pool after payout
     console.log('🏦 [CLAIM] Resetting room pool for:', gameSession.roomAmount);
