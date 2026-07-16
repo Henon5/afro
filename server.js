@@ -73,9 +73,20 @@ async function performEmergencyReset() {
   }
 }
 
-// CORS Configuration - Allow GitHub Pages origin with credentials
+// CORS Configuration - Allow GitHub Pages, Render, localhost, and local file-origin with credentials
+const allowedOrigins = [
+  'https://henon5.github.io',
+  'https://afro-pxbt.onrender.com',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
 app.use(cors({ 
-  origin: ['https://henon5.github.io', 'https://afro-pxbt.onrender.com'], 
+  origin: (origin, callback) => {
+    if (!origin || origin === 'null' || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true 
 }));
 

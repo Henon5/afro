@@ -1242,6 +1242,8 @@ router.post('/number/:sessionId', auth, async (req, res) => {
       return res.status(404).json({ error: 'Game not found or not active' });
     }
     
+    gameSession.calledNumbers = Array.isArray(gameSession.calledNumbers) ? gameSession.calledNumbers : [];
+    
     console.log('📊 Current game state:');
     console.log('   Numbers called so far:', gameSession.calledNumbers.length);
     console.log('   Total players:', gameSession.players.length);

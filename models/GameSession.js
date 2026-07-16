@@ -10,8 +10,8 @@ const gameSessionSchema = new mongoose.Schema({
     cardGrid: [[Number]], 
     markedState: [[Boolean]] 
   }],
-  calledNumbers: [Number],
-  currentNumber: Number,
+  calledNumbers: { type: [Number], default: [] },
+  currentNumber: { type: Number, default: null },
   gameStatus: { type: String, enum: ['waiting', 'active', 'completed'], default: 'waiting', index: true },
   winner: { type: String, index: true },
   winnerName: String,
