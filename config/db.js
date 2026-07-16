@@ -132,12 +132,14 @@ const connectDB = async () => {
     console.error(`❌ [DB] Database connection error: ${error.message}`);
     console.error('❌ [DB] Stack:', error.stack);
     console.error('💡 [DB] Make sure MongoDB is running or update MONGODB_URI in environment variables');
+    console.error('💡 [DB] Server will start in LIMITED MODE - game features will not work without database');
     // Don't exit process - allow server to start for non-critical DB operations
     if (process.env.NODE_ENV === 'production') {
       console.error('❌ [DB] Exiting process due to production mode');
       process.exit(1);
     }
-    throw error;
+    // Return null to indicate failed connection but don't throw
+    return null;
   }
 };
 

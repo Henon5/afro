@@ -1,0 +1,49 @@
+nohup: ignoring input
+🚀 [SERVER] Server is starting...
+🚀 [SERVER] NODE_ENV: development
+🚀 [SERVER] PORT: 3000
+🔐 [SERVER] Environment variables check:
+  - MONGODB_URI exists: false
+  - JWT_SECRET exists: false
+  - TELEGRAM_BOT_TOKEN exists: false
+  - ADMIN_MASTER_ID exists: false
+  - ADMIN_SECURE_CODE exists: false
+  - ADMIN_SECURITY_KEY exists: false
+  - ADMIN_SECRET_KEY exists: false
+  - ADMIN_IDS exists: false
+🔗 [DB] Attempting to connect to MongoDB...
+🔗 [DB] MONGODB_URI found, connecting...
+🔧 Performing Emergency Room Reset on startup...
+🔐 [AUTH] Auth middleware loaded
+🔐 [AUTH] TELEGRAM_BOT_TOKEN exists: true
+🔐 [AUTH] JWT_SECRET exists: true
+🔐 [AUTH] ADMIN_MASTER_ID exists: true
+🔐 [AUTH] ADMIN_IDS exists: true
+🔐 [ADMIN] Admin routes loaded
+✅ [SERVER] Server running on port 3000
+✅ [SERVER] Health check available at: /health
+✅ [SERVER] Environment: development
+⏰ Daily bot reset scheduled for 0:00
+⏰ First run in 155 minutes
+⏰ [SERVER] Daily bot balance reset scheduler started (resets at 00:00 UTC)
+
+❌ [DB] MongoDB Connection: Non-retryable error: connect ECONNREFUSED ::1:27017, connect ECONNREFUSED 127.0.0.1:27017
+❌ [DB] Database connection error: connect ECONNREFUSED ::1:27017, connect ECONNREFUSED 127.0.0.1:27017
+❌ [DB] Stack: MongooseServerSelectionError: connect ECONNREFUSED ::1:27017, connect ECONNREFUSED 127.0.0.1:27017
+    at _handleConnectionErrors (/workspace/node_modules/mongoose/lib/connection.js:816:11)
+    at NativeConnection.openUri (/workspace/node_modules/mongoose/lib/connection.js:791:11)
+    at async executeWithRetry (/workspace/config/db.js:38:22)
+    at async connectDB (/workspace/config/db.js:93:18)
+    at async Promise.all (index 0)
+💡 [DB] Make sure MongoDB is running or update MONGODB_URI in environment variables
+💡 [DB] Server will start in LIMITED MODE - game features will not work without database
+⚠️ Emergency Reset Warning: Operation `roompools.updateMany()` buffering timed out after 10000ms
+❌ Room initialization failed: Operation `roompools.findOneAndUpdate()` buffering timed out after 10000ms
+❌ Error initializing bots: Operation `bots.countDocuments()` buffering timed out after 10000ms
+❌ Bot initialization failed: Operation `bots.countDocuments()` buffering timed out after 10000ms
+🔑 [AUTH] Auth middleware invoked for: GET /rooms
+🔑 [AUTH] Headers received: {"hasAuthHeader":false,"hasTelegramHeader":false,"hasAdminAuth":false,"hasAdminToken":false}
+⚠️ [AUTH] No authorization header provided
+🔑 [AUTH] Checking x-admin-token header
+⚠️ [AUTH] No valid authentication method found
+❌ [AUTH] Authentication failed - no valid credentials
