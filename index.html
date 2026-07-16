@@ -887,6 +887,49 @@
     .text-red { color: var(--red); }
     .font-bold { font-weight: 700; }
     
+    /* ========== CONNECTION STATUS ========== */
+    .connection-status {
+      position: fixed;
+      bottom: 15px;
+      right: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      font-size: 0.85rem;
+      font-weight: 600;
+      z-index: 100;
+      border: 2px solid #e0e0e0;
+    }
+    
+    .connection-status.connected {
+      background: #f0fdf4;
+      border-color: var(--green);
+      color: var(--green);
+    }
+    
+    .connection-status.disconnected {
+      background: #fef2f2;
+      border-color: var(--red);
+      color: var(--red);
+    }
+    
+    .connection-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse-dot 2s infinite;
+    }
+    
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
     /* ========== MOBILE OPTIMIZATIONS ========== */
     @media (max-width: 480px) {
       .container {
@@ -974,6 +1017,12 @@
   <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner"></div>
     <p id="loadingText">Loading...</p>
+  </div>
+
+  <!-- Connection Status Indicator -->
+  <div class="connection-status connected" id="connectionStatus" title="Server connection status">
+    <div class="connection-status-dot"></div>
+    <span id="connectionStatusText">Connected</span>
   </div>
 
   <!-- Main Container -->
@@ -1423,8 +1472,42 @@
         token: null
       },
       socket: null,
-      lastHouseClick: 0
+      lastHouseClick: 0,
+      connectionStatus: 'connecting' // 'connecting', 'connected', 'disconnected'
     };
+    
+    // ============================================
+    // 🔌 CONNECTION STATUS MANAGEMENT
+    // ============================================
+    function updateConnectionStatus(status) {
+      AppState.connectionStatus = status;
+      const statusEl = document.getElementById('connectionStatus');
+      const statusText = document.getElementById('connectionStatusText');
+      
+      if (!statusEl || !statusText) return;
+      
+      statusEl.classList.remove('connected', 'disconnected');
+      
+      switch(status) {
+        case 'connected':
+          statusEl.classList.add('connected');
+          statusText.textContent = '✓ Connected';
+          break;
+        case 'disconnected':
+          statusEl.classList.add('disconnected');
+          statusText.textContent = '✗ Disconnected';
+          break;
+        case 'connecting':
+          statusEl.classList.add('connecting');
+          statusText.textContent = '◌ Connecting...';
+          break;
+        default:
+          statusEl.classList.add('disconnected');
+          statusText.textContent = '? Unknown';
+      }
+      
+      console.log(`🔌 Connection status: ${status}`);
+    }
 
     // ============================================
     // 🎨 UI HELPERS
@@ -2080,8 +2163,9 @@
     function updateBingoDisplay() {
       const game = AppState.game;
       
-      // Update current pool display
-      const poolEl = document.getElementById('currentPool');
+      console.log('📡 /game/number response:', resp);
+      if (!resp || !resp.number) {
+        showToast('Failed to call number from server', 'error');
       if(poolEl && game.currentPool !== undefined) {
         poolEl.textContent = `${game.currentPool} ETB`;
       }
@@ -3133,31 +3217,36 @@
         showToast('Realtime connection is unavailable.', 'error');
         return;
       }
-
-      // Close existing socket if any
-      if (AppState.socket) {
-        AppState.socket.disconnect();
-        AppState.socket = null;
-      }
+updateConnectionStatus('connected');
+        AppState.socket.emit('joinGame', { sessionId: sessionId });
+        showToast('🔗 Connected to game server', 'success');
+      });
       
-      // Get authentication token for socket
-      const token = localStorage.getItem('token') || localStorage.getItem('telegramInitData');
-      const adminToken = localStorage.getItem('adminToken');
+      AppState.socket.on('disconnect', (reason) => {
+        console.log('❌ Socket disconnected:', reason);
+        updateConnectionStatus('disconnected');
+        // Show warning if disconnected unexpectedly
+        if (reason !== 'io client namespace disconnect') {
+          showToast('⚠️ Disconnected from server. Attempting to reconnect...', 'warning');
+        }
+      });
       
-      // Build query params for socket connection
-      let queryParams = `sessionId=${sessionId}`;
-      if (token) {
-        queryParams += `&token=${encodeURIComponent(token)}`;
-      }
-      if (adminToken) {
-        queryParams += `&adminToken=${encodeURIComponent(adminToken)}`;
-      }
+      AppState.socket.on('connect_error', (error) => {
+        console.error('🔴 Socket connection error:', error.message);
+        console.error('   Error data:', error);
+        updateConnectionStatus('disconnected');
+        showToast('🔌 Connection error: ' + (error.message || 'Unknown error'), 'error');
+      });
       
-      // Connect to socket server
-      AppState.socket = socketClient(CONFIG.API_BASE.replace('/api', ''), {
-        query: queryParams,
-        transports: ['websocket', 'polling'],
-        reconnection: true,
+      AppState.socket.on('reconnect', (attemptNumber) => {
+        console.log('✅ Socket reconnected after', attemptNumber, 'attempt(s)');
+        updateConnectionStatus('connected');
+        showToast('✅ Reconnected to game server', 'success');
+      });
+      
+      AppState.socket.on('reconnect_attempt', () => {
+        console.log('🔄 Attempting to reconnect to socket...');
+        updateConnectionStatus('connecting
         reconnectionAttempts: 5,
         reconnectionDelay: 1000
       });
@@ -3169,15 +3258,34 @@
         console.log('✅ Socket connected:', AppState.socket.id);
         console.log('🚀 Emitting joinGame event for session:', sessionId);
         AppState.socket.emit('joinGame', { sessionId: sessionId });
+        showToast('🔗 Connected to game server', 'success');
       });
       
       AppState.socket.on('disconnect', (reason) => {
         console.log('❌ Socket disconnected:', reason);
+        // Show warning if disconnected unexpectedly
+        if (reason !== 'io client namespace disconnect') {
+          showToast('⚠️ Disconnected from server. Attempting to reconnect...', 'warning');
+        }
       });
       
       AppState.socket.on('connect_error', (error) => {
         console.error('🔴 Socket connection error:', error.message);
-        showToast('Connection lost. Reconnecting...', 'error');
+        console.error('   Error data:', error);
+        showToast('🔌 Connection error: ' + (error.message || 'Unknown error'), 'error');
+      });
+      
+      AppState.socket.on('reconnect', (attemptNumber) => {
+        console.log('✅ Socket reconnected after', attemptNumber, 'attempt(s)');
+        showToast('✅ Reconnected to game server', 'success');
+      });
+      
+      AppState.socket.on('reconnect_attempt', () => {
+        console.log('🔄 Attempting to reconnect to socket...');
+      });
+      
+      AppState.socket.on('reconnect_error', (error) => {
+        console.error('⚠️ Socket reconnection error:', error.message);
       });
       
       // Game events
@@ -3346,6 +3454,30 @@
     // 🚀 APP INITIALIZATION
     // ============================================
     async function initApp() {
+      console.log('🚀 [INIT] Starting app initialization...');
+      console.log('🔧 Backend API URL:', CONFIG.API_BASE);
+      
+      // Check server connectivity
+      try {
+        console.log('🔌 [INIT] Testing server connectivity...');
+        const response = await fetch(`${CONFIG.API_BASE.replace('/api', '')}/health`, {
+          method: 'GET',
+          timeout: 5000
+        });
+        if (response.ok) {
+          console.log('✅ [INIT] Server is reachable');
+          updateConnectionStatus('connected');
+        } else {
+          console.warn('⚠️ [INIT] Server returned non-OK status:', response.status);
+          updateConnectionStatus('disconnected');
+          showToast('⚠️ Server connection status unclear', 'warning');
+        }
+      } catch (err) {
+        console.error('❌ [INIT] Server connectivity check failed:', err.message);
+        updateConnectionStatus('disconnected');
+        showToast('⚠️ Cannot reach server. Using offline mode.', 'warning');
+      }
+      
       initTelegram();
       
       try {
@@ -3408,6 +3540,7 @@
     window.updateBingoDisplay = updateBingoDisplay;
     window.initSocket = initSocket;
     window.refreshBalance = refreshBalance;
+    window.updateConnectionStatus = updateConnectionStatus;
     
     window.AppState = AppState;
     window.Api = Api;
