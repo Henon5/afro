@@ -1717,11 +1717,11 @@ node server.js
       container.innerHTML = `
         <div class="header">
           <button class="header-btn" onclick="showPage('lobby')">←</button>
-          <div style="flex: 1;"><h3>Select Your Cartela</h3><p>Room: ${roomAmount} ETB</p></div>
+          <div style="flex: 1;"><h3 style="color:#fff; font-weight:800;">Select Your Cartela</h3><p style="color:#ddd;">Room: ${roomAmount} ETB</p></div>
           <div style="width:46px"></div>
         </div>
-        <div class="page active" style="padding:20px; background: var(--light); border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); border:1px solid rgba(0,0,0,0.04);">
-          <div style="margin-bottom:12px; color:var(--gray); text-align:center;">Pick a number between 1 and 100 for your cartela. You will be taken to the game after selection.</div>
+        <div class="page active" style="padding:20px; background: #000; color: #fff; border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); border:1px solid rgba(255,255,255,0.08);">
+          <div style="margin-bottom:12px; color:#ddd; text-align:center;">Pick a number between 1 and 100 for your cartela. You will be taken to the game after selection.</div>
           <div id="cartelaGrid" style="display:grid; grid-template-columns: repeat(10, 1fr); gap:8px; max-width:720px; margin:0 auto 12px;">
           </div>
           <div style="display:flex; gap:8px; justify-content:center; margin-top:12px;">
