@@ -26,6 +26,11 @@ const http = require('http');
 const socketIO = require('socket.io');
 require('dotenv').config();
 
+// Disable verbose logging in production for better performance
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const LOG = IS_PRODUCTION ? () => {} : console.log;
+const LOG_ERROR = console.error.bind(console);
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server, {
