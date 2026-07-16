@@ -1719,9 +1719,9 @@
           <div style="flex: 1;"><h3>Select Your Cartela</h3><p>Room: ${roomAmount} ETB</p></div>
           <div style="width:46px"></div>
         </div>
-        <div style="padding:16px; text-align:center;">
-          <div style="margin-bottom:12px; color:var(--gray);">Pick a number between 1 and 100 for your cartela. You will be taken to the game after selection.</div>
-          <div id="cartelaGrid" style="display:grid; grid-template-columns: repeat(10, 1fr); gap:6px; max-width:720px; margin:0 auto 12px;">
+        <div class="page active" style="padding:18px; background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,250,250,0.98)); border-radius:var(--radius-sm); box-shadow:var(--shadow);">
+          <div style="margin-bottom:12px; color:var(--gray); text-align:center;">Pick a number between 1 and 100 for your cartela. You will be taken to the game after selection.</div>
+          <div id="cartelaGrid" style="display:grid; grid-template-columns: repeat(10, 1fr); gap:8px; max-width:720px; margin:0 auto 12px;">
           </div>
           <div style="display:flex; gap:8px; justify-content:center; margin-top:12px;">
             <button class="btn" onclick="selectRandomCartela()">🎲 Random</button>
@@ -1972,26 +1972,35 @@
         showToast('Game not active', 'error');
         return;
       }
-      
       const num = parseInt(cell.dataset.num);
-      
-      if(game.calledNumbers.includes(num)) {
-        Sound.click();
-        cell.classList.toggle('marked');
-        game.markedState[row][col] = cell.classList.contains('marked');
-        updateMatchesCount();
-        
-        // Emit socket event to sync mark with server
-        if (AppState.socket && AppState.socket.connected) {
-          AppState.socket.emit('markNumber', { 
-            sessionId: game.sessionId, 
-            number: num, 
-            marked: cell.classList.contains('marked') 
-          });
-        }
-      } else {
+
+      if (!game.calledNumbers.includes(num)) {
         showToast('Number not called yet!', 'error');
         Sound.error();
+        return;
+      }
+
+      try {
+        Sound.click();
+        // Call backend to persist mark
+        const resp = await Api.markNumber({ sessionId: game.sessionId, row, col });
+        // If server responded, update UI based on server mark state
+        const marked = resp.marked === true;
+        if (marked) cell.classList.add('marked'); else cell.classList.remove('marked');
+        game.markedState[row][col] = marked;
+        updateMatchesCount();
+
+        if (resp.win) {
+          // Server detected a win (may be bot or human). Let server flow handle payouts.
+          showToast('Bingo detected! Verifying with server...', 'info');
+          if (!resp.isBot) {
+            // If human win, trigger frontend win flow to fetch balance and show UI
+            handleWin();
+          }
+        }
+      } catch (err) {
+        console.error('Mark API failed:', err);
+        showToast('Failed to mark number on server', 'error');
       }
     }
 
@@ -3178,13 +3187,48 @@
         AppState.game.calledNumbers.push(data.number);
         AppState.game.currentNumbers = [data.number];
         updateBingoDisplay();
-        
-        // Auto-mark if number is on card
-        if (AppState.game.cardGrid && AppState.game.markedState) {
-          const index = AppState.game.cardGrid.indexOf(data.number);
-          if (index !== -1 && !AppState.game.markedState[index]) {
-            // Optional: auto-mark logic
+
+        // Auto-mark if number is on the user's card (scan 2D grid)
+        try {
+          const num = Number(data.number);
+          const grid = AppState.game.cardGrid || [];
+          const marked = AppState.game.markedState || [];
+          let found = false;
+          for (let r = 0; r < (grid.length || 5); r++) {
+            for (let c = 0; c < (grid[r]?.length || 5); c++) {
+              if (grid[r][c] === num && !marked[r][c]) {
+                found = true;
+                // Update UI immediately
+                const cell = document.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
+                if (cell) cell.classList.add('called');
+
+                // Persist mark on server
+                (async () => {
+                  try {
+                    const resp = await Api.markNumber({ sessionId: AppState.game.sessionId, row: r, col: c });
+                    const isMarked = resp.marked === true;
+                    AppState.game.markedState[r][c] = isMarked;
+                    // Update DOM
+                    if (cell) {
+                      if (isMarked) cell.classList.add('marked'); else cell.classList.remove('marked');
+                    }
+                    updateMatchesCount();
+                    if (resp.win) {
+                      // Human win confirmed by server - call handleWin flow
+                      if (!resp.isBot) handleWin();
+                    }
+                  } catch (err) {
+                    console.error('Auto-mark failed:', err);
+                  }
+                })();
+
+                break;
+              }
+            }
+            if (found) break;
           }
+        } catch (err) {
+          console.error('Error scanning card for auto-mark:', err);
         }
       }
     }

@@ -730,8 +730,8 @@ router.post('/mark', auth, async (req, res) => {
     console.log('⏰ Timestamp:', new Date().toISOString());
     console.log('='.repeat(60));
     
-    // Validate coordinates first (fast fail)
-    if (row < 0 || row > 2 || col < 0 || col > 2) {
+    // Validate coordinates first (fast fail) - 5x5 grid indexes 0..4
+    if (row < 0 || row > 4 || col < 0 || col > 4) {
       console.error('❌ [MARK FAILED] Invalid coordinates:', row, col);
       return res.status(400).json({ error: 'Invalid coordinates' });
     }
