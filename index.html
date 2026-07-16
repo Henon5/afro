@@ -1013,8 +1013,8 @@
         // ✅ Updated to Render URL (no trailing spaces)
         return 'https://afro-pxbt.onrender.com/api';
       }
-      // If running on localhost, use local backend
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      // If running on localhost or opened as a file, use local backend
+      if (!window.location.hostname || window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         return 'http://localhost:3000/api';
       }
       // Default: try relative /api path (works if frontend & backend on same domain)
@@ -1874,6 +1874,7 @@
 
       const game = AppState.game;
       if (game.cardGrid && game.cardGrid.length > 0) {
+        game.isGameActive = true;
         renderCard();
         updateBingoDisplay();
         updateNumbersHistory();
@@ -3075,6 +3076,7 @@
           AppState.game.botPlayers = response.game.botPlayers || 0;
           AppState.game.calledNumbers = response.game.calledNumbers || [];
           AppState.game.currentNumbers = response.game.calledNumbers && response.game.calledNumbers.length ? [response.game.calledNumbers[response.game.calledNumbers.length - 1]] : [];
+          AppState.game.isGameActive = true;
         }
         
         showToast(response.message || 'Joined room!', 'success');
