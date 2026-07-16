@@ -362,7 +362,8 @@ async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
     return;
   }
   
-  const winnings = roomPool.currentPool + (roomPool.houseTotal || 0);
+  // Prize pool stored in currentPool already represents the net prize (85%)
+  const winnings = roomPool.currentPool || 0;
   
   console.log('\\n💰 [PAYOUT CALCULATION]');
   console.log('   Total Players in Game:', gameSession.players.length);

@@ -925,11 +925,11 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   }
   
   // Capture the actual pool values before they're reset
-  const poolValue = roomPoolBeforeReset.currentPool || 0;
-  const houseTotalValue = roomPoolBeforeReset.houseTotal || 0;
-  
-  // Calculate total winnings from captured values
-  const winnings = poolValue + houseTotalValue;
+  const poolValue = roomPoolBeforeReset.currentPool || 0; // already 85% prize
+  const houseTotalValue = roomPoolBeforeReset.houseTotal || 0; // 15% house cut
+
+  // Total winnings to award to winner should be the prize pool only (poolValue)
+  const winnings = poolValue;
   
   console.log('\n💰 [PAYOUT CALCULATION]');
   console.log('   Total Players in Game:', gameSession.players.length);
@@ -939,7 +939,7 @@ async function handleBotWin(gameSession, bot, playerIndex, winResult) {
   console.log('   Total Winnings Awarded:', winnings, 'ETB');
   console.log('='.repeat(60));
   
-  // HOUSE CUT SEPARATION: Transfer 15% house cut to Admin Wallet BEFORE bot payout
+  // HOUSE CUT SEPARATION: Transfer 15% house cut to Admin Wallet BEFORE payout
   const houseCut = houseTotalValue;
   if (houseCut > 0) {
     const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [];
