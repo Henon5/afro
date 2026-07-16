@@ -1874,7 +1874,21 @@ node server.js
         <button class="btn btn-outline" onclick="exitGame()">Exit Game</button>
       `;
 
-      await startNewGame();
+      const game = AppState.game;
+      if (game.cardGrid && game.cardGrid.length > 0) {
+        renderCard();
+        updateBingoDisplay();
+        updateNumbersHistory();
+        if (game.calledNumbers && game.calledNumbers.length > 0) {
+          const last = game.calledNumbers[game.calledNumbers.length - 1];
+          const letter = ['B','I','N','G','O'][Math.floor((last - 1) / 15)];
+          const display = document.getElementById('currentNumberDisplay');
+          if (display) display.textContent = `${letter}-${last}`;
+        }
+        startAutoPlay();
+      } else {
+        await startNewGame();
+      }
     }
 
     // ============================================
@@ -1885,10 +1899,8 @@ node server.js
       game.isGameActive = true;
       
       if (game.autoInterval) clearInterval(game.autoInterval);
-      game.calledNumbers = [];
-      game.currentNumbers = [];
-      game.cardGrid = [];
-      game.markedState = [];
+      if (!game.calledNumbers) game.calledNumbers = [];
+      if (!game.currentNumbers) game.currentNumbers = [];
 
       if(document.getElementById('callCount')) {
         document.getElementById('callCount').textContent = '0';
@@ -1901,9 +1913,28 @@ node server.js
       }
       updateNumbersHistory();
 
-      generateBingoCard();
+      if (!game.cardGrid || !game.cardGrid.length) {
+        game.cardGrid = [];
+        game.markedState = [];
+        generateBingoCard();
+      }
+      if (!game.markedState || !game.markedState.length) {
+        game.markedState = Array(5).fill(null).map(() => Array(5).fill(false));
+        game.markedState[2][2] = true;
+      }
+
       renderCard();
       
+      // Keep last called number visible if there is one from server session
+      if (game.calledNumbers && game.calledNumbers.length > 0) {
+        const last = game.calledNumbers[game.calledNumbers.length - 1];
+        const display = document.getElementById('currentNumberDisplay');
+        if (display) {
+          const letter = ['B','I','N','G','O'][Math.floor((last - 1) / 15)];
+          display.textContent = `${letter}-${last}`;
+        }
+      }
+
       startAutoPlay();
     }
 
@@ -3031,7 +3062,9 @@ node server.js
         
         console.log('✅ joinRoom response:', response);
         
-        AppState.user.balance = response.game ? (response.game.totalPrize > 0 ? AppState.user.balance - amount : AppState.user.balance) : AppState.user.balance;
+        if (response.game && response.game.newBalance !== undefined) {
+          AppState.user.balance = response.game.newBalance;
+        }
         AppState.game.roomAmount = amount;
         console.log('✅ Set AppState.game.roomAmount to:', amount);
         
@@ -3039,9 +3072,11 @@ node server.js
           AppState.game.cardGrid = response.game.cardGrid;
           AppState.game.markedState = response.game.markedState;
           AppState.game.sessionId = response.game.sessionId;
-          AppState.game.currentPool = response.game.totalPrize;
+          AppState.game.currentPool = response.game.currentPool || response.game.totalPrize;
           AppState.game.playersCount = response.game.playersCount;
           AppState.game.botPlayers = response.game.botPlayers || 0;
+          AppState.game.calledNumbers = response.game.calledNumbers || [];
+          AppState.game.currentNumbers = response.game.calledNumbers && response.game.calledNumbers.length ? [response.game.calledNumbers[response.game.calledNumbers.length - 1]] : [];
         }
         
         showToast(response.message || 'Joined room!', 'success');
