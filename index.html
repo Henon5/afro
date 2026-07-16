@@ -3097,9 +3097,43 @@ node server.js
     // ============================================
     // 🔌 SOCKET.IO CONNECTION
     // ============================================
-    function initSocket(sessionId) {
+    async function loadSocketIoClient() {
+      if (window.io) return window.io;
+
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.socket.io/4.7.2/socket.io.min.js';
+        script.async = true;
+        script.onload = () => {
+          if (window.io) return resolve(window.io);
+          reject(new Error('Socket.io client loaded but `io` is unavailable.'));
+        };
+        script.onerror = () => reject(new Error('Failed to load socket.io client script.'));
+        document.head.appendChild(script);
+      });
+    }
+
+    async function initSocket(sessionId) {
       console.log('🔌 Initializing socket connection for session:', sessionId);
       
+      if (!window.io && typeof io === 'undefined') {
+        try {
+          await loadSocketIoClient();
+          console.log('✅ socket.io client loaded dynamically');
+        } catch (err) {
+          console.error('🔴 Failed to load socket.io client:', err);
+          showToast('Realtime connection failed. Please reload the page.', 'error');
+          return;
+        }
+      }
+
+      const socketClient = window.io || (typeof io !== 'undefined' ? io : null);
+      if (!socketClient) {
+        console.error('🔴 Socket.io client is not available after load.');
+        showToast('Realtime connection is unavailable.', 'error');
+        return;
+      }
+
       // Close existing socket if any
       if (AppState.socket) {
         AppState.socket.disconnect();
@@ -3120,7 +3154,7 @@ node server.js
       }
       
       // Connect to socket server
-      AppState.socket = io(CONFIG.API_BASE.replace('/api', ''), {
+      AppState.socket = socketClient(CONFIG.API_BASE.replace('/api', ''), {
         query: queryParams,
         transports: ['websocket', 'polling'],
         reconnection: true,
