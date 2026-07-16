@@ -989,7 +989,8 @@
 
   <!-- Winner Announcement (hidden by default) -->
   <div class="winner-announcement hidden" id="winnerAnnouncement"></div>
-
+npm install
+node server.js
   <script>
     // ============================================
     // ⚙️ CONFIGURATION
@@ -2083,41 +2084,69 @@
 
     function callNumber() {
       const game = AppState.game;
-      
-      if(game.calledNumbers.length >= CONFIG.MAX_CALLED_NUMBERS) {
+
+      if (!game || !game.sessionId) {
+        showToast('Not in a game session', 'error');
+        return;
+      }
+
+      if (game.calledNumbers.length >= CONFIG.MAX_CALLED_NUMBERS) {
         stopAutoPlay();
         return;
       }
-      
-      let num;
-      do {
-        num = Math.floor(Math.random() * 75) + 1;
-      } while(game.calledNumbers.includes(num));
-      
-      game.calledNumbers.push(num);
-      game.currentNumbers.push(num);
-      
-      Sound.number();
-      
-      const letter = ['B','I','N','G','O'][Math.floor((num-1)/15)];
-      const display = document.getElementById('currentNumberDisplay');
-      if(display) {
-        display.textContent = `${letter}-${num}`;
-        display.style.animation = 'none';
-        setTimeout(() => {
-          display.style.animation = 'pulse 0.3s ease';
-        }, 10);
-      }
-      
-      const cell = document.querySelector(`td[data-num="${num}"]`);
-      if(cell) {
-        cell.classList.add('called');
-        setTimeout(() => {
-          if(cell) cell.classList.remove('called');
-        }, 1500);
-      }
-      
-      updateNumbersHistory();
+
+      // Call backend to draw the next number so bots are processed server-side
+      (async () => {
+        try {
+          const resp = await Api._request(`/game/number/${game.sessionId}`, { method: 'POST' });
+          if (!resp || !resp.number) {
+            console.warn('No number returned from server', resp);
+            return;
+          }
+
+          const num = resp.number;
+          const letter = ['B','I','N','G','O'][Math.floor((num - 1) / 15)];
+          const displayText = `${letter}-${num}`;
+
+          // Update local state and UI
+          if (!game.calledNumbers.includes(num)) game.calledNumbers.push(num);
+          game.currentNumbers = [num];
+          Sound.number();
+
+          const display = document.getElementById('currentNumberDisplay');
+          if (display) {
+            display.textContent = displayText;
+            display.style.animation = 'none';
+            setTimeout(() => { display.style.animation = 'pulse 0.3s ease'; }, 10);
+          }
+
+          const cell = document.querySelector(`td[data-num="${num}"]`);
+          if (cell) {
+            cell.classList.add('called');
+            setTimeout(() => { if (cell) cell.classList.remove('called'); }, 1500);
+          }
+
+          updateNumbersHistory();
+
+          // If server reports bot marks or bot win in response, process UI
+          if (resp.botMarks && resp.botMarks.length) {
+            emitBotMoveSummary(AppState.socket, game);
+          }
+
+          if (resp.gameOver) {
+            // Server handled GAME_OVER; show feedback and end auto-play
+            Sound.success();
+            showToast(resp.message || 'Game over', resp.isBot ? 'info' : 'success');
+            AppState.game.isGameActive = false;
+            stopAutoPlay();
+            setTimeout(() => { showPage('lobby'); }, 2000);
+          }
+        } catch (err) {
+          console.error('Call number failed:', err);
+          showToast('Failed to call number on server', 'error');
+          stopAutoPlay();
+        }
+      })();
     }
 
     function checkForBingo() {
