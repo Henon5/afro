@@ -103,11 +103,14 @@ app.use(compression({
 // Connect DB and initialize rooms and bots in parallel with proper error handling
 const initPromise = Promise.all([
   connectDB().catch(err => {
-    console.error('❌ Database connection failed:', err.message);
-    throw err;
+    console.error('❌ Database connection failed:', err?.message || 'Unknown error');
+    console.warn('⚠️ Server will start without database - game features disabled');
+    return null; // Continue startup without DB
   }),
   // Perform emergency reset AFTER database connection but BEFORE room initialization
-  performEmergencyReset(),
+  performEmergencyReset().catch(err => {
+    console.warn('⚠️ Emergency reset skipped (no database):', err?.message);
+  }),
   RoomPool.initializeRooms().catch(err => {
     console.error('❌ Room initialization failed:', err.message);
     // Non-critical, continue
