@@ -9,7 +9,7 @@ const GameSession = require('../models/GameSession');
 const Transaction = require('../models/Transaction');
 const Bot = require('../models/Bot');
 const { getIO } = require('../utils/botManager'); // Import getIO function
-const { initializeBots, simulateBotMove, checkBotWin, ensureAllBotsHaveCards, processBotMoves: processBotMovesFromManager, handleBotWin: handleBotWinFromManager, getBotReactionTime } = require('../utils/botManager');
+const { initializeBots, simulateBotMove, checkBotWin, ensureAllBotsHaveCards, processBotMoves: processBotMovesFromManager, handleBotWin: handleBotWinFromManager, getBotReactionTime, buildGameOverPayload } = require('../utils/botManager');
 const { updateBotBalance, updateUserBalance } = require('../utils/balanceManager');
 
 // BOT SPEED CONFIGURATION: 2 second reaction time (imported from botManager)
@@ -18,6 +18,25 @@ const BOT_REACTION_TIME_MS = getBotReactionTime();
 // Re-export wrapper functions for local use with game session context
 async function processBotMoves(gameSession, calledNumber) {
   return await processBotMovesLocal(gameSession, calledNumber);
+}
+
+function emitBotMoveSummary(io, gameSession) {
+  if (!io || !gameSession?.players) return;
+
+  const botMarks = gameSession.players
+    .filter(player => player.isBot)
+    .map(player => ({
+      name: player.name,
+      markedCount: Array.isArray(player.markedState) ? player.markedState.flat().filter(Boolean).length : 0,
+      isBot: true
+    }));
+
+  io.to(`game:${gameSession._id}`).emit('BOT_MOVE', {
+    botMarks,
+    callCount: Array.isArray(gameSession.calledNumbers) ? gameSession.calledNumbers.length : 0,
+    sessionId: gameSession._id,
+    message: 'Bots are playing in the room'
+  });
 }
 
 async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
@@ -315,7 +334,9 @@ router.post('/join', auth, validate('joinRoom'), async (req, res) => {
       { upsert: true, new: true }
     );
 
-    const { cardGrid, markedState } = GameSession.generateCard();
+    // Allow client to provide a selected cartela (1-100) which will deterministically generate the card
+    const selectedCard = req.body.selectedCard || req.body.selectedCartela || null;
+    const { cardGrid, markedState } = GameSession.generateCard(selectedCard);
 
     // Create transaction asynchronously (non-blocking)
     Transaction.create({ userId: req.user._id, type: 'game_entry', amount: -amount, status: 'completed', metadata: { roomAmount: amount } }).catch(console.error);
@@ -760,7 +781,15 @@ router.post('/mark', auth, async (req, res) => {
     console.log('='.repeat(60) + '\n');
     
     // Process bot moves after human player marks (pass null since no new number was called)
-    await processBotMoves(gameSession, null);
+    const botResult = await processBotMoves(gameSession, null);
+
+    if (botResult && botResult.winner) {
+      await handleBotWin(gameSession, botResult.winner, botResult.botIndex, botResult.winResult);
+      return res.json({ success: true, marked: player.markedState[row][col], matches: player.markedState.flat().filter(Boolean).length - 1, win: true, pattern: winResult.pattern, gameOver: true, isBot: true, message: `Bot ${botResult.winner.name} won the game!` });
+    }
+
+    const io = getIO();
+    emitBotMoveSummary(io, gameSession);
 
     res.json({ success: true, marked: player.markedState[row][col], matches: player.markedState.flat().filter(Boolean).length - 1, win: winResult.win, pattern: winResult.pattern });
   } catch (err) {
@@ -1301,10 +1330,7 @@ router.post('/number/:sessionId', auth, async (req, res) => {
     
     // BROADCAST: Emit bot moves to all players in real-time
     if (botMarks.length > 0) {
-      io.to(`game:${gameSession._id}`).emit('BOT_MOVE', {
-        botMarks: botMarks,
-        callCount: gameSession.calledNumbers.length
-      });
+      emitBotMoveSummary(io, updatedSession);
     }
     
     res.json({ 

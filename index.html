@@ -1245,9 +1245,9 @@
 
       // 🎮 Game Endpoints
       getRooms: () => Api._request('/game/rooms', { method: 'GET' }),
-      joinRoom: (amount, withBots = true) => Api._request('/game/join', {
+      joinRoom: (amount, withBots = true, selectedCard = null) => Api._request('/game/join', {
         method: 'POST',
-        body: JSON.stringify({ roomAmount: amount, withBots }),
+        body: JSON.stringify({ roomAmount: amount, withBots, selectedCard }),
         loadingText: 'Joining room...'
       }),
       
@@ -1589,6 +1589,7 @@
       
       switch(pageId) {
         case 'lobby': renderLobbyPage(page); break;
+        case 'cartela': renderCartelaPage(page); break;
         case 'bingo': renderBingoPage(page); break;
         case 'profile': renderProfilePage(page); break;
         case 'deposit': renderDepositPage(page); break;
@@ -1705,6 +1706,55 @@
       
       // Load room pools from database
       // Room cards now show simple entry fee with emoji - no pool display needed
+    }
+
+    // ============================================
+    // 🎴 CARTELA SELECTION
+    // ============================================
+    function renderCartelaPage(container) {
+      const roomAmount = AppState.user?.selectedRoom || AppState.game.roomAmount || 20;
+      container.innerHTML = `
+        <div class="header">
+          <button class="header-btn" onclick="showPage('lobby')">←</button>
+          <div style="flex: 1;"><h3>Select Your Cartela</h3><p>Room: ${roomAmount} ETB</p></div>
+          <div style="width:46px"></div>
+        </div>
+        <div style="padding:16px; text-align:center;">
+          <div style="margin-bottom:12px; color:var(--gray);">Pick a number between 1 and 100 for your cartela. You will be taken to the game after selection.</div>
+          <div id="cartelaGrid" style="display:grid; grid-template-columns: repeat(10, 1fr); gap:6px; max-width:720px; margin:0 auto 12px;">
+          </div>
+          <div style="display:flex; gap:8px; justify-content:center; margin-top:12px;">
+            <button class="btn" onclick="selectRandomCartela()">🎲 Random</button>
+            <button class="btn btn-outline" onclick="showPage('lobby')">Cancel</button>
+          </div>
+        </div>
+      `;
+
+      const grid = document.getElementById('cartelaGrid');
+      for (let i = 1; i <= 100; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-sm';
+        btn.style.padding = '8px';
+        btn.textContent = i;
+        btn.onclick = async () => {
+          Sound.click();
+          if (!AppState.user) AppState.user = {};
+          AppState.user.selectedCard = i;
+          showToast(`Selected cartela ${i}. Joining room...`, 'info');
+          // Proceed to join room
+          await joinRoom(roomAmount);
+        };
+        grid.appendChild(btn);
+      }
+    }
+
+    function selectRandomCartela() {
+      const n = Math.floor(Math.random() * 100) + 1;
+      AppState.user.selectedCard = n;
+      showToast(`Random cartela ${n} selected`, 'info');
+      // navigate to join
+      const roomAmount = AppState.user?.selectedRoom || AppState.game.roomAmount || 20;
+      joinRoom(roomAmount);
     }
     
     // Load room pools from database and update UI
@@ -2930,14 +2980,16 @@
         return;
       }
       
-      console.log('🚀 Calling joinRoom with amount:', amount);
-      await joinRoom(amount);
+      console.log('🚀 Showing cartela selection for amount:', amount);
+      // Show cartela selection page before joining
+      showPage('cartela');
     }
 
     async function joinRoom(amount) {
       try {
         console.log('🎮 joinRoom: Joining room with amount:', amount);
-        const response = await Api.joinRoom(amount, true); // Always join with bots
+        const selectedCard = AppState.user?.selectedCard || null;
+        const response = await Api.joinRoom(amount, true, selectedCard); // Always join with bots
         
         console.log('✅ joinRoom response:', response);
         
@@ -3100,11 +3152,17 @@
       // Game over event
       AppState.socket.on('GAME_OVER', (data) => {
         console.log('🏆 Game Over:', data);
-        showToast(`${data.winner} won with ${data.pattern}!`, 'success');
-        // Reset game state
+        const redirectTo = data?.redirectTo || 'lobby';
+        const message = data?.message || `${data?.winner || 'Someone'} won with ${data?.pattern || 'a bingo pattern'}!`;
+        showToast(message, data?.isBot ? 'info' : 'success');
+        AppState.game.isGameActive = false;
         setTimeout(() => {
-          window.location.reload();
-        }, 3000);
+          if (AppState.socket) {
+            AppState.socket.disconnect();
+            AppState.socket = null;
+          }
+          showPage(redirectTo);
+        }, 2200);
       });
       
       AppState.socket.on('error', (error) => {

@@ -27,12 +27,28 @@ gameSessionSchema.index({ 'players.user': 1, gameStatus: 1 });
 gameSessionSchema.index({ gameStatus: 1, startedAt: -1 });
 gameSessionSchema.index({ winner: 1, completedAt: -1 });
 
-gameSessionSchema.statics.generateCard = function() {
+gameSessionSchema.statics.generateCard = function(selectedCard) {
+  // If a selectedCard (1-100) is provided, use it as a seed so card generation is deterministic
+  let rng = Math.random;
+  if (selectedCard !== undefined && selectedCard !== null) {
+    const seed = Number(selectedCard) || 0;
+    // Mulberry32 PRNG
+    function mulberry32(a) {
+      return function() {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    rng = mulberry32(seed + 0x9e3779b1);
+  }
+
   const card = [], marked = [];
   for (let col = 0; col < 5; col++) {
     const min = col * 15 + 1;
     const nums = new Set();
-    while (nums.size < 5) nums.add(Math.floor(Math.random() * 15) + min);
+    while (nums.size < 5) nums.add(Math.floor(rng() * 15) + min);
     Array.from(nums).sort((a, b) => a - b).forEach((num, row) => {
       if (!card[row]) card[row] = [];
       if (!marked[row]) marked[row] = [];

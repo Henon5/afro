@@ -188,6 +188,24 @@ function getBotReactionTime() {
 }
 
 /**
+ * Build the shared game-over payload for the frontend.
+ * This ensures bot wins redirect the player back to the lobby.
+ */
+function buildGameOverPayload({ sessionId, winner, winnerName, isBot, pattern, winnings, roomAmount, message, redirectTo = 'lobby' }) {
+  return {
+    sessionId,
+    winner: winner || winnerName || 'Bot',
+    winnerName: winnerName || winner || 'Bot',
+    isBot: Boolean(isBot),
+    pattern,
+    winnings,
+    roomAmount,
+    message: message || (isBot ? 'Bot won the game' : 'Player won the game'),
+    redirectTo
+  };
+}
+
+/**
  * Find a strategic mark that helps complete a pattern
  */
 function findStrategicMark(validMarks, markedState) {
@@ -393,7 +411,7 @@ async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
   try {
     const io = getIO();
     if (io) {
-      io.to(`game:${gameSession._id}`).emit('GAME_OVER', {
+      io.to(`game:${gameSession._id}`).emit('GAME_OVER', buildGameOverPayload({
         sessionId: gameSession._id,
         winner: winningBot.name,
         winnerName: winningBot.name,
@@ -402,7 +420,7 @@ async function handleBotWin(gameSession, winningBot, playerIndex, winResult) {
         winnings: winnings,
         roomAmount: roomAmount,
         message: `Bot ${winningBot.name} has won the ${winnings} ETB pool!`
-      });
+      }));
       console.log(`📡 Broadcasted GAME_OVER to room game:${gameSession._id}`);
     } else {
       console.warn('⚠️ Socket.io instance not found');
@@ -644,6 +662,7 @@ module.exports = {
   checkBotWin,
   ensureAllBotsHaveCards,
   getBotReactionTime,
+  buildGameOverPayload,
   processBotMoves,
   handleBotWin,
   autoRefillBotBalances,

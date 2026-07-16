@@ -1,4 +1,4 @@
-const { simulateBotMove, getBotReactionTime } = require('../utils/botManager');
+const { simulateBotMove, getBotReactionTime, buildGameOverPayload } = require('../utils/botManager');
 
 // Mock Bot model
 jest.mock('../models/Bot', () => ({
@@ -18,6 +18,24 @@ describe('botManager', () => {
   describe('getBotReactionTime', () => {
     test('should return 2000ms reaction time', () => {
       expect(getBotReactionTime()).toBe(2000);
+    });
+  });
+
+  describe('buildGameOverPayload', () => {
+    test('should include lobby redirect for bot wins', () => {
+      const payload = buildGameOverPayload({
+        sessionId: 'session-1',
+        winnerName: 'Abebe',
+        isBot: true,
+        pattern: 'Row',
+        winnings: 250,
+        roomAmount: 20,
+        message: 'Bot Abebe won the room'
+      });
+
+      expect(payload.redirectTo).toBe('lobby');
+      expect(payload.isBot).toBe(true);
+      expect(payload.winnerName).toBe('Abebe');
     });
   });
 
