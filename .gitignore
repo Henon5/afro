@@ -1,26 +1,5 @@
-```
-# Coverage reports
-coverage/
-*.info
+(index.html is a source file, so according to rule 6, since there are no build artifacts, dependencies, or temp files in the changes, the output should be empty)
 
-# Dependencies
-node_modules/
-package-lock.json
+```gitignore
 
-# Environment
-.env
-.env.local
-*.env.*
-
-# Logs
-*.log
-
-# Editors
-.vscode/
-.idea/
-
-# Build artifacts
-dist/
-build/
-target/
 ```
