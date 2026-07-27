@@ -3277,7 +3277,7 @@
       
       AppState.socket.on('reconnect_attempt', () => {
         console.log('🔄 Attempting to reconnect to socket...');
-        updateConnectionStatus('connecting
+        updateConnectionStatus('connecting');
         reconnectionAttempts: 5,
         reconnectionDelay: 1000
       });
