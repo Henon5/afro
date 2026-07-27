@@ -1,4 +1,5 @@
 ```
-# Environment
-.env
+# Logs and temp files
+*.log
+server.log
 ```
