@@ -69,19 +69,16 @@
     .page {
       min-height: 450px;
       animation: fadeIn 0.3s ease-out;
-      opacity: 1;
-      transform: translateY(0);
-      display: block;
+      opacity: 0;
+      transform: translateY(10px);
     }
     
     .page.active {
       opacity: 1;
       transform: translateY(0);
-      display: block;
     }
     
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
     
@@ -890,49 +887,6 @@
     .text-red { color: var(--red); }
     .font-bold { font-weight: 700; }
     
-    /* ========== CONNECTION STATUS ========== */
-    .connection-status {
-      position: fixed;
-      bottom: 15px;
-      right: 15px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: white;
-      border-radius: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      font-size: 0.85rem;
-      font-weight: 600;
-      z-index: 100;
-      border: 2px solid #e0e0e0;
-    }
-    
-    .connection-status.connected {
-      background: #f0fdf4;
-      border-color: var(--green);
-      color: var(--green);
-    }
-    
-    .connection-status.disconnected {
-      background: #fef2f2;
-      border-color: var(--red);
-      color: var(--red);
-    }
-    
-    .connection-status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: currentColor;
-      animation: pulse-dot 2s infinite;
-    }
-    
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-    
     /* ========== MOBILE OPTIMIZATIONS ========== */
     @media (max-width: 480px) {
       .container {
@@ -1022,12 +976,6 @@
     <p id="loadingText">Loading...</p>
   </div>
 
-  <!-- Connection Status Indicator -->
-  <div class="connection-status connected" id="connectionStatus" title="Server connection status">
-    <div class="connection-status-dot"></div>
-    <span id="connectionStatusText">Connected</span>
-  </div>
-
   <!-- Main Container -->
   <div class="container">
     <div id="pageContainer"></div>
@@ -1041,35 +989,36 @@
 
   <!-- Winner Announcement (hidden by default) -->
   <div class="winner-announcement hidden" id="winnerAnnouncement"></div>
+
   <script>
- // ============================================
- // CONFIGURATION
- // ============================================
+    // ============================================
+    // ⚙️ CONFIGURATION
+    // ============================================
     
- // IMPORTANT: Set your backend URL here for production!
- // GitHub Pages cannot host the backend - you must deploy it separately.
- // Options:
- // - Local dev: 'http://localhost:3000/api'
- // - Render: 'https://your-app.onrender.com/api'
- // - Vercel: 'https://your-app.vercel.app/api'
+    // 🔗 IMPORTANT: Set your backend URL here for production!
+    // GitHub Pages cannot host the backend - you must deploy it separately.
+    // Options:
+    //   - Local dev: 'http://localhost:3000/api'
+    //   - Render: 'https://your-app.onrender.com/api'
+    //   - Vercel: 'https://your-app.vercel.app/api'
     
- // Auto-detect backend URL based on environment
-    const getBackendUrl = ()=> {
- // Check for meta tag first (allows deployment configuration)
+    // Auto-detect backend URL based on environment
+    const getBackendUrl = () => {
+      // Check for meta tag first (allows deployment configuration)
       const metaBackend = document.querySelector('meta[name="backend-url"]');
       if (metaBackend) {
         return metaBackend.getAttribute('content');
       }
- // If running on GitHub Pages, use Render backend
+      // If running on GitHub Pages, use Render backend
       if (window.location.hostname.includes('github.io')) {
- // Updated to Render URL (no trailing spaces)
+        // ✅ Updated to Render URL (no trailing spaces)
         return 'https://afro-pxbt.onrender.com/api';
       }
- // If running on localhost or opened as a file, use local backend
-      if (!window.location.hostname || window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      // If running on localhost, use local backend
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         return 'http://localhost:3000/api';
       }
- // Default: try relative /api path (works if frontend & backend on same domain)
+      // Default: try relative /api path (works if frontend & backend on same domain)
       return '/api';
     };
     
@@ -1077,20 +1026,20 @@
     console.log('🔧 Backend API URL:', BACKEND_URL);
     
     const CONFIG = {
- // Backend API URL
+      // 🔗 Backend API URL
       API_BASE: BACKEND_URL,
       
- // Game Settings
+      // 🎮 Game Settings
       AUTO_PLAY_INTERVAL: 3000,
       MAX_CALLED_NUMBERS: 75,
       
- // Payment Info
+      // 💰 Payment Info
       TELEBIRR_NUMBER: '0921302111',
       CBE_ACCOUNT: '1000318833625',
       SUPPORT_TELEGRAM: '@rasenok',
       SUPPORT_PHONE: '+251921302111',
       
- // Admin Credentials
+      // 🔐 Admin Credentials
       ADMIN_CREDENTIALS: {
         masterId: 'MasterAdmin',
         secureCode: 'SECURE123',
@@ -1098,46 +1047,46 @@
       }
     };
 
- // ============================================
- // API SERVICE LAYER
- // ============================================
+    // ============================================
+    // 🌐 API SERVICE LAYER
+    // ============================================
     const Api = {
- // Get headers with Telegram auth and admin token support
+      // Get headers with Telegram auth and admin token support
       _headers(customHeaders = {}) {
         const headers = { 'Content-Type': 'application/json' };
         
- // Add Telegram auth if available - check both live initData and stored initData
+        // Add Telegram auth if available - check both live initData and stored initData
         const telegramInitData = window.Telegram?.WebApp?.initData || localStorage.getItem('telegramInitData');
         if (telegramInitData) {
           headers['x-telegram-init-data'] = telegramInitData;
           console.log('✅ Telegram initData added to headers');
         }
         
- // Always check for JWT token in localStorage first
+        // Always check for JWT token in localStorage first
         const token = localStorage.getItem('token');
         if (token) {
           headers['Authorization'] = 'Bearer ' + token;
           console.log('✅ JWT Token found in localStorage:', token.substring(0, 20) + '...');
         } else if (telegramInitData) {
- // Use Telegram initData as fallback for Authorization header
+          // Use Telegram initData as fallback for Authorization header
           headers['Authorization'] = telegramInitData;
           console.log('📱 Using Telegram initData for Authorization');
         } else {
           console.log('⚠️ No authentication token found');
         }
         
- // Add admin token ONLY for explicit admin requests
- // Never send admin token with regular player requests to prevent 403 errors
+        // Add admin token ONLY for explicit admin requests
+        // Never send admin token with regular player requests to prevent 403 errors
         const adminToken = localStorage.getItem('adminToken');
         if (adminToken && customHeaders.isAdminRequest) {
- // Only include admin token when explicitly requested for admin operations
+          // Only include admin token when explicitly requested for admin operations
           headers['x-admin-token'] = adminToken;
           console.log('✅ Admin Token added for admin request:', adminToken.substring(0, 20) + '...');
         } else if (adminToken && !customHeaders.isAdminRequest) {
           console.log('ℹ️ Admin Token exists but NOT sending (not an admin request)');
         }
         
- // Merge with any custom headers (excluding isAdminRequest flag)
+        // Merge with any custom headers (excluding isAdminRequest flag)
         if (customHeaders && typeof customHeaders === 'object') {
           const { isAdminRequest, ...restHeaders } = customHeaders;
           Object.assign(headers, restHeaders);
@@ -1147,49 +1096,49 @@
         return headers;
       },
 
- // Generic request handler
+      // Generic request handler
       async _request(endpoint, options = {}) {
         const url = `${CONFIG.API_BASE}${endpoint}`;
         
- // 1. Retrieve the Token: Check localStorage first, then Telegram initData fallback
+        // 1. Retrieve the Token: Check localStorage first, then Telegram initData fallback
         const token = localStorage.getItem('token') || localStorage.getItem('telegramInitData') || window.Telegram?.WebApp?.initData;
         
- // 2. Force the Header: Always include Content-Type
+        // 2. Force the Header: Always include Content-Type
         const headers = { 'Content-Type': 'application/json' };
         
- // Immediately add Authorization if token exists
+        // Immediately add Authorization if token exists
         if (token) {
- // Smart detection: If token is Telegram initData (contains user= or hash=), send it raw without Bearer
- // Otherwise, it's a JWT token, so add Bearer prefix
+          // Smart detection: If token is Telegram initData (contains user= or hash=), send it raw without Bearer
+          // Otherwise, it's a JWT token, so add Bearer prefix
           if (token.startsWith('user=') || token.includes('hash=')) {
- // Telegram initData - send raw without Bearer prefix
+            // Telegram initData - send raw without Bearer prefix
             headers['Authorization'] = token;
             console.log('📱 Using Telegram initData (raw, no Bearer)');
           } else {
- // JWT token - add Bearer prefix
+            // JWT token - add Bearer prefix
             headers['Authorization'] = 'Bearer ' + token;
             console.log('🔑 Using JWT token (with Bearer)');
           }
         }
         
- // 3. Admin Fallback: Check for admin token ONLY for explicit admin requests
- // Never send admin token with regular player requests to prevent 403 errors
+        // 3. Admin Fallback: Check for admin token ONLY for explicit admin requests
+        // Never send admin token with regular player requests to prevent 403 errors
         const adminToken = localStorage.getItem('adminToken');
         if (adminToken && options.headers?.isAdminRequest) {
- // Only include admin token when explicitly requested for admin operations
+          // Only include admin token when explicitly requested for admin operations
           headers['x-admin-token'] = adminToken;
           console.log('✅ Admin Token added for admin request:', adminToken.substring(0, 20) + '...');
         } else if (adminToken && !options.headers?.isAdminRequest) {
           console.log('ℹ️ Admin Token exists but NOT sending (not an admin request)');
         }
         
- // Merge with any custom headers passed in options (excluding isAdminRequest flag)
+        // Merge with any custom headers passed in options (excluding isAdminRequest flag)
         if (options.headers) {
           const { isAdminRequest, ...restHeaders } = options.headers;
           Object.assign(headers, restHeaders);
         }
         
- // 4. Debug Log: Verify 'Authorization' appears in headers
+        // 4. Debug Log: Verify 'Authorization' appears in headers
         console.log('🚀 Request Headers:', JSON.stringify(headers));
         console.log(`📤 Sending ${options.method || 'GET'} to ${url}`);
         
@@ -1203,7 +1152,7 @@
           
           console.log(`📡 API Response Status: ${response.status} ${response.statusText}`);
           
- // Check if response is JSON before parsing
+          // Check if response is JSON before parsing
           const contentType = response.headers.get('content-type');
           if (!contentType || !contentType.includes('application/json')) {
             const text = await response.text();
@@ -1213,14 +1162,14 @@
           
           const data = await response.json();
           
- // 5. Error Handling: If 401, clear tokens and show Retry button
+          // 5. Error Handling: If 401, clear tokens and show Retry button
           if (response.status === 401) {
             console.error('❌ Auth failed: No valid token found or token expired.');
- // Clear invalid tokens
+            // Clear invalid tokens
             localStorage.removeItem('token');
             localStorage.removeItem('adminToken');
             
- // Show Retry button that clears localStorage and reloads Telegram WebApp
+            // Show Retry button that clears localStorage and reloads Telegram WebApp
             showToast('Login Required', 'error');
             setTimeout(() => {
               const retryBtn = document.createElement('button');
@@ -1256,7 +1205,7 @@
           return data;
         } catch (error) {
           console.error('❌ API Request Error:', error.message);
- // Don't show toast for every error - some are expected
+          // Don't show toast for every error - some are expected
           if (error.message !== 'Authentication required' && error.message !== 'Authentication failed') {
             showToast(error.message || 'Connection error', 'error');
           }
@@ -1266,7 +1215,7 @@
         }
       },
 
- // Authentication - Use GET /user instead of POST /auth/sync
+      // 🔐 Authentication - Use GET /user instead of POST /auth/sync
       getUser: async () => {
         try {
           return await Api._request('/user/balance', { method: 'GET' });
@@ -1280,9 +1229,9 @@
         try {
           return await Api._request('/user', { method: 'GET' });
         } catch (error) {
- // If syncUser fails, do NOT set user to 'guest' - clear localStorage and throw error
+          // If syncUser fails, do NOT set user to 'guest' - clear localStorage and throw error
           console.error('❌ syncUser failed - user not authenticated:', error.message);
- // Clear any stale tokens
+          // Clear any stale tokens
           localStorage.removeItem('token');
           localStorage.removeItem('adminToken');
           throw new Error('Authentication failed. Please log in again.');
@@ -1294,11 +1243,11 @@
         body: JSON.stringify(data)
       }),
 
- // Game Endpoints
+      // 🎮 Game Endpoints
       getRooms: () => Api._request('/game/rooms', { method: 'GET' }),
-      joinRoom: (amount, withBots = true, selectedCard = null) => Api._request('/game/join', {
+      joinRoom: (amount, withBots = true) => Api._request('/game/join', {
         method: 'POST',
-        body: JSON.stringify({ roomAmount: amount, withBots, selectedCard }),
+        body: JSON.stringify({ roomAmount: amount, withBots }),
         loadingText: 'Joining room...'
       }),
       
@@ -1312,7 +1261,7 @@
         loadingText: 'Verifying win...'
       }),
 
- // Transactions
+      // 💰 Transactions
       requestDeposit: (data) => Api._request('/transaction/deposit', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -1327,7 +1276,7 @@
       
       getTransactions: () => Api._request('/transaction'),
 
- // Admin Endpoints - FIXED
+      // 👮 Admin Endpoints - FIXED
       adminLogin: async ({ masterId, secureCode, securityKey }) => {
         return Api._request('/admin/login', {
           method: 'POST',
@@ -1396,7 +1345,7 @@
         headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
 
- // Create Player - Admin can create new players manually
+      // 👤 Create Player - Admin can create new players manually
       createUser: (data, token) => Api._request('/admin/create-user', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -1404,9 +1353,9 @@
       })
     };
 
- // ============================================
- // SOUND MANAGER
- // ============================================
+    // ============================================
+    // 🔊 SOUND MANAGER
+    // ============================================
     const Sound = {
       _ctx: null,
       
@@ -1454,9 +1403,9 @@
       success() { this._play(880, 'sine', 0.15, 0.1); }
     };
 
- // ============================================
- // APP STATE
- // ============================================
+    // ============================================
+    // 🧠 APP STATE
+    // ============================================
     const AppState = {
       user: null,
       currentPage: 'lobby',
@@ -1475,46 +1424,12 @@
         token: null
       },
       socket: null,
-      lastHouseClick: 0,
-      connectionStatus: 'connecting' // 'connecting', 'connected', 'disconnected'
+      lastHouseClick: 0
     };
-    
- // ============================================
- // CONNECTION STATUS MANAGEMENT
- // ============================================
-    function updateConnectionStatus(status) {
-      AppState.connectionStatus = status;
-      const statusEl = document.getElementById('connectionStatus');
-      const statusText = document.getElementById('connectionStatusText');
-      
-      if (!statusEl || !statusText) return;
-      
-      statusEl.classList.remove('connected', 'disconnected');
-      
-      switch(status) {
-        case 'connected':
-          statusEl.classList.add('connected');
-          statusText.textContent = '✓ Connected';
-          break;
-        case 'disconnected':
-          statusEl.classList.add('disconnected');
-          statusText.textContent = '✗ Disconnected';
-          break;
-        case 'connecting':
-          statusEl.classList.add('connecting');
-          statusText.textContent = '◌ Connecting...';
-          break;
-        default:
-          statusEl.classList.add('disconnected');
-          statusText.textContent = '? Unknown';
-      }
-      
-      console.log(`🔌 Connection status: ${status}`);
-    }
 
- // ============================================
- // UI HELPERS
- // ============================================
+    // ============================================
+    // 🎨 UI HELPERS
+    // ============================================
     function showLoading(text = 'Loading...') {
       document.getElementById('loadingText').textContent = text;
       document.getElementById('loadingOverlay').classList.add('active');
@@ -1577,9 +1492,9 @@
       });
     }
 
- // ============================================
- // TELEGRAM INTEGRATION
- // ============================================
+    // ============================================
+    // 📱 TELEGRAM INTEGRATION
+    // ============================================
     function initTelegram() {
       const tg = window.Telegram?.WebApp;
       if (!tg) {
@@ -1589,13 +1504,13 @@
 
       tg.expand();
       
- // Store Telegram initData to localStorage for persistence across page reloads
+      // Store Telegram initData to localStorage for persistence across page reloads
       if (tg.initData) {
         localStorage.setItem('telegramInitData', tg.initData);
         console.log('✅ Telegram initData saved to localStorage');
       }
       
- // Only enable closing confirmation if supported
+      // Only enable closing confirmation if supported
       if (typeof tg.enableClosingConfirmation === 'function') {
         tg.enableClosingConfirmation();
       } else {
@@ -1606,7 +1521,7 @@
         document.body.classList.add('telegram-dark');
       }
       
- // Only set header color if supported
+      // Only set header color if supported
       if (typeof tg.setHeaderColor === 'function') {
         try {
           tg.setHeaderColor('#009b3a');
@@ -1617,7 +1532,7 @@
         console.warn('⚠️ Header color not supported in this Telegram client version');
       }
       
- // Only set background color if supported
+      // Only set background color if supported
       if (typeof tg.setBackgroundColor === 'function') {
         try {
           tg.setBackgroundColor('#ffffff');
@@ -1628,7 +1543,7 @@
         console.warn('⚠️ Background color not supported in this Telegram client version');
       }
       
- // Check if BackButton is supported before using it
+      // Check if BackButton is supported before using it
       if (tg.BackButton && typeof tg.BackButton.onClick === 'function') {
         tg.BackButton.onClick(() => {
           if (AppState.currentPage === 'bingo') {
@@ -1657,9 +1572,9 @@
       }
     }
 
- // ============================================
- // PAGE NAVIGATION
- // ============================================
+    // ============================================
+    // 🔄 PAGE NAVIGATION
+    // ============================================
     function showPage(pageId) {
       AppState.currentPage = pageId;
       updateBackButton();
@@ -1674,7 +1589,6 @@
       
       switch(pageId) {
         case 'lobby': renderLobbyPage(page); break;
-        case 'cartela': renderCartelaPage(page); break;
         case 'bingo': renderBingoPage(page); break;
         case 'profile': renderProfilePage(page); break;
         case 'deposit': renderDepositPage(page); break;
@@ -1684,17 +1598,17 @@
       
       setTimeout(() => page.classList.add('active'), 10);
       
- // Re-render lobby if returning to it to show updated profile info
+      // Re-render lobby if returning to it to show updated profile info
       if(pageId === 'lobby' && AppState.user) {
         console.log('🔄 Refreshing lobby with user data:', AppState.user);
- // Force re-render to ensure refresh button appears
+        // Force re-render to ensure refresh button appears
         setTimeout(() => renderLobbyPage(page), 50);
       }
     }
 
- // ============================================
- // LOBBY PAGE
- // ============================================
+    // ============================================
+    // 🏠 LOBBY PAGE
+    // ============================================
     async function renderLobbyPage(container) {
       if (AppState.user?.isBlocked) {
         container.innerHTML = `
@@ -1780,80 +1694,21 @@
 
       document.getElementById('houseIcon')?.addEventListener('click', () => {
         Sound.click();
- // Check if admin is already logged in
-        const savedToken = localStorage.getItem('adminToken');
-        if (savedToken) {
-          AppState.admin.token = savedToken;
-          AppState.admin.isLoggedIn = true;
-          console.log('✅ Admin session restored from localStorage on house icon click');
-          showFullAdminPanel();
-          return;
-        }
-        
- // Double-click detection for admin login
+        // Double-click detection for admin login
         const now = Date.now();
         if (AppState.lastHouseClick && (now - AppState.lastHouseClick) < 300) {
- // Double-click detected - show admin login
+          // Double-click detected - show admin login
           showAdminLogin();
         }
         AppState.lastHouseClick = now;
       });
       
- // Load room pools from database
- // Room cards now show simple entry fee with emoji - no pool display needed
-    }
-
- // ============================================
- // CARTELA SELECTION
- // ============================================
-    function renderCartelaPage(container) {
-      const roomAmount = AppState.user?.selectedRoom || AppState.game.roomAmount || 20;
-      container.innerHTML = `
-        <div class="header">
-          <button class="header-btn" onclick="showPage('lobby')">←</button>
-          <div style="flex: 1;"><h3 style="color:#fff; font-weight:800;">Select Your Cartela</h3><p style="color:#ddd;">Room: ${roomAmount} ETB</p></div>
-          <div style="width:46px"></div>
-        </div>
-        <div class="page active" style="padding:20px; background: #000; color: #fff; border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); border:1px solid rgba(255,255,255,0.08);">
-          <div style="margin-bottom:12px; color:#ddd; text-align:center;">Pick a number between 1 and 100 for your cartela. You will be taken to the game after selection.</div>
-          <div id="cartelaGrid" style="display:grid; grid-template-columns: repeat(10, 1fr); gap:8px; max-width:720px; margin:0 auto 12px;">
-          </div>
-          <div style="display:flex; gap:8px; justify-content:center; margin-top:12px;">
-            <button class="btn" onclick="selectRandomCartela()">🎲 Random</button>
-            <button class="btn btn-outline" onclick="showPage('lobby')">Cancel</button>
-          </div>
-        </div>
-      `;
-
-      const grid = document.getElementById('cartelaGrid');
-      for (let i = 1; i <= 100; i++) {
-        const btn = document.createElement('button');
-        btn.className = 'btn btn-sm';
-        btn.style.padding = '8px';
-        btn.textContent = i;
-        btn.onclick = async () => {
-          Sound.click();
-          if (!AppState.user) AppState.user = {};
-          AppState.user.selectedCard = i;
-          showToast(`Selected cartela ${i}. Joining room...`, 'info');
- // Proceed to join room
-          await joinRoom(roomAmount);
-        };
-        grid.appendChild(btn);
-      }
-    }
-
-    function selectRandomCartela() {
-      const n = Math.floor(Math.random() * 100) + 1;
-      AppState.user.selectedCard = n;
-      showToast(`Random cartela ${n} selected`, 'info');
- // navigate to join
-      const roomAmount = AppState.user?.selectedRoom || AppState.game.roomAmount || 20;
-      joinRoom(roomAmount);
+      // Load room pools from database
+      // Room cards now show simple entry fee with emoji - no pool display needed
     }
     
- // Load room pools from database and update UI
- // Uses prizePool from server (Single Source of Truth) - no math on frontend
+    // Load room pools from database and update UI
+    // Uses prizePool from server (Single Source of Truth) - no math on frontend
     async function loadRooms() {
       try {
         const response = await Api.getRooms();
@@ -1861,7 +1716,7 @@
         if (response.rooms) {
           const rooms = response.rooms;
           
- // Update 100 ETB room - use prizePool from server
+          // Update 100 ETB room - use prizePool from server
           if (rooms[100]) {
             document.getElementById('pool100').textContent = `${rooms[100].prizePool} ETB`;
             document.getElementById('players100').textContent = rooms[100].players;
@@ -1870,7 +1725,7 @@
             document.getElementById('players100').textContent = '0';
           }
           
- // Update 50 ETB room - use prizePool from server
+          // Update 50 ETB room - use prizePool from server
           if (rooms[50]) {
             document.getElementById('pool50').textContent = `${rooms[50].prizePool} ETB`;
             document.getElementById('players50').textContent = rooms[50].players;
@@ -1879,7 +1734,7 @@
             document.getElementById('players50').textContent = '0';
           }
           
- // Update 20 ETB room - use prizePool from server
+          // Update 20 ETB room - use prizePool from server
           if (rooms[20]) {
             document.getElementById('pool20').textContent = `${rooms[20].prizePool} ETB`;
             document.getElementById('players20').textContent = rooms[20].players;
@@ -1888,7 +1743,7 @@
             document.getElementById('players20').textContent = '0';
           }
           
- // Update 10 ETB room - use prizePool from server
+          // Update 10 ETB room - use prizePool from server
           if (rooms[10]) {
             document.getElementById('pool10').textContent = `${rooms[10].prizePool} ETB`;
             document.getElementById('players10').textContent = rooms[10].players;
@@ -1897,7 +1752,7 @@
             document.getElementById('players10').textContent = '0';
           }
           
- // Update 5 ETB room - use prizePool from server
+          // Update 5 ETB room - use prizePool from server
           if (rooms[5]) {
             document.getElementById('pool5').textContent = `${rooms[5].prizePool} ETB`;
             document.getElementById('players5').textContent = rooms[5].players;
@@ -1911,9 +1766,9 @@
       }
     }
 
- // ============================================
- // BINGO GAME PAGE
- // ============================================
+    // ============================================
+    // 🎮 BINGO GAME PAGE
+    // ============================================
     async function renderBingoPage(container) {
       if (AppState.user?.isBlocked) {
         showToast('Account blocked', 'error');
@@ -1921,7 +1776,7 @@
         return;
       }
 
- // FIX: Use AppState.game.roomAmount first, then user.selectedRoom, then default
+      // FIX: Use AppState.game.roomAmount first, then user.selectedRoom, then default
       const roomAmount = AppState.game.roomAmount || AppState.user?.selectedRoom || 20;
       AppState.game.roomAmount = roomAmount;
 
@@ -1968,34 +1823,21 @@
         <button class="btn btn-outline" onclick="exitGame()">Exit Game</button>
       `;
 
-      const game = AppState.game;
-      if (game.cardGrid && game.cardGrid.length > 0) {
-        game.isGameActive = true;
-        renderCard();
-        updateBingoDisplay();
-        updateNumbersHistory();
-        if (game.calledNumbers && game.calledNumbers.length > 0) {
-          const last = game.calledNumbers[game.calledNumbers.length - 1];
-          const letter = ['B','I','N','G','O'][Math.floor((last - 1) / 15)];
-          const display = document.getElementById('currentNumberDisplay');
-          if (display) display.textContent = `${letter}-${last}`;
-        }
-        startAutoPlay();
-      } else {
-        await startNewGame();
-      }
+      await startNewGame();
     }
 
- // ============================================
- // GAME LOGIC
- // ============================================
+    // ============================================
+    // 🎲 GAME LOGIC
+    // ============================================
     async function startNewGame() {
       const game = AppState.game;
       game.isGameActive = true;
       
       if (game.autoInterval) clearInterval(game.autoInterval);
-      if (!game.calledNumbers) game.calledNumbers = [];
-      if (!game.currentNumbers) game.currentNumbers = [];
+      game.calledNumbers = [];
+      game.currentNumbers = [];
+      game.cardGrid = [];
+      game.markedState = [];
 
       if(document.getElementById('callCount')) {
         document.getElementById('callCount').textContent = '0';
@@ -2008,28 +1850,9 @@
       }
       updateNumbersHistory();
 
-      if (!game.cardGrid || !game.cardGrid.length) {
-        game.cardGrid = [];
-        game.markedState = [];
-        generateBingoCard();
-      }
-      if (!game.markedState || !game.markedState.length) {
-        game.markedState = Array(5).fill(null).map(() => Array(5).fill(false));
-        game.markedState[2][2] = true;
-      }
-
+      generateBingoCard();
       renderCard();
       
- // Keep last called number visible if there is one from server session
-      if (game.calledNumbers && game.calledNumbers.length > 0) {
-        const last = game.calledNumbers[game.calledNumbers.length - 1];
-        const display = document.getElementById('currentNumberDisplay');
-        if (display) {
-          const letter = ['B','I','N','G','O'][Math.floor((last - 1) / 15)];
-          display.textContent = `${letter}-${last}`;
-        }
-      }
-
       startAutoPlay();
     }
 
@@ -2092,42 +1915,33 @@
       }
     }
 
-    async function manualMark(cell, row, col) {
+    function manualMark(cell, row, col) {
       const game = AppState.game;
       
       if(!game.isGameActive) {
         showToast('Game not active', 'error');
         return;
       }
+      
       const num = parseInt(cell.dataset.num);
-
-      if (!game.calledNumbers.includes(num)) {
+      
+      if(game.calledNumbers.includes(num)) {
+        Sound.click();
+        cell.classList.toggle('marked');
+        game.markedState[row][col] = cell.classList.contains('marked');
+        updateMatchesCount();
+        
+        // Emit socket event to sync mark with server
+        if (AppState.socket && AppState.socket.connected) {
+          AppState.socket.emit('markNumber', { 
+            sessionId: game.sessionId, 
+            number: num, 
+            marked: cell.classList.contains('marked') 
+          });
+        }
+      } else {
         showToast('Number not called yet!', 'error');
         Sound.error();
-        return;
-      }
-
-      try {
-        Sound.click();
- // Call backend to persist mark
-        const resp = await Api.markNumber({ sessionId: game.sessionId, row, col });
- // If server responded, update UI based on server mark state
-        const marked = resp.marked === true;
-        if (marked) cell.classList.add('marked'); else cell.classList.remove('marked');
-        game.markedState[row][col] = marked;
-        updateMatchesCount();
-
-        if (resp.win) {
- // Server detected a win (may be bot or human). Let server flow handle payouts.
-          showToast('Bingo detected! Verifying with server...', 'info');
-          if (!resp.isBot) {
- // If human win, trigger frontend win flow to fetch balance and show UI
-            handleWin();
-          }
-        }
-      } catch (err) {
-        console.error('Mark API failed:', err);
-        showToast('Failed to mark number on server', 'error');
       }
     }
 
@@ -2172,22 +1986,28 @@
       });
     }
 
- // Update bingo page display with pool and player information
+    // Update bingo page display with pool and player information
     function updateBingoDisplay() {
       const game = AppState.game;
       
-      console.log('📡 /game/number response:', resp);
-      if (!resp || !resp.number) {
-        showToast('Failed to call number from server', 'error');
+      // Update current pool display
+      const poolEl = document.getElementById('currentPool');
       if(poolEl && game.currentPool !== undefined) {
         poolEl.textContent = `${game.currentPool} ETB`;
       }
       
- // Update players count display - show TOTAL players in the room to match pool calculation
+      // Update players count display - show TOTAL players (human + bots) to match pool calculation
       const playersEl = document.getElementById('currentPlayers');
       if(playersEl) {
         const totalPlayers = game.playersCount || 0;
-        playersEl.textContent = `${totalPlayers} Players | ${game.currentPool || 0} ETB`;
+        const botPlayers = game.botPlayers || 0;
+        const humanPlayers = Math.max(0, totalPlayers - botPlayers);
+        // Display total players with breakdown so user sees the full room activity matching the pool amount
+        if (botPlayers > 0) {
+          playersEl.textContent = `${totalPlayers} Players (${humanPlayers} humans, ${botPlayers} bots) | ${game.currentPool || 0} ETB`;
+        } else {
+          playersEl.textContent = `${totalPlayers} Players | ${game.currentPool || 0} ETB`;
+        }
       }
     }
 
@@ -2211,75 +2031,47 @@
 
     function callNumber() {
       const game = AppState.game;
-
-      if (!game || !game.sessionId) {
-        showToast('Not in a game session', 'error');
-        return;
-      }
-
-      if (game.calledNumbers.length >= CONFIG.MAX_CALLED_NUMBERS) {
+      
+      if(game.calledNumbers.length >= CONFIG.MAX_CALLED_NUMBERS) {
         stopAutoPlay();
         return;
       }
-
- // Call backend to draw the next number so bots are processed server-side
-      (async () => {
-        try {
-          const resp = await Api._request(`/game/number/${game.sessionId}`, { method: 'POST' });
-          if (!resp || !resp.number) {
-            console.warn('No number returned from server', resp);
-            return;
-          }
-
-          const num = resp.number;
-          const letter = ['B','I','N','G','O'][Math.floor((num - 1) / 15)];
-          const displayText = `${letter}-${num}`;
-
- // Update local state and UI
-          if (!game.calledNumbers.includes(num)) game.calledNumbers.push(num);
-          game.currentNumbers = [num];
-          Sound.number();
-
-          const display = document.getElementById('currentNumberDisplay');
-          if (display) {
-            display.textContent = displayText;
-            display.style.animation = 'none';
-            setTimeout(() => { display.style.animation = 'pulse 0.3s ease'; }, 10);
-          }
-
-          const cell = document.querySelector(`td[data-num="${num}"]`);
-          if (cell) {
-            cell.classList.add('called');
-            setTimeout(() => { if (cell) cell.classList.remove('called'); }, 1500);
-          }
-
-          updateNumbersHistory();
-
- // If server reports bot marks or bot win in response, process UI
-          if (resp.botMarks && resp.botMarks.length) {
-            emitBotMoveSummary(AppState.socket, game);
-          }
-
-          if (resp.gameOver) {
- // Server handled GAME_OVER; show feedback and end auto-play
-            Sound.success();
-            showToast(resp.message || 'Game over', resp.isBot ? 'info' : 'success');
-            AppState.game.isGameActive = false;
-            stopAutoPlay();
-            setTimeout(() => { showPage('lobby'); }, 2000);
-          }
-        } catch (err) {
-          console.error('Call number failed:', err);
-          showToast('Failed to call number on server', 'error');
-          stopAutoPlay();
-        }
-      })();
+      
+      let num;
+      do {
+        num = Math.floor(Math.random() * 75) + 1;
+      } while(game.calledNumbers.includes(num));
+      
+      game.calledNumbers.push(num);
+      game.currentNumbers.push(num);
+      
+      Sound.number();
+      
+      const letter = ['B','I','N','G','O'][Math.floor((num-1)/15)];
+      const display = document.getElementById('currentNumberDisplay');
+      if(display) {
+        display.textContent = `${letter}-${num}`;
+        display.style.animation = 'none';
+        setTimeout(() => {
+          display.style.animation = 'pulse 0.3s ease';
+        }, 10);
+      }
+      
+      const cell = document.querySelector(`td[data-num="${num}"]`);
+      if(cell) {
+        cell.classList.add('called');
+        setTimeout(() => {
+          if(cell) cell.classList.remove('called');
+        }, 1500);
+      }
+      
+      updateNumbersHistory();
     }
 
     function checkForBingo() {
       const game = AppState.game;
       
- // Check if socket is connected before claiming
+      // Check if socket is connected before claiming
       if (!AppState.socket || !AppState.socket.connected) {
         showToast('Not connected to game server. Please refresh.', 'error');
         return;
@@ -2307,11 +2099,11 @@
       if(d1 || d2) won = true;
       
       if(won) {
- // Emit bingo claim event to server first
+        // Emit bingo claim event to server first
         console.log('🎯 Emitting bingoClaim to server for session:', game.sessionId);
         AppState.socket.emit('bingoClaim', { sessionId: game.sessionId });
         
- // Still call handleWin for UI feedback, but server will verify
+        // Still call handleWin for UI feedback, but server will verify
         handleWin();
       } else {
         showToast('No bingo yet! Keep playing.', 'error');
@@ -2324,7 +2116,7 @@
       const game = AppState.game;
       stopAutoPlay();
       
- // Show visual effects immediately
+      // 🎉 Show visual effects immediately
       Sound.win();
       confetti({
         particleCount: 200,
@@ -2333,7 +2125,7 @@
         colors: ['#009b3a', '#fed105', '#ef3340']
       });
       
- // CRITICAL: Call backend to verify win and update balance
+      // 🔐 CRITICAL: Call backend to verify win and update balance
       try {
         console.log('📡 [FRONTEND] Sending win claim to backend...');
         console.log('📡 [FRONTEND] Game session ID:', game?.sessionId);
@@ -2345,13 +2137,13 @@
         console.log('💰 [FRONTEND] New balance from server:', response.newBalance, 'ETB');
         console.log('💰 [FRONTEND] Balance increase:', response.winnings, 'ETB');
         
- // Update local user state with new balance
+        // Update local user state with new balance
         if (response.newBalance !== undefined) {
           const oldBalance = AppState.user?.balance || 0;
           AppState.user.balance = response.newBalance;
           console.log('✅ [FRONTEND] Local balance updated:', oldBalance, '->', response.newBalance, 'ETB');
           
- // Update UI immediately
+          // Update UI immediately
           const balanceEl = document.getElementById('userBalance');
           if (balanceEl) {
             balanceEl.textContent = response.newBalance;
@@ -2359,7 +2151,7 @@
           }
         }
         
- // Calculate expected winnings for display
+        // Calculate expected winnings for display
         const roomAmount = AppState.game.roomAmount || AppState.user?.selectedRoom || 20;
         const totalPlayers = game?.players?.length || 1;
         const expectedWinnings = Math.floor(roomAmount * totalPlayers * 0.85);
@@ -2370,11 +2162,11 @@
         console.log('  - Expected Winnings (85%):', expectedWinnings, 'ETB');
         console.log('  - Actual Winnings:', response.winnings, 'ETB');
         
- // Show winner announcement with ACTUAL winnings from server
+        // Show winner announcement with ACTUAL winnings from server
         showWinnerAnnouncement(AppState.user?.name || 'Player', response.winnings || expectedWinnings);
         showToast(`🎉 You won ${response.winnings || expectedWinnings} ETB! Balance: ${response.newBalance || AppState.user?.balance} ETB`, 'success');
         
- // CRITICAL FIX: Force re-fetch balance from backend to confirm MongoDB update
+        // CRITICAL FIX: Force re-fetch balance from backend to confirm MongoDB update
         try {
           console.log('🔄 [FRONTEND] Forcing balance re-fetch from /api/user/balance to confirm DB update...');
           const freshUser = await Api.getUser();
@@ -2391,7 +2183,7 @@
           console.error('❌ [FRONTEND] Balance re-fetch failed:', fetchError.message);
         }
         
- // Log debug info if available
+        // Log debug info if available
         if (response.debug) {
           console.log('🔍 [FRONTEND] Debug info from server:', response.debug);
         }
@@ -2400,7 +2192,7 @@
         console.error('❌ [FRONTEND] Win claim FAILED:', error.message);
         console.error('❌ [FRONTEND] Error details:', error);
         
- // CRITICAL FIX: Force re-fetch balance from backend immediately after error
+        // CRITICAL FIX: Force re-fetch balance from backend immediately after error
         try {
           console.log('🔄 [FRONTEND] Forcing balance re-fetch from backend after error...');
           const freshUser = await Api.getUser();
@@ -2416,13 +2208,13 @@
           console.error('❌ [FRONTEND] Balance re-fetch failed:', fetchError.message);
         }
 
- // Still show the win visually, but warn about balance update
+        // Still show the win visually, but warn about balance update
         const roomAmount = AppState.game.roomAmount || AppState.user?.selectedRoom || 20;
         const winnings = Math.floor(roomAmount * 0.85 * 5);
         showWinnerAnnouncement(AppState.user?.name || 'Player', winnings);
         showToast(`⚠️ Win detected but balance update failed. Please refresh.`, 'error');
         
- // Try to sync user data as fallback
+        // Try to sync user data as fallback
         try {
           console.log('🔄 [FRONTEND] Attempting fallback user sync...');
           const syncedUser = await Api.syncUser();
@@ -2451,9 +2243,9 @@
       showPage('lobby');
     }
 
- // ============================================
- // PROFILE PAGE
- // ============================================
+    // ============================================
+    // 👤 PROFILE PAGE
+    // ============================================
     function renderProfilePage(container) {
       const user = AppState.user || {};
       
@@ -2513,7 +2305,7 @@
         return;
       }
       
- // Validate phone number format (Ethiopian format)
+      // Validate phone number format (Ethiopian format)
       if(phone && !/^\+?2519\d{8}$|^\+?2517\d{8}$|^09\d{8}$|^07\d{8}$/.test(phone.replace(/\s/g, ''))) {
         showToast('Invalid phone format. Use 09XXXXXXXX or +2519XXXXXXXX', 'error');
         return;
@@ -2527,7 +2319,7 @@
           telegramHandle: telegram || undefined
         });
         
- // Update AppState with the returned user data
+        // Update AppState with the returned user data
         if(response && response.user) {
           AppState.user = { ...AppState.user, ...response.user };
         } else if(AppState.user) {
@@ -2542,14 +2334,14 @@
         Sound.success();
         showPage('lobby');
       } catch (error) {
- // Error already shown by Api._request
+        // Error already shown by Api._request
         console.error('Save profile error:', error);
       }
     }
 
- // ============================================
- // DEPOSIT PAGE
- // ============================================
+    // ============================================
+    // 💰 DEPOSIT PAGE
+    // ============================================
     function renderDepositPage(container) {
       container.innerHTML = `
         <div class="header">
@@ -2611,7 +2403,7 @@
         showToast('Deposit request submitted! Waiting for approval...', 'success');
         showWaitingForApproval(amount);
       } catch (error) {
- // Error already shown
+        // Error already shown
       }
     }
 
@@ -2637,9 +2429,9 @@
       renderWaitingPage(document.getElementById('page-waiting'), amount);
     }
 
- // ============================================
- // WITHDRAWAL MODAL
- // ============================================
+    // ============================================
+    // 📤 WITHDRAWAL MODAL
+    // ============================================
     function showWithdrawModal() {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -2709,14 +2501,14 @@
           Sound.success();
           modal.remove();
         } catch (error) {
- // Error already shown
+          // Error already shown
         }
       });
     }
 
- // ============================================
- // SUPPORT MODAL
- // ============================================
+    // ============================================
+    // 👥 SUPPORT MODAL
+    // ============================================
     function showSupport() {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -2745,9 +2537,9 @@
       document.body.appendChild(modal);
     }
 
- // ============================================
- // ADMIN PANEL - FIXED
- // ============================================
+    // ============================================
+    // 👮 ADMIN PANEL - FIXED
+    // ============================================
     function showAdminLogin() {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -2792,7 +2584,7 @@
           AppState.admin.isLoggedIn = true;
           AppState.admin.token = response.token;
           
- // Store token in localStorage for persistence across requests
+          // Store token in localStorage for persistence across requests
           localStorage.setItem('adminToken', response.token);
           console.log('✅ Admin token saved to localStorage');
           
@@ -2802,14 +2594,14 @@
           
         } catch (error) {
           Sound.error();
- // Error already shown
+          // Error already shown
         }
       };
     }
 
     async function showFullAdminPanel() {
       if(!AppState.admin.isLoggedIn) {
- // Try to restore session from localStorage
+        // Try to restore session from localStorage
         const savedToken = localStorage.getItem('adminToken');
         if (savedToken) {
           AppState.admin.token = savedToken;
@@ -2907,7 +2699,7 @@
         
         document.body.appendChild(modal);
         
- // Add event listeners for approve/reject buttons
+        // Add event listeners for approve/reject buttons
         modal.querySelectorAll('.approve-tx-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
             const id = btn.dataset.id;
@@ -2967,7 +2759,7 @@
             showFullAdminPanel();
           } catch (error) {
             console.error('Add funds error:', error);
- // Error already shown by API layer
+            // Error already shown by API layer
           }
         });
         
@@ -3014,7 +2806,7 @@
               showToast('✅ Pools reset', 'success');
               modal.remove();
             } catch (error) {
- // Error already shown
+              // Error already shown
             }
           }
         });
@@ -3025,9 +2817,9 @@
       }
     }
 
- // ============================================
- // SHOW USER BALANCE POPUP
- // ============================================
+    // ============================================
+    // 👥 SHOW USER BALANCE POPUP
+    // ============================================
     async function showUserBalancePopup() {
       if (!AppState.admin.isLoggedIn) {
         showAdminLogin();
@@ -3073,7 +2865,7 @@
         
         document.body.appendChild(modal);
         
- // Add event listeners for clear balance buttons
+        // Add event listeners for clear balance buttons
         modal.querySelectorAll('.clear-balance-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
             const userId = btn.dataset.userId;
@@ -3088,7 +2880,7 @@
                 showToast(`✅ ${username}'s balance cleared successfully`, 'success');
                 console.log(`⚠️ ADMIN ACTION: Cleared balance for ${username}. Amount removed: ${balance} ETB`);
                 
- // Refresh the popup
+                // Refresh the popup
                 modal.remove();
                 showUserBalancePopup();
               } catch (error) {
@@ -3106,13 +2898,13 @@
       }
     }
 
- // ============================================
- // ROOM JOINING
- // ============================================
+    // ============================================
+    // 🎯 ROOM JOINING
+    // ============================================
     async function tryJoinRoom(amount) {
       console.log('🎯 tryJoinRoom called with amount:', amount);
       
- // FIX: Set selectedRoom before any other logic
+      // FIX: Set selectedRoom before any other logic
       if(AppState.user) {
         AppState.user.selectedRoom = amount;
         console.log('✅ Set selectedRoom to:', amount);
@@ -3145,22 +2937,18 @@
         return;
       }
       
-      console.log('🚀 Showing cartela selection for amount:', amount);
- // Show cartela selection page before joining
-      showPage('cartela');
+      console.log('🚀 Calling joinRoom with amount:', amount);
+      await joinRoom(amount);
     }
 
     async function joinRoom(amount) {
       try {
         console.log('🎮 joinRoom: Joining room with amount:', amount);
-        const selectedCard = AppState.user?.selectedCard || null;
-        const response = await Api.joinRoom(amount, true, selectedCard); // Always join with bots
+        const response = await Api.joinRoom(amount, true); // Always join with bots
         
         console.log('✅ joinRoom response:', response);
         
-        if (response.game && response.game.newBalance !== undefined) {
-          AppState.user.balance = response.game.newBalance;
-        }
+        AppState.user.balance = response.game ? (response.game.totalPrize > 0 ? AppState.user.balance - amount : AppState.user.balance) : AppState.user.balance;
         AppState.game.roomAmount = amount;
         console.log('✅ Set AppState.game.roomAmount to:', amount);
         
@@ -3168,12 +2956,9 @@
           AppState.game.cardGrid = response.game.cardGrid;
           AppState.game.markedState = response.game.markedState;
           AppState.game.sessionId = response.game.sessionId;
-          AppState.game.currentPool = response.game.currentPool || response.game.totalPrize;
+          AppState.game.currentPool = response.game.totalPrize;
           AppState.game.playersCount = response.game.playersCount;
           AppState.game.botPlayers = response.game.botPlayers || 0;
-          AppState.game.calledNumbers = response.game.calledNumbers || [];
-          AppState.game.currentNumbers = response.game.calledNumbers && response.game.calledNumbers.length ? [response.game.calledNumbers[response.game.calledNumbers.length - 1]] : [];
-          AppState.game.isGameActive = true;
         }
         
         showToast(response.message || 'Joined room!', 'success');
@@ -3183,7 +2968,7 @@
         updateBingoDisplay(); // Update the bingo page display with pool and player info
         loadRooms(); // Reload rooms to update pool display
         
- // Initialize Socket.io connection and join game room
+        // Initialize Socket.io connection and join game room
         initSocket(response.game.sessionId);
       } catch (error) {
         console.error('Failed to join room:', error);
@@ -3191,143 +2976,67 @@
       }
     }
 
- // ============================================
- // SOCKET.IO CONNECTION
- // ============================================
-    async function loadSocketIoClient() {
-      if (window.io) return window.io;
-
-      return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.socket.io/4.7.2/socket.io.min.js';
-        script.async = true;
-        script.onload = () => {
-          if (window.io) return resolve(window.io);
-          reject(new Error('Socket.io client loaded but `io` is unavailable.'));
-        };
-        script.onerror = () => reject(new Error('Failed to load socket.io client script.'));
-        document.head.appendChild(script);
-      });
-    }
-
-    async function initSocket(sessionId) {
+    // ============================================
+    // 🔌 SOCKET.IO CONNECTION
+    // ============================================
+    function initSocket(sessionId) {
       console.log('🔌 Initializing socket connection for session:', sessionId);
       
-      if (!window.io && typeof io === 'undefined') {
-        try {
-          await loadSocketIoClient();
-          console.log('✅ socket.io client loaded dynamically');
-        } catch (err) {
-          console.error('🔴 Failed to load socket.io client:', err);
-          showToast('Realtime connection failed. Please reload the page.', 'error');
-          return;
-        }
+      // Close existing socket if any
+      if (AppState.socket) {
+        AppState.socket.disconnect();
+        AppState.socket = null;
       }
-
-      const socketClient = window.io || (typeof io !== 'undefined' ? io : null);
-      if (!socketClient) {
-        console.error('🔴 Socket.io client is not available after load.');
-        showToast('Realtime connection is unavailable.', 'error');
-        return;
+      
+      // Get authentication token for socket
+      const token = localStorage.getItem('token') || localStorage.getItem('telegramInitData');
+      const adminToken = localStorage.getItem('adminToken');
+      
+      // Build query params for socket connection
+      let queryParams = `sessionId=${sessionId}`;
+      if (token) {
+        queryParams += `&token=${encodeURIComponent(token)}`;
       }
-
- // Determine the correct server URL based on current location
-      const serverUrl = window.location.hostname === 'localhost' 
-        ? `http://${window.location.host}` 
-        : `https://${window.location.host}`;
+      if (adminToken) {
+        queryParams += `&adminToken=${encodeURIComponent(adminToken)}`;
+      }
       
-      console.log('🔌 Connecting to Socket.IO server at:', serverUrl);
-      
-      AppState.socket = socketClient(serverUrl, {
+      // Connect to socket server
+      AppState.socket = io(CONFIG.API_BASE.replace('/api', ''), {
+        query: queryParams,
         transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        timeout: 20000
-      });
-      
-      AppState.socket.on('connect', () => {
-        console.log('✅ Socket connected successfully');
-        updateConnectionStatus('connected');
-        AppState.socket.emit('joinGame', { sessionId: sessionId });
-        showToast('🔗 Connected to game server', 'success');
-      });
-      
-      AppState.socket.on('disconnect', (reason) => {
-        console.log('❌ Socket disconnected:', reason);
-        updateConnectionStatus('disconnected');
- // Show warning if disconnected unexpectedly
-        if (reason !== 'io client namespace disconnect') {
-          showToast('⚠️ Disconnected from server. Attempting to reconnect...', 'warning');
-        }
-      });
-      
-      AppState.socket.on('connect_error', (error) => {
-        console.error('🔴 Socket connection error:', error.message);
-        console.error('   Error data:', error);
-        updateConnectionStatus('disconnected');
-        showToast('🔌 Connection error: ' + (error.message || 'Unknown error'), 'error');
-      });
-      
-      AppState.socket.on('reconnect', (attemptNumber) => {
-        console.log('✅ Socket reconnected after', attemptNumber, 'attempt(s)');
-        updateConnectionStatus('connected');
-        showToast('✅ Reconnected to game server', 'success');
-      });
-      
-      AppState.socket.on('reconnect_attempt', () => {
-        console.log('🔄 Attempting to reconnect to socket...');
-        updateConnectionStatus('connecting');
         reconnectionAttempts: 5,
         reconnectionDelay: 1000
       });
       
- // Also expose via window.socket for global access
+      // Also expose via window.socket for global access
       window.socket = AppState.socket;
       
       AppState.socket.on('connect', () => {
         console.log('✅ Socket connected:', AppState.socket.id);
         console.log('🚀 Emitting joinGame event for session:', sessionId);
         AppState.socket.emit('joinGame', { sessionId: sessionId });
-        showToast('🔗 Connected to game server', 'success');
       });
       
       AppState.socket.on('disconnect', (reason) => {
         console.log('❌ Socket disconnected:', reason);
- // Show warning if disconnected unexpectedly
-        if (reason !== 'io client namespace disconnect') {
-          showToast('⚠️ Disconnected from server. Attempting to reconnect...', 'warning');
-        }
       });
       
       AppState.socket.on('connect_error', (error) => {
         console.error('🔴 Socket connection error:', error.message);
-        console.error('   Error data:', error);
-        showToast('🔌 Connection error: ' + (error.message || 'Unknown error'), 'error');
+        showToast('Connection lost. Reconnecting...', 'error');
       });
       
-      AppState.socket.on('reconnect', (attemptNumber) => {
-        console.log('✅ Socket reconnected after', attemptNumber, 'attempt(s)');
-        showToast('✅ Reconnected to game server', 'success');
-      });
-      
-      AppState.socket.on('reconnect_attempt', () => {
-        console.log('🔄 Attempting to reconnect to socket...');
-      });
-      
-      AppState.socket.on('reconnect_error', (error) => {
-        console.error('⚠️ Socket reconnection error:', error.message);
-      });
-      
- // Game events
-      AppState.socket.on('numberCalled', async (data) => {
+      // Game events
+      AppState.socket.on('numberCalled', (data) => {
         console.log('🎱 Number called:', data);
-        await handleNumberCalled(data);
+        handleNumberCalled(data);
       });
       
       AppState.socket.on('gameStarted', (data) => {
         console.log('🎮 Game started:', data);
- // Update bot count if provided in game start data
+        // Update bot count if provided in game start data
         if (data.botPlayers !== undefined) {
           AppState.game.botPlayers = data.botPlayers;
         }
@@ -3343,7 +3052,7 @@
       
       AppState.socket.on('gameEnd', (data) => {
         console.log('🏁 Game ended:', data);
- // Reset bot count on game end
+        // Reset bot count on game end
         AppState.game.botPlayers = 0;
         handleGameEnd(data);
       });
@@ -3358,7 +3067,7 @@
         updatePlayerCount(data.count, data.isBot);
       });
       
- // Bot-specific events for better tracking
+      // Bot-specific events for better tracking
       AppState.socket.on('botJoined', (data) => {
         console.log('🤖 Bot joined:', data);
         if (AppState.game.botPlayers !== undefined) {
@@ -3375,7 +3084,7 @@
         updatePlayerCount(data.count, true);
       });
       
- // Bingo claim acknowledgment
+      // Bingo claim acknowledgment
       AppState.socket.on('bingoClaimAck', (data) => {
         console.log('🎯 [SOCKET] Bingo claim acknowledgment:', data);
         if (data.status === 'received') {
@@ -3383,32 +3092,30 @@
         }
       });
       
- // Bot move events - bots playing fairly like humans
+      // Bot move events - bots playing fairly like humans
       AppState.socket.on('BOT_MOVE', (data) => {
         console.log('🤖 Bot move received:', data);
         if (data.botMarks && data.botMarks.length > 0) {
- // Update progress display
+          // Update bot progress display
           data.botMarks.forEach(botMark => {
-            console.log(`${botMark.name} has ${botMark.markedCount} marks`);
+            console.log(`Bot ${botMark.name} has ${botMark.markedCount} marks`);
           });
-          showToast(`${data.botMarks.length} players marked numbers`, 'info');
+          showToast(`${data.botMarks.length} bot(s) marked numbers`, 'info');
         }
       });
       
- // Game over event
+      // Game over event - handles both human and bot wins
       AppState.socket.on('GAME_OVER', (data) => {
         console.log('🏆 Game Over:', data);
-        const redirectTo = data?.redirectTo || 'lobby';
-        const message = data?.message || `${data?.winner || 'Someone'} won with ${data?.pattern || 'a bingo pattern'}!`;
-        showToast(message, data?.isBot ? 'info' : 'success');
-        AppState.game.isGameActive = false;
+        if (data.isBot) {
+          showToast(`🤖 ${data.winner} won with ${data.pattern}!`, 'info');
+        } else {
+          showToast(`🎉 ${data.winner} won with ${data.pattern}!`, 'success');
+        }
+        // Reset game state
         setTimeout(() => {
-          if (AppState.socket) {
-            AppState.socket.disconnect();
-            AppState.socket = null;
-          }
-          showPage(redirectTo);
-        }, 2200);
+          window.location.reload();
+        }, 3000);
       });
       
       AppState.socket.on('error', (error) => {
@@ -3419,49 +3126,19 @@
       console.log('✅ Socket initialization complete');
     }
     
-    async function handleNumberCalled(data) {
-      const num = Number(data.number);
-      if (!AppState.game.calledNumbers.includes(num)) {
-        AppState.game.calledNumbers.push(num);
-      }
-      AppState.game.currentNumbers = [num];
-      updateBingoDisplay();
-      updateNumbersHistory();
-
-      try {
-        const grid = AppState.game.cardGrid || [];
-        const marked = AppState.game.markedState || [];
-        let found = false;
-
-        for (let r = 0; r < (grid.length || 5); r++) {
-          for (let c = 0; c < (grid[r]?.length || 5); c++) {
-            if (grid[r][c] === num && !marked[r][c] && !(r === 2 && c === 2)) {
-              found = true;
-              const cell = document.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
-              if (cell) cell.classList.add('called');
-
-              const resp = await Api.markNumber({ sessionId: AppState.game.sessionId, row: r, col: c });
-              const isMarked = resp.marked === true;
-              AppState.game.markedState[r][c] = isMarked;
-
-              if (cell) {
-                if (isMarked) cell.classList.add('marked'); else cell.classList.remove('marked');
-              }
-              updateMatchesCount();
-
-              if (resp.win) {
-                if (!resp.isBot) {
-                  handleWin();
-                }
-              }
-
-              break;
-            }
+    function handleNumberCalled(data) {
+      if (!AppState.game.calledNumbers.includes(data.number)) {
+        AppState.game.calledNumbers.push(data.number);
+        AppState.game.currentNumbers = [data.number];
+        updateBingoDisplay();
+        
+        // Auto-mark if number is on card
+        if (AppState.game.cardGrid && AppState.game.markedState) {
+          const index = AppState.game.cardGrid.indexOf(data.number);
+          if (index !== -1 && !AppState.game.markedState[index]) {
+            // Optional: auto-mark logic
           }
-          if (found) break;
         }
-      } catch (err) {
-        console.error('Error scanning card for auto-mark:', err);
       }
     }
     
@@ -3476,72 +3153,31 @@
     }
     
     function updatePlayerCount(count, isBot = false) {
- // Only update total count, don't modify botPlayers here as it's handled by bot events
+      // Only update total count, don't modify botPlayers here as it's handled by bot events
       AppState.game.playersCount = count;
       updateBingoDisplay();
     }
 
- // ============================================
- // APP INITIALIZATION
- // ============================================
+    // ============================================
+    // 🚀 APP INITIALIZATION
+    // ============================================
     async function initApp() {
-      console.log('🚀 [INIT] Starting app initialization...');
-      console.log('🔧 Backend API URL:', CONFIG.API_BASE);
-      
-      // Initialize Telegram first
       initTelegram();
       
-      // Check server connectivity
-      let serverAvailable = false;
       try {
-        console.log('🔌 [INIT] Testing server connectivity...');
-        const response = await fetch(`${CONFIG.API_BASE.replace('/api', '')}/health`, {
-          method: 'GET',
-          timeout: 5000
-        });
-        if (response.ok) {
-          console.log('✅ [INIT] Server is reachable');
-          updateConnectionStatus('connected');
-          serverAvailable = true;
-        } else {
-          console.warn('⚠️ [INIT] Server returned non-OK status:', response.status);
-          updateConnectionStatus('disconnected');
-        }
-      } catch (err) {
-        console.error('❌ [INIT] Server connectivity check failed:', err.message);
-        updateConnectionStatus('disconnected');
-      }
-      
-      // Try to sync user if server is available
-      if (serverAvailable) {
-        try {
-          const response = await Api.syncUser();
-          // Merge user data properly, ensuring all fields are available
-          AppState.user = { 
-            ...AppState.user, 
-            ...(response.user || response),
-            displayName: (response.user || response).displayName || (response.user || response).firstName || 'Player'
-          };
-          console.log('✅ User loaded:', AppState.user);
-        } catch (error) {
-          // If syncUser fails, clear user data
-          console.error('❌ Failed to authenticate user:', error);
-          AppState.user = null;
-        }
-      } else {
+        const response = await Api.syncUser();
+        // Merge user data properly, ensuring all fields are available
+        AppState.user = { 
+          ...AppState.user, 
+          ...(response.user || response),
+          displayName: (response.user || response).displayName || (response.user || response).firstName || 'Player'
+        };
+        console.log('✅ User loaded:', AppState.user);
+      } catch (error) {
+        // If syncUser fails, show login error instead of falling back to guest/offline mode
+        console.error('❌ Failed to authenticate user:', error);
+        showToast('Authentication failed. Please log in again.', 'error');
         AppState.user = null;
-      }
-      
-      // Ensure page container exists and show lobby
-      const container = document.getElementById('pageContainer');
-      if (!container) {
-        console.error('❌ pageContainer not found! Creating it...');
-        const mainContainer = document.querySelector('.container');
-        if (mainContainer) {
-          const newContainer = document.createElement('div');
-          newContainer.id = 'pageContainer';
-          mainContainer.appendChild(newContainer);
-        }
       }
       
       showPage('lobby');
@@ -3554,14 +3190,14 @@
       });
     }
 
- // ============================================
- // GLOBAL EVENT LISTENERS
- // ============================================
+    // ============================================
+    // 🌍 GLOBAL EVENT LISTENERS
+    // ============================================
     document.addEventListener('DOMContentLoaded', initApp);
     
     document.addEventListener('visibilitychange', () => {
       if(document.hidden && AppState.game.isAutoPlaying) {
- // Optional: pause game
+        // Optional: pause game
       }
     });
     
@@ -3571,9 +3207,9 @@
       }
     });
 
- // ============================================
- // EXPOSE GLOBAL FUNCTIONS
- // ============================================
+    // ============================================
+    // 🌐 EXPOSE GLOBAL FUNCTIONS
+    // ============================================
     window.showPage = showPage;
     window.tryJoinRoom = tryJoinRoom;
     window.exitGame = exitGame;
@@ -3584,12 +3220,10 @@
     window.checkForBingo = checkForBingo;
     window.requestDeposit = requestDeposit;
     window.showAdminLogin = showAdminLogin;
-    window.showFullAdminPanel = showFullAdminPanel;
     window.showUserBalancePopup = showUserBalancePopup;
     window.updateBingoDisplay = updateBingoDisplay;
     window.initSocket = initSocket;
     window.refreshBalance = refreshBalance;
-    window.updateConnectionStatus = updateConnectionStatus;
     
     window.AppState = AppState;
     window.Api = Api;
