@@ -1042,34 +1042,34 @@
   <!-- Winner Announcement (hidden by default) -->
   <div class="winner-announcement hidden" id="winnerAnnouncement"></div>
   <script>
-    // ============================================
-    // ⚙️ CONFIGURATION
-    // ============================================
+ // ============================================
+ // CONFIGURATION
+ // ============================================
     
-    // 🔗 IMPORTANT: Set your backend URL here for production!
-    // GitHub Pages cannot host the backend - you must deploy it separately.
-    // Options:
-    //   - Local dev: 'http://localhost:3000/api'
-    //   - Render: 'https://your-app.onrender.com/api'
-    //   - Vercel: 'https://your-app.vercel.app/api'
+ // IMPORTANT: Set your backend URL here for production!
+ // GitHub Pages cannot host the backend - you must deploy it separately.
+ // Options:
+ // - Local dev: 'http://localhost:3000/api'
+ // - Render: 'https://your-app.onrender.com/api'
+ // - Vercel: 'https://your-app.vercel.app/api'
     
-    // Auto-detect backend URL based on environment
-    const getBackendUrl = () => {
-      // Check for meta tag first (allows deployment configuration)
+ // Auto-detect backend URL based on environment
+    const getBackendUrl = ()=> {
+ // Check for meta tag first (allows deployment configuration)
       const metaBackend = document.querySelector('meta[name="backend-url"]');
       if (metaBackend) {
         return metaBackend.getAttribute('content');
       }
-      // If running on GitHub Pages, use Render backend
+ // If running on GitHub Pages, use Render backend
       if (window.location.hostname.includes('github.io')) {
-        // ✅ Updated to Render URL (no trailing spaces)
+ // Updated to Render URL (no trailing spaces)
         return 'https://afro-pxbt.onrender.com/api';
       }
-      // If running on localhost or opened as a file, use local backend
+ // If running on localhost or opened as a file, use local backend
       if (!window.location.hostname || window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         return 'http://localhost:3000/api';
       }
-      // Default: try relative /api path (works if frontend & backend on same domain)
+ // Default: try relative /api path (works if frontend & backend on same domain)
       return '/api';
     };
     
@@ -1077,20 +1077,20 @@
     console.log('🔧 Backend API URL:', BACKEND_URL);
     
     const CONFIG = {
-      // 🔗 Backend API URL
+ // Backend API URL
       API_BASE: BACKEND_URL,
       
-      // 🎮 Game Settings
+ // Game Settings
       AUTO_PLAY_INTERVAL: 3000,
       MAX_CALLED_NUMBERS: 75,
       
-      // 💰 Payment Info
+ // Payment Info
       TELEBIRR_NUMBER: '0921302111',
       CBE_ACCOUNT: '1000318833625',
       SUPPORT_TELEGRAM: '@rasenok',
       SUPPORT_PHONE: '+251921302111',
       
-      // 🔐 Admin Credentials
+ // Admin Credentials
       ADMIN_CREDENTIALS: {
         masterId: 'MasterAdmin',
         secureCode: 'SECURE123',
@@ -1098,46 +1098,46 @@
       }
     };
 
-    // ============================================
-    // 🌐 API SERVICE LAYER
-    // ============================================
+ // ============================================
+ // API SERVICE LAYER
+ // ============================================
     const Api = {
-      // Get headers with Telegram auth and admin token support
+ // Get headers with Telegram auth and admin token support
       _headers(customHeaders = {}) {
         const headers = { 'Content-Type': 'application/json' };
         
-        // Add Telegram auth if available - check both live initData and stored initData
+ // Add Telegram auth if available - check both live initData and stored initData
         const telegramInitData = window.Telegram?.WebApp?.initData || localStorage.getItem('telegramInitData');
         if (telegramInitData) {
           headers['x-telegram-init-data'] = telegramInitData;
           console.log('✅ Telegram initData added to headers');
         }
         
-        // Always check for JWT token in localStorage first
+ // Always check for JWT token in localStorage first
         const token = localStorage.getItem('token');
         if (token) {
           headers['Authorization'] = 'Bearer ' + token;
           console.log('✅ JWT Token found in localStorage:', token.substring(0, 20) + '...');
         } else if (telegramInitData) {
-          // Use Telegram initData as fallback for Authorization header
+ // Use Telegram initData as fallback for Authorization header
           headers['Authorization'] = telegramInitData;
           console.log('📱 Using Telegram initData for Authorization');
         } else {
           console.log('⚠️ No authentication token found');
         }
         
-        // Add admin token ONLY for explicit admin requests
-        // Never send admin token with regular player requests to prevent 403 errors
+ // Add admin token ONLY for explicit admin requests
+ // Never send admin token with regular player requests to prevent 403 errors
         const adminToken = localStorage.getItem('adminToken');
         if (adminToken && customHeaders.isAdminRequest) {
-          // Only include admin token when explicitly requested for admin operations
+ // Only include admin token when explicitly requested for admin operations
           headers['x-admin-token'] = adminToken;
           console.log('✅ Admin Token added for admin request:', adminToken.substring(0, 20) + '...');
         } else if (adminToken && !customHeaders.isAdminRequest) {
           console.log('ℹ️ Admin Token exists but NOT sending (not an admin request)');
         }
         
-        // Merge with any custom headers (excluding isAdminRequest flag)
+ // Merge with any custom headers (excluding isAdminRequest flag)
         if (customHeaders && typeof customHeaders === 'object') {
           const { isAdminRequest, ...restHeaders } = customHeaders;
           Object.assign(headers, restHeaders);
@@ -1147,49 +1147,49 @@
         return headers;
       },
 
-      // Generic request handler
+ // Generic request handler
       async _request(endpoint, options = {}) {
         const url = `${CONFIG.API_BASE}${endpoint}`;
         
-        // 1. Retrieve the Token: Check localStorage first, then Telegram initData fallback
+ // 1. Retrieve the Token: Check localStorage first, then Telegram initData fallback
         const token = localStorage.getItem('token') || localStorage.getItem('telegramInitData') || window.Telegram?.WebApp?.initData;
         
-        // 2. Force the Header: Always include Content-Type
+ // 2. Force the Header: Always include Content-Type
         const headers = { 'Content-Type': 'application/json' };
         
-        // Immediately add Authorization if token exists
+ // Immediately add Authorization if token exists
         if (token) {
-          // Smart detection: If token is Telegram initData (contains user= or hash=), send it raw without Bearer
-          // Otherwise, it's a JWT token, so add Bearer prefix
+ // Smart detection: If token is Telegram initData (contains user= or hash=), send it raw without Bearer
+ // Otherwise, it's a JWT token, so add Bearer prefix
           if (token.startsWith('user=') || token.includes('hash=')) {
-            // Telegram initData - send raw without Bearer prefix
+ // Telegram initData - send raw without Bearer prefix
             headers['Authorization'] = token;
             console.log('📱 Using Telegram initData (raw, no Bearer)');
           } else {
-            // JWT token - add Bearer prefix
+ // JWT token - add Bearer prefix
             headers['Authorization'] = 'Bearer ' + token;
             console.log('🔑 Using JWT token (with Bearer)');
           }
         }
         
-        // 3. Admin Fallback: Check for admin token ONLY for explicit admin requests
-        // Never send admin token with regular player requests to prevent 403 errors
+ // 3. Admin Fallback: Check for admin token ONLY for explicit admin requests
+ // Never send admin token with regular player requests to prevent 403 errors
         const adminToken = localStorage.getItem('adminToken');
         if (adminToken && options.headers?.isAdminRequest) {
-          // Only include admin token when explicitly requested for admin operations
+ // Only include admin token when explicitly requested for admin operations
           headers['x-admin-token'] = adminToken;
           console.log('✅ Admin Token added for admin request:', adminToken.substring(0, 20) + '...');
         } else if (adminToken && !options.headers?.isAdminRequest) {
           console.log('ℹ️ Admin Token exists but NOT sending (not an admin request)');
         }
         
-        // Merge with any custom headers passed in options (excluding isAdminRequest flag)
+ // Merge with any custom headers passed in options (excluding isAdminRequest flag)
         if (options.headers) {
           const { isAdminRequest, ...restHeaders } = options.headers;
           Object.assign(headers, restHeaders);
         }
         
-        // 4. Debug Log: Verify 'Authorization' appears in headers
+ // 4. Debug Log: Verify 'Authorization' appears in headers
         console.log('🚀 Request Headers:', JSON.stringify(headers));
         console.log(`📤 Sending ${options.method || 'GET'} to ${url}`);
         
@@ -1203,7 +1203,7 @@
           
           console.log(`📡 API Response Status: ${response.status} ${response.statusText}`);
           
-          // Check if response is JSON before parsing
+ // Check if response is JSON before parsing
           const contentType = response.headers.get('content-type');
           if (!contentType || !contentType.includes('application/json')) {
             const text = await response.text();
@@ -1213,14 +1213,14 @@
           
           const data = await response.json();
           
-          // 5. Error Handling: If 401, clear tokens and show Retry button
+ // 5. Error Handling: If 401, clear tokens and show Retry button
           if (response.status === 401) {
             console.error('❌ Auth failed: No valid token found or token expired.');
-            // Clear invalid tokens
+ // Clear invalid tokens
             localStorage.removeItem('token');
             localStorage.removeItem('adminToken');
             
-            // Show Retry button that clears localStorage and reloads Telegram WebApp
+ // Show Retry button that clears localStorage and reloads Telegram WebApp
             showToast('Login Required', 'error');
             setTimeout(() => {
               const retryBtn = document.createElement('button');
@@ -1256,7 +1256,7 @@
           return data;
         } catch (error) {
           console.error('❌ API Request Error:', error.message);
-          // Don't show toast for every error - some are expected
+ // Don't show toast for every error - some are expected
           if (error.message !== 'Authentication required' && error.message !== 'Authentication failed') {
             showToast(error.message || 'Connection error', 'error');
           }
@@ -1266,7 +1266,7 @@
         }
       },
 
-      // 🔐 Authentication - Use GET /user instead of POST /auth/sync
+ // Authentication - Use GET /user instead of POST /auth/sync
       getUser: async () => {
         try {
           return await Api._request('/user/balance', { method: 'GET' });
@@ -1280,9 +1280,9 @@
         try {
           return await Api._request('/user', { method: 'GET' });
         } catch (error) {
-          // If syncUser fails, do NOT set user to 'guest' - clear localStorage and throw error
+ // If syncUser fails, do NOT set user to 'guest' - clear localStorage and throw error
           console.error('❌ syncUser failed - user not authenticated:', error.message);
-          // Clear any stale tokens
+ // Clear any stale tokens
           localStorage.removeItem('token');
           localStorage.removeItem('adminToken');
           throw new Error('Authentication failed. Please log in again.');
@@ -1294,7 +1294,7 @@
         body: JSON.stringify(data)
       }),
 
-      // 🎮 Game Endpoints
+ // Game Endpoints
       getRooms: () => Api._request('/game/rooms', { method: 'GET' }),
       joinRoom: (amount, withBots = true, selectedCard = null) => Api._request('/game/join', {
         method: 'POST',
@@ -1312,7 +1312,7 @@
         loadingText: 'Verifying win...'
       }),
 
-      // 💰 Transactions
+ // Transactions
       requestDeposit: (data) => Api._request('/transaction/deposit', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -1327,7 +1327,7 @@
       
       getTransactions: () => Api._request('/transaction'),
 
-      // 👮 Admin Endpoints - FIXED
+ // Admin Endpoints - FIXED
       adminLogin: async ({ masterId, secureCode, securityKey }) => {
         return Api._request('/admin/login', {
           method: 'POST',
@@ -1396,7 +1396,7 @@
         headers: { isAdminRequest: true, 'x-admin-token': token }
       }),
 
-      // 👤 Create Player - Admin can create new players manually
+ // Create Player - Admin can create new players manually
       createUser: (data, token) => Api._request('/admin/create-user', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -1404,9 +1404,9 @@
       })
     };
 
-    // ============================================
-    // 🔊 SOUND MANAGER
-    // ============================================
+ // ============================================
+ // SOUND MANAGER
+ // ============================================
     const Sound = {
       _ctx: null,
       
@@ -1454,9 +1454,9 @@
       success() { this._play(880, 'sine', 0.15, 0.1); }
     };
 
-    // ============================================
-    // 🧠 APP STATE
-    // ============================================
+ // ============================================
+ // APP STATE
+ // ============================================
     const AppState = {
       user: null,
       currentPage: 'lobby',
@@ -1479,9 +1479,9 @@
       connectionStatus: 'connecting' // 'connecting', 'connected', 'disconnected'
     };
     
-    // ============================================
-    // 🔌 CONNECTION STATUS MANAGEMENT
-    // ============================================
+ // ============================================
+ // CONNECTION STATUS MANAGEMENT
+ // ============================================
     function updateConnectionStatus(status) {
       AppState.connectionStatus = status;
       const statusEl = document.getElementById('connectionStatus');
@@ -1512,9 +1512,9 @@
       console.log(`🔌 Connection status: ${status}`);
     }
 
-    // ============================================
-    // 🎨 UI HELPERS
-    // ============================================
+ // ============================================
+ // UI HELPERS
+ // ============================================
     function showLoading(text = 'Loading...') {
       document.getElementById('loadingText').textContent = text;
       document.getElementById('loadingOverlay').classList.add('active');
@@ -1577,9 +1577,9 @@
       });
     }
 
-    // ============================================
-    // 📱 TELEGRAM INTEGRATION
-    // ============================================
+ // ============================================
+ // TELEGRAM INTEGRATION
+ // ============================================
     function initTelegram() {
       const tg = window.Telegram?.WebApp;
       if (!tg) {
@@ -1589,13 +1589,13 @@
 
       tg.expand();
       
-      // Store Telegram initData to localStorage for persistence across page reloads
+ // Store Telegram initData to localStorage for persistence across page reloads
       if (tg.initData) {
         localStorage.setItem('telegramInitData', tg.initData);
         console.log('✅ Telegram initData saved to localStorage');
       }
       
-      // Only enable closing confirmation if supported
+ // Only enable closing confirmation if supported
       if (typeof tg.enableClosingConfirmation === 'function') {
         tg.enableClosingConfirmation();
       } else {
@@ -1606,7 +1606,7 @@
         document.body.classList.add('telegram-dark');
       }
       
-      // Only set header color if supported
+ // Only set header color if supported
       if (typeof tg.setHeaderColor === 'function') {
         try {
           tg.setHeaderColor('#009b3a');
@@ -1617,7 +1617,7 @@
         console.warn('⚠️ Header color not supported in this Telegram client version');
       }
       
-      // Only set background color if supported
+ // Only set background color if supported
       if (typeof tg.setBackgroundColor === 'function') {
         try {
           tg.setBackgroundColor('#ffffff');
@@ -1628,7 +1628,7 @@
         console.warn('⚠️ Background color not supported in this Telegram client version');
       }
       
-      // Check if BackButton is supported before using it
+ // Check if BackButton is supported before using it
       if (tg.BackButton && typeof tg.BackButton.onClick === 'function') {
         tg.BackButton.onClick(() => {
           if (AppState.currentPage === 'bingo') {
@@ -1657,9 +1657,9 @@
       }
     }
 
-    // ============================================
-    // 🔄 PAGE NAVIGATION
-    // ============================================
+ // ============================================
+ // PAGE NAVIGATION
+ // ============================================
     function showPage(pageId) {
       AppState.currentPage = pageId;
       updateBackButton();
@@ -1684,17 +1684,17 @@
       
       setTimeout(() => page.classList.add('active'), 10);
       
-      // Re-render lobby if returning to it to show updated profile info
+ // Re-render lobby if returning to it to show updated profile info
       if(pageId === 'lobby' && AppState.user) {
         console.log('🔄 Refreshing lobby with user data:', AppState.user);
-        // Force re-render to ensure refresh button appears
+ // Force re-render to ensure refresh button appears
         setTimeout(() => renderLobbyPage(page), 50);
       }
     }
 
-    // ============================================
-    // 🏠 LOBBY PAGE
-    // ============================================
+ // ============================================
+ // LOBBY PAGE
+ // ============================================
     async function renderLobbyPage(container) {
       if (AppState.user?.isBlocked) {
         container.innerHTML = `
@@ -1780,22 +1780,22 @@
 
       document.getElementById('houseIcon')?.addEventListener('click', () => {
         Sound.click();
-        // Double-click detection for admin login
+ // Double-click detection for admin login
         const now = Date.now();
         if (AppState.lastHouseClick && (now - AppState.lastHouseClick) < 300) {
-          // Double-click detected - show admin login
+ // Double-click detected - show admin login
           showAdminLogin();
         }
         AppState.lastHouseClick = now;
       });
       
-      // Load room pools from database
-      // Room cards now show simple entry fee with emoji - no pool display needed
+ // Load room pools from database
+ // Room cards now show simple entry fee with emoji - no pool display needed
     }
 
-    // ============================================
-    // 🎴 CARTELA SELECTION
-    // ============================================
+ // ============================================
+ // CARTELA SELECTION
+ // ============================================
     function renderCartelaPage(container) {
       const roomAmount = AppState.user?.selectedRoom || AppState.game.roomAmount || 20;
       container.innerHTML = `
@@ -1826,7 +1826,7 @@
           if (!AppState.user) AppState.user = {};
           AppState.user.selectedCard = i;
           showToast(`Selected cartela ${i}. Joining room...`, 'info');
-          // Proceed to join room
+ // Proceed to join room
           await joinRoom(roomAmount);
         };
         grid.appendChild(btn);
@@ -1837,13 +1837,13 @@
       const n = Math.floor(Math.random() * 100) + 1;
       AppState.user.selectedCard = n;
       showToast(`Random cartela ${n} selected`, 'info');
-      // navigate to join
+ // navigate to join
       const roomAmount = AppState.user?.selectedRoom || AppState.game.roomAmount || 20;
       joinRoom(roomAmount);
     }
     
-    // Load room pools from database and update UI
-    // Uses prizePool from server (Single Source of Truth) - no math on frontend
+ // Load room pools from database and update UI
+ // Uses prizePool from server (Single Source of Truth) - no math on frontend
     async function loadRooms() {
       try {
         const response = await Api.getRooms();
@@ -1851,7 +1851,7 @@
         if (response.rooms) {
           const rooms = response.rooms;
           
-          // Update 100 ETB room - use prizePool from server
+ // Update 100 ETB room - use prizePool from server
           if (rooms[100]) {
             document.getElementById('pool100').textContent = `${rooms[100].prizePool} ETB`;
             document.getElementById('players100').textContent = rooms[100].players;
@@ -1860,7 +1860,7 @@
             document.getElementById('players100').textContent = '0';
           }
           
-          // Update 50 ETB room - use prizePool from server
+ // Update 50 ETB room - use prizePool from server
           if (rooms[50]) {
             document.getElementById('pool50').textContent = `${rooms[50].prizePool} ETB`;
             document.getElementById('players50').textContent = rooms[50].players;
@@ -1869,7 +1869,7 @@
             document.getElementById('players50').textContent = '0';
           }
           
-          // Update 20 ETB room - use prizePool from server
+ // Update 20 ETB room - use prizePool from server
           if (rooms[20]) {
             document.getElementById('pool20').textContent = `${rooms[20].prizePool} ETB`;
             document.getElementById('players20').textContent = rooms[20].players;
@@ -1878,7 +1878,7 @@
             document.getElementById('players20').textContent = '0';
           }
           
-          // Update 10 ETB room - use prizePool from server
+ // Update 10 ETB room - use prizePool from server
           if (rooms[10]) {
             document.getElementById('pool10').textContent = `${rooms[10].prizePool} ETB`;
             document.getElementById('players10').textContent = rooms[10].players;
@@ -1887,7 +1887,7 @@
             document.getElementById('players10').textContent = '0';
           }
           
-          // Update 5 ETB room - use prizePool from server
+ // Update 5 ETB room - use prizePool from server
           if (rooms[5]) {
             document.getElementById('pool5').textContent = `${rooms[5].prizePool} ETB`;
             document.getElementById('players5').textContent = rooms[5].players;
@@ -1901,9 +1901,9 @@
       }
     }
 
-    // ============================================
-    // 🎮 BINGO GAME PAGE
-    // ============================================
+ // ============================================
+ // BINGO GAME PAGE
+ // ============================================
     async function renderBingoPage(container) {
       if (AppState.user?.isBlocked) {
         showToast('Account blocked', 'error');
@@ -1911,7 +1911,7 @@
         return;
       }
 
-      // FIX: Use AppState.game.roomAmount first, then user.selectedRoom, then default
+ // FIX: Use AppState.game.roomAmount first, then user.selectedRoom, then default
       const roomAmount = AppState.game.roomAmount || AppState.user?.selectedRoom || 20;
       AppState.game.roomAmount = roomAmount;
 
@@ -1976,9 +1976,9 @@
       }
     }
 
-    // ============================================
-    // 🎲 GAME LOGIC
-    // ============================================
+ // ============================================
+ // GAME LOGIC
+ // ============================================
     async function startNewGame() {
       const game = AppState.game;
       game.isGameActive = true;
@@ -2010,7 +2010,7 @@
 
       renderCard();
       
-      // Keep last called number visible if there is one from server session
+ // Keep last called number visible if there is one from server session
       if (game.calledNumbers && game.calledNumbers.length > 0) {
         const last = game.calledNumbers[game.calledNumbers.length - 1];
         const display = document.getElementById('currentNumberDisplay');
@@ -2099,19 +2099,19 @@
 
       try {
         Sound.click();
-        // Call backend to persist mark
+ // Call backend to persist mark
         const resp = await Api.markNumber({ sessionId: game.sessionId, row, col });
-        // If server responded, update UI based on server mark state
+ // If server responded, update UI based on server mark state
         const marked = resp.marked === true;
         if (marked) cell.classList.add('marked'); else cell.classList.remove('marked');
         game.markedState[row][col] = marked;
         updateMatchesCount();
 
         if (resp.win) {
-          // Server detected a win (may be bot or human). Let server flow handle payouts.
+ // Server detected a win (may be bot or human). Let server flow handle payouts.
           showToast('Bingo detected! Verifying with server...', 'info');
           if (!resp.isBot) {
-            // If human win, trigger frontend win flow to fetch balance and show UI
+ // If human win, trigger frontend win flow to fetch balance and show UI
             handleWin();
           }
         }
@@ -2162,7 +2162,7 @@
       });
     }
 
-    // Update bingo page display with pool and player information
+ // Update bingo page display with pool and player information
     function updateBingoDisplay() {
       const game = AppState.game;
       
@@ -2173,7 +2173,7 @@
         poolEl.textContent = `${game.currentPool} ETB`;
       }
       
-      // Update players count display - show TOTAL players in the room to match pool calculation
+ // Update players count display - show TOTAL players in the room to match pool calculation
       const playersEl = document.getElementById('currentPlayers');
       if(playersEl) {
         const totalPlayers = game.playersCount || 0;
@@ -2212,7 +2212,7 @@
         return;
       }
 
-      // Call backend to draw the next number so bots are processed server-side
+ // Call backend to draw the next number so bots are processed server-side
       (async () => {
         try {
           const resp = await Api._request(`/game/number/${game.sessionId}`, { method: 'POST' });
@@ -2225,7 +2225,7 @@
           const letter = ['B','I','N','G','O'][Math.floor((num - 1) / 15)];
           const displayText = `${letter}-${num}`;
 
-          // Update local state and UI
+ // Update local state and UI
           if (!game.calledNumbers.includes(num)) game.calledNumbers.push(num);
           game.currentNumbers = [num];
           Sound.number();
@@ -2245,13 +2245,13 @@
 
           updateNumbersHistory();
 
-          // If server reports bot marks or bot win in response, process UI
+ // If server reports bot marks or bot win in response, process UI
           if (resp.botMarks && resp.botMarks.length) {
             emitBotMoveSummary(AppState.socket, game);
           }
 
           if (resp.gameOver) {
-            // Server handled GAME_OVER; show feedback and end auto-play
+ // Server handled GAME_OVER; show feedback and end auto-play
             Sound.success();
             showToast(resp.message || 'Game over', resp.isBot ? 'info' : 'success');
             AppState.game.isGameActive = false;
@@ -2269,7 +2269,7 @@
     function checkForBingo() {
       const game = AppState.game;
       
-      // Check if socket is connected before claiming
+ // Check if socket is connected before claiming
       if (!AppState.socket || !AppState.socket.connected) {
         showToast('Not connected to game server. Please refresh.', 'error');
         return;
@@ -2297,11 +2297,11 @@
       if(d1 || d2) won = true;
       
       if(won) {
-        // Emit bingo claim event to server first
+ // Emit bingo claim event to server first
         console.log('🎯 Emitting bingoClaim to server for session:', game.sessionId);
         AppState.socket.emit('bingoClaim', { sessionId: game.sessionId });
         
-        // Still call handleWin for UI feedback, but server will verify
+ // Still call handleWin for UI feedback, but server will verify
         handleWin();
       } else {
         showToast('No bingo yet! Keep playing.', 'error');
@@ -2314,7 +2314,7 @@
       const game = AppState.game;
       stopAutoPlay();
       
-      // 🎉 Show visual effects immediately
+ // Show visual effects immediately
       Sound.win();
       confetti({
         particleCount: 200,
@@ -2323,7 +2323,7 @@
         colors: ['#009b3a', '#fed105', '#ef3340']
       });
       
-      // 🔐 CRITICAL: Call backend to verify win and update balance
+ // CRITICAL: Call backend to verify win and update balance
       try {
         console.log('📡 [FRONTEND] Sending win claim to backend...');
         console.log('📡 [FRONTEND] Game session ID:', game?.sessionId);
@@ -2335,13 +2335,13 @@
         console.log('💰 [FRONTEND] New balance from server:', response.newBalance, 'ETB');
         console.log('💰 [FRONTEND] Balance increase:', response.winnings, 'ETB');
         
-        // Update local user state with new balance
+ // Update local user state with new balance
         if (response.newBalance !== undefined) {
           const oldBalance = AppState.user?.balance || 0;
           AppState.user.balance = response.newBalance;
           console.log('✅ [FRONTEND] Local balance updated:', oldBalance, '->', response.newBalance, 'ETB');
           
-          // Update UI immediately
+ // Update UI immediately
           const balanceEl = document.getElementById('userBalance');
           if (balanceEl) {
             balanceEl.textContent = response.newBalance;
@@ -2349,7 +2349,7 @@
           }
         }
         
-        // Calculate expected winnings for display
+ // Calculate expected winnings for display
         const roomAmount = AppState.game.roomAmount || AppState.user?.selectedRoom || 20;
         const totalPlayers = game?.players?.length || 1;
         const expectedWinnings = Math.floor(roomAmount * totalPlayers * 0.85);
@@ -2360,11 +2360,11 @@
         console.log('  - Expected Winnings (85%):', expectedWinnings, 'ETB');
         console.log('  - Actual Winnings:', response.winnings, 'ETB');
         
-        // Show winner announcement with ACTUAL winnings from server
+ // Show winner announcement with ACTUAL winnings from server
         showWinnerAnnouncement(AppState.user?.name || 'Player', response.winnings || expectedWinnings);
         showToast(`🎉 You won ${response.winnings || expectedWinnings} ETB! Balance: ${response.newBalance || AppState.user?.balance} ETB`, 'success');
         
-        // CRITICAL FIX: Force re-fetch balance from backend to confirm MongoDB update
+ // CRITICAL FIX: Force re-fetch balance from backend to confirm MongoDB update
         try {
           console.log('🔄 [FRONTEND] Forcing balance re-fetch from /api/user/balance to confirm DB update...');
           const freshUser = await Api.getUser();
@@ -2381,7 +2381,7 @@
           console.error('❌ [FRONTEND] Balance re-fetch failed:', fetchError.message);
         }
         
-        // Log debug info if available
+ // Log debug info if available
         if (response.debug) {
           console.log('🔍 [FRONTEND] Debug info from server:', response.debug);
         }
@@ -2390,7 +2390,7 @@
         console.error('❌ [FRONTEND] Win claim FAILED:', error.message);
         console.error('❌ [FRONTEND] Error details:', error);
         
-        // CRITICAL FIX: Force re-fetch balance from backend immediately after error
+ // CRITICAL FIX: Force re-fetch balance from backend immediately after error
         try {
           console.log('🔄 [FRONTEND] Forcing balance re-fetch from backend after error...');
           const freshUser = await Api.getUser();
@@ -2406,13 +2406,13 @@
           console.error('❌ [FRONTEND] Balance re-fetch failed:', fetchError.message);
         }
 
-        // Still show the win visually, but warn about balance update
+ // Still show the win visually, but warn about balance update
         const roomAmount = AppState.game.roomAmount || AppState.user?.selectedRoom || 20;
         const winnings = Math.floor(roomAmount * 0.85 * 5);
         showWinnerAnnouncement(AppState.user?.name || 'Player', winnings);
         showToast(`⚠️ Win detected but balance update failed. Please refresh.`, 'error');
         
-        // Try to sync user data as fallback
+ // Try to sync user data as fallback
         try {
           console.log('🔄 [FRONTEND] Attempting fallback user sync...');
           const syncedUser = await Api.syncUser();
@@ -2441,9 +2441,9 @@
       showPage('lobby');
     }
 
-    // ============================================
-    // 👤 PROFILE PAGE
-    // ============================================
+ // ============================================
+ // PROFILE PAGE
+ // ============================================
     function renderProfilePage(container) {
       const user = AppState.user || {};
       
@@ -2503,7 +2503,7 @@
         return;
       }
       
-      // Validate phone number format (Ethiopian format)
+ // Validate phone number format (Ethiopian format)
       if(phone && !/^\+?2519\d{8}$|^\+?2517\d{8}$|^09\d{8}$|^07\d{8}$/.test(phone.replace(/\s/g, ''))) {
         showToast('Invalid phone format. Use 09XXXXXXXX or +2519XXXXXXXX', 'error');
         return;
@@ -2517,7 +2517,7 @@
           telegramHandle: telegram || undefined
         });
         
-        // Update AppState with the returned user data
+ // Update AppState with the returned user data
         if(response && response.user) {
           AppState.user = { ...AppState.user, ...response.user };
         } else if(AppState.user) {
@@ -2532,14 +2532,14 @@
         Sound.success();
         showPage('lobby');
       } catch (error) {
-        // Error already shown by Api._request
+ // Error already shown by Api._request
         console.error('Save profile error:', error);
       }
     }
 
-    // ============================================
-    // 💰 DEPOSIT PAGE
-    // ============================================
+ // ============================================
+ // DEPOSIT PAGE
+ // ============================================
     function renderDepositPage(container) {
       container.innerHTML = `
         <div class="header">
@@ -2601,7 +2601,7 @@
         showToast('Deposit request submitted! Waiting for approval...', 'success');
         showWaitingForApproval(amount);
       } catch (error) {
-        // Error already shown
+ // Error already shown
       }
     }
 
@@ -2627,9 +2627,9 @@
       renderWaitingPage(document.getElementById('page-waiting'), amount);
     }
 
-    // ============================================
-    // 📤 WITHDRAWAL MODAL
-    // ============================================
+ // ============================================
+ // WITHDRAWAL MODAL
+ // ============================================
     function showWithdrawModal() {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -2699,14 +2699,14 @@
           Sound.success();
           modal.remove();
         } catch (error) {
-          // Error already shown
+ // Error already shown
         }
       });
     }
 
-    // ============================================
-    // 👥 SUPPORT MODAL
-    // ============================================
+ // ============================================
+ // SUPPORT MODAL
+ // ============================================
     function showSupport() {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -2735,9 +2735,9 @@
       document.body.appendChild(modal);
     }
 
-    // ============================================
-    // 👮 ADMIN PANEL - FIXED
-    // ============================================
+ // ============================================
+ // ADMIN PANEL - FIXED
+ // ============================================
     function showAdminLogin() {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -2782,7 +2782,7 @@
           AppState.admin.isLoggedIn = true;
           AppState.admin.token = response.token;
           
-          // Store token in localStorage for persistence across requests
+ // Store token in localStorage for persistence across requests
           localStorage.setItem('adminToken', response.token);
           console.log('✅ Admin token saved to localStorage');
           
@@ -2792,14 +2792,14 @@
           
         } catch (error) {
           Sound.error();
-          // Error already shown
+ // Error already shown
         }
       };
     }
 
     async function showFullAdminPanel() {
       if(!AppState.admin.isLoggedIn) {
-        // Try to restore session from localStorage
+ // Try to restore session from localStorage
         const savedToken = localStorage.getItem('adminToken');
         if (savedToken) {
           AppState.admin.token = savedToken;
@@ -2897,7 +2897,7 @@
         
         document.body.appendChild(modal);
         
-        // Add event listeners for approve/reject buttons
+ // Add event listeners for approve/reject buttons
         modal.querySelectorAll('.approve-tx-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
             const id = btn.dataset.id;
@@ -2957,7 +2957,7 @@
             showFullAdminPanel();
           } catch (error) {
             console.error('Add funds error:', error);
-            // Error already shown by API layer
+ // Error already shown by API layer
           }
         });
         
@@ -3004,7 +3004,7 @@
               showToast('✅ Pools reset', 'success');
               modal.remove();
             } catch (error) {
-              // Error already shown
+ // Error already shown
             }
           }
         });
@@ -3015,9 +3015,9 @@
       }
     }
 
-    // ============================================
-    // 👥 SHOW USER BALANCE POPUP
-    // ============================================
+ // ============================================
+ // SHOW USER BALANCE POPUP
+ // ============================================
     async function showUserBalancePopup() {
       if (!AppState.admin.isLoggedIn) {
         showAdminLogin();
@@ -3063,7 +3063,7 @@
         
         document.body.appendChild(modal);
         
-        // Add event listeners for clear balance buttons
+ // Add event listeners for clear balance buttons
         modal.querySelectorAll('.clear-balance-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
             const userId = btn.dataset.userId;
@@ -3078,7 +3078,7 @@
                 showToast(`✅ ${username}'s balance cleared successfully`, 'success');
                 console.log(`⚠️ ADMIN ACTION: Cleared balance for ${username}. Amount removed: ${balance} ETB`);
                 
-                // Refresh the popup
+ // Refresh the popup
                 modal.remove();
                 showUserBalancePopup();
               } catch (error) {
@@ -3096,13 +3096,13 @@
       }
     }
 
-    // ============================================
-    // 🎯 ROOM JOINING
-    // ============================================
+ // ============================================
+ // ROOM JOINING
+ // ============================================
     async function tryJoinRoom(amount) {
       console.log('🎯 tryJoinRoom called with amount:', amount);
       
-      // FIX: Set selectedRoom before any other logic
+ // FIX: Set selectedRoom before any other logic
       if(AppState.user) {
         AppState.user.selectedRoom = amount;
         console.log('✅ Set selectedRoom to:', amount);
@@ -3136,7 +3136,7 @@
       }
       
       console.log('🚀 Showing cartela selection for amount:', amount);
-      // Show cartela selection page before joining
+ // Show cartela selection page before joining
       showPage('cartela');
     }
 
@@ -3173,7 +3173,7 @@
         updateBingoDisplay(); // Update the bingo page display with pool and player info
         loadRooms(); // Reload rooms to update pool display
         
-        // Initialize Socket.io connection and join game room
+ // Initialize Socket.io connection and join game room
         initSocket(response.game.sessionId);
       } catch (error) {
         console.error('Failed to join room:', error);
@@ -3181,9 +3181,9 @@
       }
     }
 
-    // ============================================
-    // 🔌 SOCKET.IO CONNECTION
-    // ============================================
+ // ============================================
+ // SOCKET.IO CONNECTION
+ // ============================================
     async function loadSocketIoClient() {
       if (window.io) return window.io;
 
@@ -3221,7 +3221,7 @@
         return;
       }
 
-      // Determine the correct server URL based on current location
+ // Determine the correct server URL based on current location
       const serverUrl = window.location.hostname === 'localhost' 
         ? `http://${window.location.host}` 
         : `https://${window.location.host}`;
@@ -3246,7 +3246,7 @@
       AppState.socket.on('disconnect', (reason) => {
         console.log('❌ Socket disconnected:', reason);
         updateConnectionStatus('disconnected');
-        // Show warning if disconnected unexpectedly
+ // Show warning if disconnected unexpectedly
         if (reason !== 'io client namespace disconnect') {
           showToast('⚠️ Disconnected from server. Attempting to reconnect...', 'warning');
         }
@@ -3272,7 +3272,7 @@
         reconnectionDelay: 1000
       });
       
-      // Also expose via window.socket for global access
+ // Also expose via window.socket for global access
       window.socket = AppState.socket;
       
       AppState.socket.on('connect', () => {
@@ -3284,7 +3284,7 @@
       
       AppState.socket.on('disconnect', (reason) => {
         console.log('❌ Socket disconnected:', reason);
-        // Show warning if disconnected unexpectedly
+ // Show warning if disconnected unexpectedly
         if (reason !== 'io client namespace disconnect') {
           showToast('⚠️ Disconnected from server. Attempting to reconnect...', 'warning');
         }
@@ -3309,7 +3309,7 @@
         console.error('⚠️ Socket reconnection error:', error.message);
       });
       
-      // Game events
+ // Game events
       AppState.socket.on('numberCalled', async (data) => {
         console.log('🎱 Number called:', data);
         await handleNumberCalled(data);
@@ -3317,7 +3317,7 @@
       
       AppState.socket.on('gameStarted', (data) => {
         console.log('🎮 Game started:', data);
-        // Update bot count if provided in game start data
+ // Update bot count if provided in game start data
         if (data.botPlayers !== undefined) {
           AppState.game.botPlayers = data.botPlayers;
         }
@@ -3333,7 +3333,7 @@
       
       AppState.socket.on('gameEnd', (data) => {
         console.log('🏁 Game ended:', data);
-        // Reset bot count on game end
+ // Reset bot count on game end
         AppState.game.botPlayers = 0;
         handleGameEnd(data);
       });
@@ -3348,7 +3348,7 @@
         updatePlayerCount(data.count, data.isBot);
       });
       
-      // Bot-specific events for better tracking
+ // Bot-specific events for better tracking
       AppState.socket.on('botJoined', (data) => {
         console.log('🤖 Bot joined:', data);
         if (AppState.game.botPlayers !== undefined) {
@@ -3365,7 +3365,7 @@
         updatePlayerCount(data.count, true);
       });
       
-      // Bingo claim acknowledgment
+ // Bingo claim acknowledgment
       AppState.socket.on('bingoClaimAck', (data) => {
         console.log('🎯 [SOCKET] Bingo claim acknowledgment:', data);
         if (data.status === 'received') {
@@ -3373,11 +3373,11 @@
         }
       });
       
-      // Bot move events - bots playing fairly like humans
+ // Bot move events - bots playing fairly like humans
       AppState.socket.on('BOT_MOVE', (data) => {
         console.log('🤖 Bot move received:', data);
         if (data.botMarks && data.botMarks.length > 0) {
-          // Update progress display
+ // Update progress display
           data.botMarks.forEach(botMark => {
             console.log(`${botMark.name} has ${botMark.markedCount} marks`);
           });
@@ -3385,7 +3385,7 @@
         }
       });
       
-      // Game over event
+ // Game over event
       AppState.socket.on('GAME_OVER', (data) => {
         console.log('🏆 Game Over:', data);
         const redirectTo = data?.redirectTo || 'lobby';
@@ -3466,19 +3466,19 @@
     }
     
     function updatePlayerCount(count, isBot = false) {
-      // Only update total count, don't modify botPlayers here as it's handled by bot events
+ // Only update total count, don't modify botPlayers here as it's handled by bot events
       AppState.game.playersCount = count;
       updateBingoDisplay();
     }
 
-    // ============================================
-    // 🚀 APP INITIALIZATION
-    // ============================================
+ // ============================================
+ // APP INITIALIZATION
+ // ============================================
     async function initApp() {
       console.log('🚀 [INIT] Starting app initialization...');
       console.log('🔧 Backend API URL:', CONFIG.API_BASE);
       
-      // Check server connectivity
+ // Check server connectivity
       try {
         console.log('🔌 [INIT] Testing server connectivity...');
         const response = await fetch(`${CONFIG.API_BASE.replace('/api', '')}/health`, {
@@ -3503,7 +3503,7 @@
       
       try {
         const response = await Api.syncUser();
-        // Merge user data properly, ensuring all fields are available
+ // Merge user data properly, ensuring all fields are available
         AppState.user = { 
           ...AppState.user, 
           ...(response.user || response),
@@ -3511,7 +3511,7 @@
         };
         console.log('✅ User loaded:', AppState.user);
       } catch (error) {
-        // If syncUser fails, show login error instead of falling back to guest/offline mode
+ // If syncUser fails, show login error instead of falling back to guest/offline mode
         console.error('❌ Failed to authenticate user:', error);
         showToast('Authentication failed. Please log in again.', 'error');
         AppState.user = null;
@@ -3527,14 +3527,14 @@
       });
     }
 
-    // ============================================
-    // 🌍 GLOBAL EVENT LISTENERS
-    // ============================================
+ // ============================================
+ // GLOBAL EVENT LISTENERS
+ // ============================================
     document.addEventListener('DOMContentLoaded', initApp);
     
     document.addEventListener('visibilitychange', () => {
       if(document.hidden && AppState.game.isAutoPlaying) {
-        // Optional: pause game
+ // Optional: pause game
       }
     });
     
@@ -3544,9 +3544,9 @@
       }
     });
 
-    // ============================================
-    // 🌐 EXPOSE GLOBAL FUNCTIONS
-    // ============================================
+ // ============================================
+ // EXPOSE GLOBAL FUNCTIONS
+ // ============================================
     window.showPage = showPage;
     window.tryJoinRoom = tryJoinRoom;
     window.exitGame = exitGame;
