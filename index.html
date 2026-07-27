@@ -3488,7 +3488,11 @@
       console.log('🚀 [INIT] Starting app initialization...');
       console.log('🔧 Backend API URL:', CONFIG.API_BASE);
       
- // Check server connectivity
+      // Initialize Telegram first
+      initTelegram();
+      
+      // Check server connectivity
+      let serverAvailable = false;
       try {
         console.log('🔌 [INIT] Testing server connectivity...');
         const response = await fetch(`${CONFIG.API_BASE.replace('/api', '')}/health`, {
@@ -3498,33 +3502,46 @@
         if (response.ok) {
           console.log('✅ [INIT] Server is reachable');
           updateConnectionStatus('connected');
+          serverAvailable = true;
         } else {
           console.warn('⚠️ [INIT] Server returned non-OK status:', response.status);
           updateConnectionStatus('disconnected');
-          showToast('⚠️ Server connection status unclear', 'warning');
         }
       } catch (err) {
         console.error('❌ [INIT] Server connectivity check failed:', err.message);
         updateConnectionStatus('disconnected');
-        showToast('⚠️ Cannot reach server. Using offline mode.', 'warning');
       }
       
-      initTelegram();
-      
-      try {
-        const response = await Api.syncUser();
- // Merge user data properly, ensuring all fields are available
-        AppState.user = { 
-          ...AppState.user, 
-          ...(response.user || response),
-          displayName: (response.user || response).displayName || (response.user || response).firstName || 'Player'
-        };
-        console.log('✅ User loaded:', AppState.user);
-      } catch (error) {
- // If syncUser fails, show login error instead of falling back to guest/offline mode
-        console.error('❌ Failed to authenticate user:', error);
-        showToast('Authentication failed. Please log in again.', 'error');
+      // Try to sync user if server is available
+      if (serverAvailable) {
+        try {
+          const response = await Api.syncUser();
+          // Merge user data properly, ensuring all fields are available
+          AppState.user = { 
+            ...AppState.user, 
+            ...(response.user || response),
+            displayName: (response.user || response).displayName || (response.user || response).firstName || 'Player'
+          };
+          console.log('✅ User loaded:', AppState.user);
+        } catch (error) {
+          // If syncUser fails, clear user data
+          console.error('❌ Failed to authenticate user:', error);
+          AppState.user = null;
+        }
+      } else {
         AppState.user = null;
+      }
+      
+      // Ensure page container exists and show lobby
+      const container = document.getElementById('pageContainer');
+      if (!container) {
+        console.error('❌ pageContainer not found! Creating it...');
+        const mainContainer = document.querySelector('.container');
+        if (mainContainer) {
+          const newContainer = document.createElement('div');
+          newContainer.id = 'pageContainer';
+          mainContainer.appendChild(newContainer);
+        }
       }
       
       showPage('lobby');
