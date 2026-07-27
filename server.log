@@ -1,4 +1,7 @@
-nohup: ignoring input
+
+> afro-bingo-backend@1.0.0 start
+> node server.js
+
 🚀 [SERVER] Server is starting...
 🚀 [SERVER] NODE_ENV: development
 🚀 [SERVER] PORT: 3000
@@ -24,20 +27,24 @@ nohup: ignoring input
 ✅ [SERVER] Health check available at: /health
 ✅ [SERVER] Environment: development
 ⏰ Daily bot reset scheduled for 0:00
-⏰ First run in 351 minutes
+⏰ First run in 444 minutes
 ⏰ [SERVER] Daily bot balance reset scheduler started (resets at 00:00 UTC)
 
-❌ [DB] MongoDB Connection: Non-retryable error: connect ECONNREFUSED ::1:27017, connect ECONNREFUSED 127.0.0.1:27017
-❌ [DB] Database connection error: connect ECONNREFUSED ::1:27017, connect ECONNREFUSED 127.0.0.1:27017
-❌ [DB] Stack: MongooseServerSelectionError: connect ECONNREFUSED ::1:27017, connect ECONNREFUSED 127.0.0.1:27017
-    at _handleConnectionErrors (/workspace/node_modules/mongoose/lib/connection.js:816:11)
-    at NativeConnection.openUri (/workspace/node_modules/mongoose/lib/connection.js:791:11)
-    at async executeWithRetry (/workspace/config/db.js:38:22)
-    at async connectDB (/workspace/config/db.js:93:18)
-    at async Promise.all (index 0)
+❌ [DB] MongoDB Connection: Non-retryable error: bad auth : authentication failed
+❌ [DB] Database connection error: bad auth : authentication failed
+❌ [DB] Stack: MongoServerError: bad auth : authentication failed
+    at Connection.onMessage (/workspace/node_modules/mongodb/lib/cmap/connection.js:202:26)
+    at MessageStream.<anonymous> (/workspace/node_modules/mongodb/lib/cmap/connection.js:61:60)
+    at MessageStream.emit (node:events:524:28)
+    at processIncomingData (/workspace/node_modules/mongodb/lib/cmap/message_stream.js:124:16)
+    at MessageStream._write (/workspace/node_modules/mongodb/lib/cmap/message_stream.js:33:9)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at Writable.write (node:internal/streams/writable:510:10)
+    at TLSSocket.ondata (node:internal/streams/readable:1009:22)
+    at TLSSocket.emit (node:events:524:28)
 💡 [DB] Make sure MongoDB is running or update MONGODB_URI in environment variables
-❌ Database connection failed: connect ECONNREFUSED ::1:27017, connect ECONNREFUSED 127.0.0.1:27017
-❌ Initialization failed: connect ECONNREFUSED ::1:27017, connect ECONNREFUSED 127.0.0.1:27017
+💡 [DB] Server will start in LIMITED MODE - game features will not work without database
 ⚠️ Emergency Reset Warning: Operation `roompools.updateMany()` buffering timed out after 10000ms
 ❌ Room initialization failed: Operation `roompools.findOneAndUpdate()` buffering timed out after 10000ms
 ❌ Error initializing bots: Operation `bots.countDocuments()` buffering timed out after 10000ms
