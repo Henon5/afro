@@ -1780,6 +1780,16 @@
 
       document.getElementById('houseIcon')?.addEventListener('click', () => {
         Sound.click();
+ // Check if admin is already logged in
+        const savedToken = localStorage.getItem('adminToken');
+        if (savedToken) {
+          AppState.admin.token = savedToken;
+          AppState.admin.isLoggedIn = true;
+          console.log('✅ Admin session restored from localStorage on house icon click');
+          showFullAdminPanel();
+          return;
+        }
+        
  // Double-click detection for admin login
         const now = Date.now();
         if (AppState.lastHouseClick && (now - AppState.lastHouseClick) < 300) {
@@ -3557,6 +3567,7 @@
     window.checkForBingo = checkForBingo;
     window.requestDeposit = requestDeposit;
     window.showAdminLogin = showAdminLogin;
+    window.showFullAdminPanel = showFullAdminPanel;
     window.showUserBalancePopup = showUserBalancePopup;
     window.updateBingoDisplay = updateBingoDisplay;
     window.initSocket = initSocket;
