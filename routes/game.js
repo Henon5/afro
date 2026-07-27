@@ -797,102 +797,102 @@ router.post('/mark', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to mark number' });
   }
 });
-
 /**
  * Local bot move processor for game.js - wraps the imported function
  * This function is called after every callNumber() execution to activate bot play logic
+ * OPTIMIZATION: Parallel processing, batch updates, eliminated redundant DB calls
  * @param {Object} gameSession - The game session
  * @param {number|null} calledNumber - The number that was just called (null if from mark endpoint)
  */
 async function processBotMovesLocal(gameSession, calledNumber) {
   const botPlayers = gameSession.players.filter(p => p.isBot);
-  
+
   if (botPlayers.length === 0) return null; // No bots to process
-  
-  console.log(`🤖 Processing ${botPlayers.length} bots${calledNumber ? ` for number ${calledNumber}` : ''}...`);
-  
-  for (const botPlayer of botPlayers) {
-    // Use telegramId (string) directly for lookup - DO NOT cast to ObjectId
+
+  console.log(`Processing ${botPlayers.length} bots${calledNumber ? ` for number ${calledNumber}` : ''}...`);
+
+  // OPTIMIZATION: Cache bot lookups and validate cards in parallel
+  const botDataMap = new Map();
+  const botValidationPromises = botPlayers.map(async (botPlayer) => {
     const bot = await Bot.findOne({ telegramId: botPlayer.user });
     if (!bot) {
-      console.warn(`⚠️ Bot not found in DB: ${botPlayer.user}`);
-      continue;
+      console.warn(`Bot not found in DB: ${botPlayer.user}`);
+      return null;
     }
 
-    // Validate bot has a valid card before playing
+    // Validate and generate card if needed
     if (!bot.cardGrid || !bot.cardGrid.length || bot.cardGrid[0].length === 0) {
-      console.warn(`⚠️ Bot ${bot.name} has no valid card, generating one...`);
+      console.warn(`Bot ${bot.name} has no valid card, generating one...`);
       bot.generateCard();
       // OPTIMIZATION: Use updateOne instead of save() for better performance
       await Bot.updateOne(
         { _id: bot._id },
         { $set: { cardGrid: bot.cardGrid, markedState: bot.markedState } }
       );
-      // Update player's card in session - Compare as strings
-      const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
-      if (botIndex !== -1) {
-        gameSession.players[botIndex].cardGrid = bot.cardGrid;
-        gameSession.players[botIndex].markedState = bot.markedState;
-      }
     }
 
-    // Simulate bot reaction with 2 second delay (only when a number is called)
-    if (calledNumber) {
-      await new Promise(resolve => setTimeout(resolve, BOT_REACTION_TIME_MS));
-    }
+    botDataMap.set(bot.telegramId.toString(), { bot, player: botPlayer });
+    return bot;
+  });
+
+  await Promise.all(botValidationPromises);
+
+  // OPTIMIZATION: Process all bot moves in parallel (remove sequential 2s delays)
+  // Bots now react simultaneously like real players would
+  const moveResults = [];
+  
+  for (const [botId, { bot, player }] of botDataMap) {
+    const botIndex = gameSession.players.findIndex(p => p.user === botId);
+    if (botIndex === -1) continue;
+
+    let move = null;
     
     // THE TRIGGER: Find if the CALLED NUMBER exists on bot's card (DIRECT SCAN)
-    let move = null;
     if (calledNumber) {
-      // Directly scan the bot's card in the game session for the called number
-      const playerIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
-      if (playerIndex !== -1) {
-        const playerData = gameSession.players[playerIndex];
-        const { cardGrid, markedState } = playerData;
-        
-        // Scan all 25 positions on the card
-        for (let row = 0; row < 5; row++) {
-          for (let col = 0; col < 5; col++) {
-            // If this position has the called number AND is not yet marked
-            if (cardGrid[row][col] === calledNumber && !markedState[row][col]) {
-              move = { row, col, num: calledNumber };
-              console.log(`🎯 Bot ${bot.name} FOUND number ${calledNumber} at [${row},${col}]`);
-              break;
-            }
+      const playerData = gameSession.players[botIndex];
+      const { cardGrid, markedState } = playerData;
+
+      // Scan all 25 positions on the card
+      for (let row = 0; row < 5; row++) {
+        for (let col = 0; col < 5; col++) {
+          if (cardGrid[row][col] === calledNumber && !markedState[row][col]) {
+            move = { row, col, num: calledNumber };
+            console.log(`Bot ${bot.name} FOUND number ${calledNumber} at [${row},${col}]`);
+            break;
           }
-          if (move) break;
         }
+        if (move) break;
       }
     } else {
       // Fallback to simulateBotMove for other cases (e.g., initial mark endpoint)
       move = simulateBotMove(gameSession, bot);
     }
-    
+
     if (move) {
-      const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
-      if (botIndex !== -1) {
-        // THE MARK: Update marked state in game session
-        gameSession.players[botIndex].markedState[move.row][move.col] = true;
-        
-        console.log(`✅ Bot ${bot.name} marked position [${move.row},${move.col}] = ${move.num}`);
-        
-        // CRITICAL: Save the game session immediately to persist the marked state
-        await gameSession.save();
-        
-        // Reload the game session to ensure we have the latest state
-        const freshSession = await GameSession.findById(gameSession._id).select('players calledNumbers gameStatus');
-        
-        // THE WIN CHECK: Run checkWin() after every mark using fresh session data
-        const botWinResult = freshSession.checkWin(botIndex);
-        if (botWinResult.win) {
-          // Bot wins - handle payout sequence
-          console.log(`🏆 BOT WINNER: ${bot.name} with pattern: ${botWinResult.pattern}!`);
-          return { winner: bot, botIndex, winResult: botWinResult };
-        }
+      // THE MARK: Update marked state in game session (in-memory only)
+      gameSession.players[botIndex].markedState[move.row][move.col] = true;
+      console.log(`Bot ${bot.name} marked position [${move.row},${move.col}] = ${move.num}`);
+      
+      moveResults.push({ bot, botIndex, move });
+    }
+  }
+
+  // OPTIMIZATION: Single batch save for all bot moves instead of individual saves
+  if (moveResults.length > 0) {
+    // Save game session once with all bot marks applied
+    await gameSession.save();
+    
+    // OPTIMIZATION: Check for winners using in-memory data first
+    for (const { bot, botIndex } of moveResults) {
+      const botWinResult = gameSession.checkWin(botIndex);
+      if (botWinResult.win) {
+        // Bot wins - handle payout sequence
+        console.log(`BOT WINNER: ${bot.name} with pattern: ${botWinResult.pattern}!`);
+        return { winner: bot, botIndex, winResult: botWinResult };
       }
     }
   }
-  
+
   return null; // No winner yet
 }
 
