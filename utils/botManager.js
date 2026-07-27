@@ -268,75 +268,78 @@ function checkBotWin(gameSession, bot) {
 /**
  * Process bot moves in the game session with improved error handling and card validation
  * This function is called after every callNumber() execution to activate bot play logic
+ * OPTIMIZATION: Parallel processing, batch updates, eliminated redundant DB calls
  * @param {Object} gameSession - The game session
  * @param {number} calledNumber - The number that was just called
  */
 async function processBotMoves(gameSession, calledNumber) {
   const botPlayers = gameSession.players.filter(p => p.isBot);
-  
+
   if (botPlayers.length === 0) return null; // No bots to process
-  
-  console.log(`🤖 Processing ${botPlayers.length} bots for number ${calledNumber}...`);
-  
-  for (const botPlayer of botPlayers) {
-    // Use telegramId (string) directly for lookup - DO NOT cast to ObjectId
+
+  console.log(`Processing ${botPlayers.length} bots for number ${calledNumber}...`);
+
+  // OPTIMIZATION: Cache bot lookups and validate cards in parallel
+  const botDataMap = new Map();
+  const botValidationPromises = botPlayers.map(async (botPlayer) => {
     const bot = await Bot.findOne({ telegramId: botPlayer.user });
     if (!bot) {
-      console.warn(`⚠️ Bot not found in DB: ${botPlayer.user}`);
-      continue;
+      console.warn(`Bot not found in DB: ${botPlayer.user}`);
+      return null;
     }
 
-    // Validate bot has a valid card before playing
+    // Validate and generate card if needed
     if (!bot.cardGrid || !bot.cardGrid.length || bot.cardGrid[0].length === 0) {
-      console.warn(`⚠️ Bot ${bot.name} has no valid card, generating one...`);
+      console.warn(`Bot ${bot.name} has no valid card, generating one...`);
       bot.generateCard();
       await bot.save();
-      // Update player's card in session - Compare as strings
-      const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
-      if (botIndex !== -1) {
-        gameSession.players[botIndex].cardGrid = bot.cardGrid;
-        gameSession.players[botIndex].markedState = bot.markedState;
-      }
     }
 
-    // Simulate bot reaction with 2 second delay
-    await new Promise(resolve => setTimeout(resolve, BOT_REACTION_TIME_MS));
-    
+    botDataMap.set(bot.telegramId.toString(), { bot, player: botPlayer });
+    return bot;
+  });
+
+  await Promise.all(botValidationPromises);
+
+  // OPTIMIZATION: Process all bot moves in parallel (remove sequential 2s delays)
+  // Bots now react simultaneously like real players would
+  const moveResults = [];
+  
+  for (const [botId, { bot, player }] of botDataMap) {
+    const botIndex = gameSession.players.findIndex(p => p.user === botId);
+    if (botIndex === -1) continue;
+
     // THE TRIGGER: Call simulateBotMove() for this bot
     const move = simulateBotMove(gameSession, bot);
+    
     if (move) {
-      const botIndex = gameSession.players.findIndex(p => p.user === bot.telegramId.toString());
-      if (botIndex !== -1) {
-        // THE MARK: Update marked state in game session
-        gameSession.players[botIndex].markedState[move.row][move.col] = true;
-        
-        console.log(`✅ Bot ${bot.name} marked position [${move.row},${move.col}] = ${move.num}`);
-        
-        // CRITICAL FIX: Save the game session to persist the marked state
-        await gameSession.save();
-        
-        // Reload the game session to ensure we have the latest state
-        const GameSession = require('../models/GameSession');
-        const freshSession = await GameSession.findById(gameSession._id).select('players calledNumbers gameStatus');
-        
-        // THE WIN CHECK: Run checkWin() on fresh session data
-        const botWinResult = freshSession.checkWin(botIndex);
-        if (botWinResult.win) {
-          // Bot wins - handle payout sequence
-          console.log(`🏆 BOT WINNER: ${bot.name} with pattern: ${botWinResult.pattern}!`);
-          return { winner: bot, botIndex, winResult: botWinResult };
-        }
+      // THE MARK: Update marked state in game session (in-memory only)
+      gameSession.players[botIndex].markedState[move.row][move.col] = true;
+      console.log(`Bot ${bot.name} marked position [${move.row},${move.col}] = ${move.num}`);
+      
+      moveResults.push({ bot, botIndex, move });
+    }
+  }
+
+  // OPTIMIZATION: Single batch save for all bot moves instead of individual saves
+  if (moveResults.length > 0) {
+    // Save game session once with all bot marks applied
+    await gameSession.save();
+    
+    // OPTIMIZATION: Check for winners using in-memory data first
+    for (const { bot, botIndex } of moveResults) {
+      const botWinResult = gameSession.checkWin(botIndex);
+      if (botWinResult.win) {
+        // Bot wins - handle payout sequence
+        console.log(`BOT WINNER: ${bot.name} with pattern: ${botWinResult.pattern}!`);
+        return { winner: bot, botIndex, winResult: botWinResult };
       }
     }
   }
-  
+
   return null; // No winner yet
 }
-
 /**
- * Handle bot winning the game - THE PAYOUT
- * Awards currentPool to the winning bot and stops the game
- * @param {Object} gameSession - The game session
  * @param {Object} winningBot - The winning bot
  * @param {number} playerIndex - Index of bot in players array
  * @param {Object} winResult - Win result object with pattern
