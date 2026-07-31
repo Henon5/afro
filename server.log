@@ -1,25 +1,4 @@
-nohup: ignoring input
 🚀 Server running on port 3000
-✅ MongoDB Connected: ac-nayprdv-shard-00-01.enemcot.mongodb.net
-Admin token validation error: SyntaxError: Unexpected token '�', "�{ږ'" is not valid JSON
-    at JSON.parse (<anonymous>)
-    at exports.auth (/workspace/middleware/auth.js:115:30)
-    at Layer.handle [as handle_request] (/workspace/node_modules/express/lib/router/layer.js:95:5)
-    at next (/workspace/node_modules/express/lib/router/route.js:149:13)
-    at Route.dispatch (/workspace/node_modules/express/lib/router/route.js:119:3)
-    at Layer.handle [as handle_request] (/workspace/node_modules/express/lib/router/layer.js:95:5)
-    at /workspace/node_modules/express/lib/router/index.js:284:15
-    at Function.process_params (/workspace/node_modules/express/lib/router/index.js:346:12)
-    at next (/workspace/node_modules/express/lib/router/index.js:280:10)
-    at Function.handle (/workspace/node_modules/express/lib/router/index.js:175:3)
-Admin token validation error: SyntaxError: Unexpected token '�', "�{ږ'" is not valid JSON
-    at JSON.parse (<anonymous>)
-    at exports.auth (/workspace/middleware/auth.js:115:30)
-    at Layer.handle [as handle_request] (/workspace/node_modules/express/lib/router/layer.js:95:5)
-    at next (/workspace/node_modules/express/lib/router/route.js:149:13)
-    at Route.dispatch (/workspace/node_modules/express/lib/router/route.js:119:3)
-    at Layer.handle [as handle_request] (/workspace/node_modules/express/lib/router/layer.js:95:5)
-    at /workspace/node_modules/express/lib/router/index.js:284:15
-    at Function.process_params (/workspace/node_modules/express/lib/router/index.js:346:12)
-    at next (/workspace/node_modules/express/lib/router/index.js:280:10)
-    at Function.handle (/workspace/node_modules/express/lib/router/index.js:175:3)
+📊 Environment: development
+✅ MongoDB Connected: ac-nayprdv-shard-00-02.enemcot.mongodb.net
+✅ Application initialized successfully
