@@ -2066,14 +2066,24 @@
       
       const num = parseInt(cell.dataset.num);
       
-      if(game.calledNumbers.includes(num)) {
-        Sound.click();
-        cell.classList.toggle('marked');
-        game.markedState[row][col] = cell.classList.contains('marked');
-        updateMatchesCount();
+      // Use socket to mark number if available
+      if (socket && socket.connected) {
+        socket.emit('mark-number', { 
+          sessionId: game.sessionId, 
+          row, 
+          col 
+        });
       } else {
-        showToast('Number not called yet!', 'error');
-        Sound.error();
+        // Fallback to local marking
+        if(game.calledNumbers.includes(num)) {
+          Sound.click();
+          cell.classList.toggle('marked');
+          game.markedState[row][col] = cell.classList.contains('marked');
+          updateMatchesCount();
+        } else {
+          showToast('Number not called yet!', 'error');
+          Sound.error();
+        }
       }
     }
 
@@ -2177,6 +2187,14 @@
 
     function checkForBingo() {
       const game = AppState.game;
+      
+      // Use socket to claim bingo if available
+      if (socket && socket.connected && game.sessionId) {
+        socket.emit('claim-bingo', { sessionId: game.sessionId });
+        return;
+      }
+      
+      // Fallback to local checking
       let won = false;
       
       for(let i = 0; i < 5; i++) {
@@ -2200,10 +2218,13 @@
       
       if(won) {
         handleWin();
+      } else {
+        showToast('No bingo pattern detected!', 'error');
+        Sound.error();
       }
     }
 
-    async function handleWin() {
+    async function handleWin(winningsOverride, pattern) {
       const game = AppState.game;
       stopAutoPlay();
       
@@ -2215,11 +2236,11 @@
         colors: ['#009b3a', '#fed105', '#ef3340']
       });
       
-      const roomAmount = game.roomAmount || 20;
-      const winnings = Math.floor(roomAmount * 0.85 * 5);
+      const winnings = winningsOverride || Math.floor((game.roomAmount || 20) * 0.85 * 5);
+      const winPattern = pattern || 'Full House';
       
       showWinnerAnnouncement(AppState.user?.name || 'Player', winnings);
-      showToast(`🎉 You won ${winnings} ETB!`, 'success');
+      showToast(`🎉 You won ${winnings} ETB! Pattern: ${winPattern}`, 'success');
       
       setTimeout(() => {
         showPage('lobby');
@@ -2228,6 +2249,13 @@
 
     function exitGame() {
       stopAutoPlay();
+      
+      // Disconnect socket
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+      }
+      
       AppState.game.isGameActive = false;
       showPage('lobby');
     }
