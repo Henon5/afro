@@ -23,6 +23,7 @@ const userRoutes = require('./routes/user');
 const gameRoutes = require('./routes/game');
 const transactionRoutes = require('./routes/transaction');
 const adminRoutes = require('./routes/admin');
+const cartelRoutes = require('./routes/cartel');
 
 const app = express();
 
@@ -123,6 +124,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/game', gameRoutes);
 app.use('/api/transaction', transactionRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/cartel', cartelRoutes);
 
 /**
  * Static file serving

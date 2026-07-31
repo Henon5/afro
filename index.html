@@ -1533,7 +1533,7 @@
     // ============================================
     // 🎫 CARTEL PAGE (Select Number Before Game)
     // ============================================
-    function renderCartelPage(container) {
+    async function renderCartelPage(container) {
       const roomAmount = AppState.game.roomAmount || 20;
       
       container.innerHTML = `
@@ -1549,16 +1549,11 @@
             This will be your lucky number for this round!
           </p>
           
-          <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; max-width:400px; margin:0 auto 25px;">
-            ${Array.from({length: 75}, (_, i) => i + 1).map(num => `
-              <button 
-                class="btn btn-outline cartel-number-btn" 
-                onclick="selectCartelNumber(${num})"
-                style="padding:12px 8px; font-size:1rem; font-weight:700;"
-              >
-                ${num}
-              </button>
-            `).join('')}
+          <div id="cartel-number-grid" style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; max-width:400px; margin:0 auto 25px;">
+            <div class="waiting-screen">
+              <div class="spinner"></div>
+              <p>Loading numbers...</p>
+            </div>
           </div>
           
           <button class="btn btn-outline" onclick="showPage('lobby')" style="max-width:200px; margin:0 auto;">
@@ -1566,17 +1561,87 @@
           </button>
         </div>
       `;
+      
+      // Load available rooms and render number grid
+      try {
+        const response = await fetch('/api/cartel/rooms', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          const gridEl = document.getElementById('cartel-number-grid');
+          gridEl.innerHTML = Array.from({length: 75}, (_, i) => i + 1).map(num => `
+            <button 
+              class="btn btn-outline cartel-number-btn" 
+              onclick="selectCartelNumber(${num})"
+              style="padding:12px 8px; font-size:1rem; font-weight:700;"
+            >
+              ${num}
+            </button>
+          `).join('');
+        }
+      } catch (err) {
+        console.error('Failed to load cartel rooms:', err);
+        // Render grid anyway for demo/fallback
+        const gridEl = document.getElementById('cartel-number-grid');
+        gridEl.innerHTML = Array.from({length: 75}, (_, i) => i + 1).map(num => `
+          <button 
+            class="btn btn-outline cartel-number-btn" 
+            onclick="selectCartelNumber(${num})"
+            style="padding:12px 8px; font-size:1rem; font-weight:700;"
+          >
+            ${num}
+          </button>
+        `).join('');
+      }
     }
 
     function selectCartelNumber(number) {
       AppState.game.selectedNumber = number;
-      showToast(`Selected number: ${number}`, 'success');
-      Sound.success();
       
-      // Store the selected number and navigate to game room
-      setTimeout(() => {
-        showPage('bingo');
-      }, 500);
+      // Call backend API to select number and join game
+      fetch('/api/cartel/select', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ 
+          number: number,
+          roomAmount: AppState.game.roomAmount || 20
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          showToast(`Number ${number} selected! Joining game...`, 'success');
+          Sound.success();
+          
+          // Store game session data
+          AppState.game.sessionId = data.game.sessionId;
+          AppState.game.cardGrid = data.game.cardGrid;
+          AppState.game.markedState = data.game.markedState;
+          AppState.game.calledNumbers = data.game.calledNumbers || [];
+          AppState.game.currentPool = data.game.currentPool;
+          AppState.game.playersCount = data.game.playersCount;
+          
+          // Navigate to bingo game page
+          setTimeout(() => {
+            showPage('bingo');
+          }, 500);
+        } else {
+          showToast(data.error || 'Failed to select number', 'error');
+          Sound.error();
+        }
+      })
+      .catch(err => {
+        console.error('Cartel selection error:', err);
+        showToast('Network error. Please try again.', 'error');
+        Sound.error();
+      });
     }
 
     // ============================================
