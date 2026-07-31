@@ -1,4 +1,3 @@
-```
-# Logs and temp files
-*.log
-```
+(index.html is a source file, so no need to add anything to .gitignore)
+
+# No changes needed - index.html is a source file
