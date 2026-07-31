@@ -378,6 +378,190 @@
       color: var(--dark);
     }
     
+    /* ========== CARTELA PAGE STYLES ========== */
+    .cartela-card {
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(4px);
+      border-radius: 3.5rem;
+      padding: 2.5rem 2.8rem 3rem 2.8rem;
+      box-shadow: 0 30px 50px -20px rgba(0, 20, 30, 0.3),
+                  inset 0 1px 2px rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      max-width: 750px;
+      width: 100%;
+      transition: 0.2s;
+      text-align: center;
+      margin: 0 auto;
+    }
+    
+    .cartela-title {
+      font-weight: 600;
+      font-size: 1.9rem;
+      letter-spacing: -0.02em;
+      color: #0b2a3b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.8rem;
+    }
+    
+    .cartela-badge {
+      background: #1d4e6b;
+      color: white;
+      font-size: 1rem;
+      font-weight: 500;
+      padding: 0.2rem 1rem;
+      border-radius: 50px;
+      letter-spacing: 0.3px;
+    }
+    
+    .cartela-grid {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 0.5rem;
+      margin: 1.8rem 0 2rem 0;
+    }
+    
+    .cartela-num-btn {
+      background: white;
+      border: 1px solid #d3e0ea;
+      border-radius: 60px;
+      aspect-ratio: 1 / 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 1rem;
+      color: #103d54;
+      cursor: pointer;
+      transition: 0.1s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+      padding: 0;
+      line-height: 1;
+    }
+    
+    .cartela-num-btn:hover {
+      background: #dcebf5;
+      border-color: #95b7cf;
+      transform: scale(1.02);
+      box-shadow: 0 4px 8px rgba(0, 20, 30, 0.08);
+    }
+    
+    .cartela-num-btn:active {
+      background: #b8d3e8;
+      transform: scale(0.95);
+    }
+    
+    .cartela-num-btn.selected {
+      background: #1f5a7a;
+      border-color: #1f5a7a;
+      color: white;
+      box-shadow: 0 4px 10px rgba(26, 80, 110, 0.3);
+    }
+    
+    .cartela-display-area {
+      background: #f0f6fc;
+      border-radius: 80px;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.8rem 1.5rem;
+      border: 1px solid #d2e0ec;
+      margin-top: 1.2rem;
+    }
+    
+    .cartela-chosen-box {
+      background: white;
+      border-radius: 60px;
+      padding: 0.25rem 1.8rem;
+      font-weight: 700;
+      font-size: 2rem;
+      min-width: 80px;
+      color: #062433;
+      border: 1px solid #c4d6e6;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+      text-align: center;
+    }
+    
+    .cartela-chosen-box.empty {
+      color: #7f9eb3;
+      font-weight: 400;
+      font-size: 1rem;
+    }
+    
+    .cartela-action-group {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    
+    .cartela-btn {
+      background: white;
+      border: 1px solid #c8dae8;
+      padding: 0.5rem 1.5rem;
+      border-radius: 60px;
+      font-weight: 500;
+      font-size: 0.95rem;
+      color: #12445e;
+      cursor: pointer;
+      transition: 0.1s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    
+    .cartela-btn-primary {
+      background: #1d5575;
+      border-color: #1d5575;
+      color: white;
+    }
+    
+    .cartela-btn-primary:hover {
+      background: #13415a;
+      border-color: #13415a;
+    }
+    
+    .cartela-btn-outline {
+      background: transparent;
+      border: 1px solid #b7cedf;
+    }
+    
+    .cartela-btn-outline:hover {
+      background: #e3eef9;
+    }
+    
+    .cartela-btn:active {
+      transform: scale(0.96);
+    }
+    
+    .cartela-btn:disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    
+    .cartela-counter {
+      font-size: 0.8rem;
+      background: #dbe8f2;
+      padding: 0.15rem 0.9rem;
+      border-radius: 40px;
+      color: #1b4a64;
+      font-weight: 500;
+    }
+    
+    @media (max-width: 600px) {
+      .cartela-card { padding: 1.8rem 1rem; border-radius: 2.5rem; }
+      .cartela-grid { gap: 0.35rem; }
+      .cartela-num-btn { font-size: 0.85rem; border-radius: 40px; }
+      .cartela-display-area { flex-direction: column; align-items: stretch; }
+      .cartela-chosen-box { font-size: 2.2rem; }
+    }
+    
     .btn-sm {
       padding: 10px 16px;
       font-size: 0.9rem;
@@ -1537,66 +1721,149 @@
       const roomAmount = AppState.game.roomAmount || 20;
       
       container.innerHTML = `
-        <div class="header">
-          <button class="header-btn" onclick="showPage('lobby')">←</button>
-          <h3>SELECT YOUR LUCKY NUMBER</h3>
-          <p>Room: ${roomAmount} ETB</p>
-        </div>
-        
-        <div style="text-align:center; padding:20px 15px;">
-          <p style="color:var(--gray); margin-bottom:20px; line-height:1.6;">
-            Choose a number between 1-75 to enter the game room.<br>
-            This will be your lucky number for this round!
-          </p>
-          
-          <div id="cartel-number-grid" style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; max-width:400px; margin:0 auto 25px;">
-            <div class="waiting-screen">
-              <div class="spinner"></div>
-              <p>Loading numbers...</p>
+        <div class="cartela-card">
+          <h1 class="cartela-title">
+            🎯 pick a number
+            <span class="cartela-badge">1–75</span>
+          </h1>
+
+          <!-- 1–75 grid -->
+          <div class="cartela-grid" id="cartelaNumberGrid"></div>
+
+          <!-- selected + controls -->
+          <div class="cartela-display-area">
+            <div class="cartela-chosen-box empty" id="cartelaSelectedDisplay">—</div>
+            <div class="cartela-action-group">
+              <button class="cartela-btn cartela-btn-primary" id="cartelaRandomBtn">🎲 random</button>
+              <button class="cartela-btn cartela-btn-outline" id="cartelaClearBtn">✕ clear</button>
             </div>
           </div>
+          <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.3rem;">
+            <span class="cartela-counter" id="cartelaCounterDisplay">0 selected</span>
+            <span style="font-size: 0.7rem; color: #4b6d84;">click any number · auto-select</span>
+          </div>
           
-          <button class="btn btn-outline" onclick="showPage('lobby')" style="max-width:200px; margin:0 auto;">
-            Cancel
-          </button>
+          <div style="margin-top: 1.5rem;">
+            <p style="color:var(--gray); margin-bottom:15px; line-height:1.6; font-size: 0.9rem;">
+              Choose your lucky number to enter the game room.<br>
+              Room entry: <b>${roomAmount} ETB</b>
+            </p>
+            <button class="cartela-btn cartela-btn-primary" id="cartelaJoinBtn" disabled style="width: 100%; max-width: 300px;">
+              Join Game Room →
+            </button>
+            <button class="cartela-btn cartela-btn-outline" onclick="showPage('lobby')" style="width: 100%; max-width: 300px; margin-top: 8px;">
+              Cancel
+            </button>
+          </div>
         </div>
       `;
       
-      // Load available rooms and render number grid
-      try {
-        const response = await fetch('/api/cartel/rooms', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        const data = await response.json();
-        
-        if (data.success) {
-          const gridEl = document.getElementById('cartel-number-grid');
-          gridEl.innerHTML = Array.from({length: 75}, (_, i) => i + 1).map(num => `
-            <button 
-              class="btn btn-outline cartel-number-btn" 
-              onclick="selectCartelNumber(${num})"
-              style="padding:12px 8px; font-size:1rem; font-weight:700;"
-            >
-              ${num}
-            </button>
-          `).join('');
+      // State for cartela page
+      let cartelaSelectedNumber = null;
+      
+      const grid = document.getElementById('cartelaNumberGrid');
+      const selectedDisplay = document.getElementById('cartelaSelectedDisplay');
+      const counterDisplay = document.getElementById('cartelaCounterDisplay');
+      const randomBtn = document.getElementById('cartelaRandomBtn');
+      const clearBtn = document.getElementById('cartelaClearBtn');
+      const joinBtn = document.getElementById('cartelaJoinBtn');
+
+      // Render 1..75 grid
+      function buildGrid() {
+        grid.innerHTML = '';
+        for (let i = 1; i <= 75; i++) {
+          const btn = document.createElement('button');
+          btn.className = 'cartela-num-btn';
+          btn.textContent = i;
+          btn.dataset.value = i;
+          btn.addEventListener('click', function(e) {
+            const val = parseInt(this.dataset.value, 10);
+            selectNumber(val);
+          });
+          grid.appendChild(btn);
         }
-      } catch (err) {
-        console.error('Failed to load cartel rooms:', err);
-        // Render grid anyway for demo/fallback
-        const gridEl = document.getElementById('cartel-number-grid');
-        gridEl.innerHTML = Array.from({length: 75}, (_, i) => i + 1).map(num => `
-          <button 
-            class="btn btn-outline cartel-number-btn" 
-            onclick="selectCartelNumber(${num})"
-            style="padding:12px 8px; font-size:1rem; font-weight:700;"
-          >
-            ${num}
-          </button>
-        `).join('');
       }
+
+      // Update UI from state
+      function refreshUI() {
+        // update all buttons (highlight selected)
+        const buttons = grid.querySelectorAll('.cartela-num-btn');
+        buttons.forEach(btn => {
+          const val = parseInt(btn.dataset.value, 10);
+          btn.classList.toggle('selected', (cartelaSelectedNumber === val));
+        });
+
+        // update display
+        if (cartelaSelectedNumber !== null) {
+          selectedDisplay.textContent = cartelaSelectedNumber;
+          selectedDisplay.classList.remove('empty');
+          joinBtn.disabled = false;
+        } else {
+          selectedDisplay.textContent = '—';
+          selectedDisplay.classList.add('empty');
+          joinBtn.disabled = true;
+        }
+
+        // update counter
+        const count = (cartelaSelectedNumber !== null) ? 1 : 0;
+        counterDisplay.textContent = `${count} selected`;
+      }
+
+      // Select a number
+      function selectNumber(num) {
+        if (num < 1 || num > 75) return;
+        if (cartelaSelectedNumber === num) {
+          // Keep it selected
+        } else {
+          cartelaSelectedNumber = num;
+        }
+        refreshUI();
+      }
+
+      // Random selection
+      function selectRandom() {
+        const randomNum = Math.floor(Math.random() * 75) + 1;
+        cartelaSelectedNumber = randomNum;
+        refreshUI();
+      }
+
+      // Clear selection
+      function clearSelection() {
+        cartelaSelectedNumber = null;
+        refreshUI();
+      }
+
+      // Join game
+      function joinGame() {
+        if (cartelaSelectedNumber === null) return;
+        
+        selectCartelNumber(cartelaSelectedNumber);
+      }
+
+      // Init
+      buildGrid();
+      cartelaSelectedNumber = null;
+      refreshUI();
+
+      // Event listeners
+      randomBtn.addEventListener('click', selectRandom);
+      clearBtn.addEventListener('click', clearSelection);
+      joinBtn.addEventListener('click', joinGame);
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'r' || e.key === 'R') {
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            selectRandom();
+          }
+        } else if (e.key === 'c' || e.key === 'C') {
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            clearSelection();
+          }
+        }
+      });
     }
 
     function selectCartelNumber(number) {
